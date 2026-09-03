@@ -25,10 +25,11 @@ jobs:
       - name: Install Poetry
         run: pipx install poetry
 
+      # No dependency cache: this repo git-ignores poetry.lock, so setup-python's
+      # `cache: poetry` has no lockfile to key on.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: poetry
 
       - name: Install workspace + docs dependencies
         run: poetry install --with docs
