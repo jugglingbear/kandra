@@ -1,0 +1,108 @@
+# Minimal Kandra manifest for a GoPro camera.
+#
+# Audience: one device, one command -- shutter start/stop -- exposed over
+# both BLE (Open GoPro Control & Query service) and HTTP (Open GoPro v2
+# REST API over Wi-Fi). This is intentionally the smallest manifest that
+# is still wire-accurate against a real camera.
+#
+# Why two commands instead of one ``shutter`` with a boolean? Because
+# the wire encoding genuinely differs: HTTP uses two distinct paths
+# (``/shutter/start`` vs ``/shutter/stop``) and BLE uses two distinct
+# TLV payloads (``\x03\x01\x01\x01`` vs ``\x03\x01\x01\x00``). Modeling
+# them as separate commands keeps the manifest declarative; a thin
+# ``def set_shutter(on: bool)`` convenience can wrap the two on the
+# client side.
+
+schema_version: 1
+
+device:
+  id: gopro
+  display_name: GoPro Camera
+  # Open GoPro v2.0 firmware floor (HERO 9 Black and newer).
+  firmware_min: "2.0.0"
+  audience: [internal]
+
+source_roots:
+  - src
+
+transports:
+  # --- BLE -----------------------------------------------------------
+  # Open GoPro "Control & Query Service" (a.k.a. the "Wireless Control
+  # Service"). The command channel write/notify pair handles set-shutter,
+  # power, etc.; the query channel pair (not used here) handles
+  # get-state / register-for-updates.
+  - id: ble
+    family: ble
+    adapter: gopro_sdk.transports.ble:BleakAdapter
+    codec: gopro_sdk.codecs.gopro_tlv:GoProTlv
+    capabilities: { mtu: 244, notifications: true }
+    channels:
+      command:
+        write:  "b5f90072-aa8d-11e3-9046-0002a5d5c51b"
+        notify: "b5f90073-aa8d-11e3-9046-0002a5d5c51b"
+
+  # --- HTTP / Wi-Fi --------------------------------------------------
+  # Default station-mode IP when the camera is the AP. The probe path
+  # ``/gopro/camera/state`` is the canonical "is this a GoPro?" check
+  # used by the official Open GoPro tutorials.
+  - id: http
+    family: http
+    adapter: gopro_sdk.transports.http:HttpxAdapter
+    codec: gopro_sdk.codecs.gopro_json:GoProJson
+    config: { base_url: "http://10.5.5.9:8080" }
+
+commands:
+  - id: shutter.start
+    handler: gopro_sdk.handlers.shutter:Start
+    transports: [ble, http]
+    audience: [internal]
+    timeout: 5.0
+    idempotent: true   # pressing start while recording is a no-op
+    http:
+      http:
+        method: GET
+        path: /gopro/camera/shutter/start
+        body_codec: none
+        response_codec: json   # camera returns ``{}`` on success
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+  - id: shutter.stop
+    handler: gopro_sdk.handlers.shutter:Stop
+    transports: [ble, http]
+    audience: [internal]
+    timeout: 5.0
+    idempotent: true
+    http:
+      http:
+        method: GET
+        path: /gopro/camera/shutter/stop
+        body_codec: none
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+discovery:
+  ble:
+    # GoPro cameras advertise as "GoPro 1234" where 1234 is the last
+    # four digits of the serial. The 16-bit ``fea6`` is GoPro Inc.'s
+    # assigned Bluetooth SIG service UUID -- present in every Open
+    # GoPro advertisement and the most reliable filter.
+    name_prefix: "GoPro "
+    service_uuids:
+      - "0000fea6-0000-1000-8000-00805f9b34fb"
+  http:
+    # When the camera is its own AP the client is at 10.5.5.100 and the
+    # camera is at 10.5.5.9. When the camera is in station mode (joined
+    # the user's Wi-Fi) the IP is whatever DHCP gave it -- discover via
+    # mDNS or pass an override via ``scan_http(base_urls=...)``.
+    base_urls:
+      - "http://10.5.5.9:8080"
+    probe_path: "/gopro/camera/state"
+    server_header_prefix: "GoPro"
