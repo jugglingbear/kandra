@@ -1,0 +1,24 @@
+"""Stub ``device.ping`` handler — replace with real device logic."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class PingRequest:
+    """Args for ``device.ping`` (none by default)."""
+
+
+@dataclass(frozen=True)
+class PingResponse:
+    """Reply from ``device.ping``."""
+
+    ok: bool = True
+
+
+class Ping:
+    """Liveness check. Sends a no-op request and expects a trivial ack."""
+
+    request = PingRequest
+    response = PingResponse

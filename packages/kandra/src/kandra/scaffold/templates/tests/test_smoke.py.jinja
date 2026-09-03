@@ -1,0 +1,22 @@
+"""Smoke test: the bundled manifest must validate."""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_manifest_validates() -> None:
+    """`kandra validate kandra.yaml` exits 0."""
+    result = subprocess.run(
+        [sys.executable, "-m", "kandra.cli", "validate", str(REPO_ROOT / "kandra.yaml")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"kandra validate failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )

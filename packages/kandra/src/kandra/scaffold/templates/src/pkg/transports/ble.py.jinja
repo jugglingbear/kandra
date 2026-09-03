@@ -1,0 +1,12 @@
+"""BLE adapter — wraps :class:`kandra_runtime.ble_transport.BleTransport`.
+
+Customize ``BleAdapter`` to override capabilities (MTU, write/notify
+routing) for your device. By default it just re-exports the runtime
+transport so the generated SDK has something to construct.
+"""
+
+from __future__ import annotations
+
+from kandra_runtime.ble_transport import BleTransport as BleAdapter
+
+__all__ = ["BleAdapter"]

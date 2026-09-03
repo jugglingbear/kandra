@@ -1,0 +1,36 @@
+# {{ project_name }}
+
+A kandra-generated SDK for **{{ display_name }}**.{# TODO: link kandra to its repo when public #}
+
+## Quick start
+
+```bash
+poetry install
+poetry run kandra validate kandra.yaml   # sanity-check the manifest
+poetry run kandra build kandra.yaml      # generate the client SDK into dist/
+poetry run pytest                        # run the smoke test
+```
+
+## What's in here
+
+| Path | Purpose |
+|------|---------|
+| `kandra.yaml` | The manifest — single source of truth for transports, commands, etc. |
+| `src/{{ package_name }}/handlers/` | One Python class per command. Edit these to add device logic. |
+| `src/{{ package_name }}/codecs/` | Encoder/decoder for on-the-wire payloads. |
+| `src/{{ package_name }}/transports/` | Thin adapter wrappers around `kandra-runtime` transports. |
+| `examples/connect.py` | Tiny example showing how to construct + call the generated client. |
+| `tests/test_smoke.py` | Validates the manifest on every test run. |
+
+## Transports
+
+{% for t in transports -%}
+- **{{ t.family }}** ({{ t.wire_format }}){% if t.base_url %} — base URL `{{ t.base_url }}`{% endif %}{% if t.service_uuid %} — service UUID `{{ t.service_uuid }}`{% endif %}
+{% endfor %}
+
+## Next steps
+
+1. Replace placeholder values in `kandra.yaml` (look for `TODO`).
+2. Fill out the request/response dataclasses in `src/{{ package_name }}/handlers/`.
+3. Add more commands by adding a handler module + a `commands:` entry to the manifest.
+4. Re-run `poetry run kandra build kandra.yaml` to regenerate the client.

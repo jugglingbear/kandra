@@ -1,0 +1,72 @@
+# Manifest for {{ display_name }}.
+# Validates with `kandra validate kandra.yaml`.
+# Generates a Python client with `kandra build kandra.yaml`.
+# Replace TODOs with real values for your device.
+
+schema_version: 1
+
+device:
+  id: {{ device_id }}
+  display_name: {{ display_name }}
+  audience: [{{ audience | join(", ") }}]
+
+source_roots:
+  - src
+
+transports:
+{%- for t in transports %}
+  - id: {{ t.id }}
+    adapter: {{ t.adapter }}
+    codec: {{ t.codec }}
+    family: {{ t.family }}
+  {%- if t.family == "http" %}
+    config: { base_url: "{{ t.base_url or 'http://192.168.1.1:8080' }}" }
+  {%- elif t.family == "ble" %}
+    capabilities: { mtu: 244, notifications: true }
+    channels:
+      command: { write: "{{ t.service_uuid }}", notify: "{{ t.service_uuid }}" }
+  {%- endif %}
+{%- endfor %}
+
+commands:
+  # TODO: replace this stub with your real commands.
+  - id: device.ping
+    handler: {{ handler_dotted }}
+    transports: [{{ transport_ids | join(", ") }}]
+    audience: [{{ audience | join(", ") }}]
+    timeout: 5.0
+    idempotent: true
+  {%- if command_http %}
+    http:
+    {%- for t in command_http %}
+      {{ t.id }}:
+        method: GET
+        path: /v1/ping
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    {%- endfor %}
+  {%- endif %}
+  {%- if command_ble %}
+    ble:
+    {%- for t in command_ble %}
+      {{ t.id }}:
+        channel: command
+        expects_response: true
+    {%- endfor %}
+  {%- endif %}
+
+# Optional: kandra can generate discovery scanners. Uncomment + customize.
+# discovery:
+{%- if command_ble %}
+#   ble:
+#     name_prefix: "{{ transports[0].name_prefix or display_name }}"
+#     service_uuids:
+#       - "{{ transports[0].service_uuid }}"
+{%- endif %}
+{%- if command_http %}
+#   http:
+#     base_urls:
+#       - "{{ (command_http[0]).base_url }}"
+#     probe_path: "/"
+{%- endif %}

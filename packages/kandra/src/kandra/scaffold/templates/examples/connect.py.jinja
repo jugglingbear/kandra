@@ -1,0 +1,21 @@
+"""Tiny example: construct the generated client and call device.ping.
+
+Run after ``poetry run kandra build kandra.yaml``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+
+async def main() -> None:
+    """Stub — fill in once you've built the SDK."""
+    # from {{ device_id }}_sdk.client import {{ device_id | replace("_", " ") | title | replace(" ", "") }}Client
+    # client = ...Client(transports=[...])
+    # async with client:
+    #     await client.device.ping()
+    print("TODO: build the SDK (`make build`) and uncomment the lines above.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

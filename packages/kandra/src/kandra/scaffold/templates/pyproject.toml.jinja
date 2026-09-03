@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "{{ slug }}"
+version = "0.1.0"
+description = "Generated SDK for {{ display_name }}."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "{{ package_name }}", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = "^{{ python_version }}"
+# kandra / kandra-runtime are not yet on PyPI. These dependencies were
+# generated for the "{{ answers.dependency_source }}" source: a local editable
+# path dep installs immediately, while a "*" version constraint is a placeholder
+# until the packages are published. Replace with a real version (e.g. "^0.1.0")
+# once they're released.
+kandra = {{ kandra_dep }}
+kandra-runtime = {{ kandra_runtime_dep }}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+ruff = "^0.5"
+mypy = "^1.10"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+target-version = "py{{ python_version | replace('.', '') }}"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "RUF", "SIM"]
+
+[tool.mypy]
+python_version = "{{ python_version }}"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

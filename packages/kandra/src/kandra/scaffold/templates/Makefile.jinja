@@ -1,0 +1,39 @@
+# {{ project_name }} — Makefile
+# Type "make" (or "make help") to see available targets.
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help:  ## Show this help message
+	@printf "\n\033[1m{{ project_name }} — available targets:\033[0m\n"
+	@awk 'BEGIN {FS = ":.*?## "} \
+		/^##@ / { printf "\n\033[1;35m%s\033[0m\n", substr($$0, 5); next } \
+		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }' \
+		$(MAKEFILE_LIST)
+	@printf "\n"
+
+.PHONY: install
+install:  ## Install dependencies into a Poetry-managed venv
+	poetry install
+
+.PHONY: validate
+validate:  ## Validate the kandra manifest
+	poetry run kandra validate kandra.yaml
+
+.PHONY: build
+build:  ## Regenerate the client SDK in dist/
+	poetry run kandra build kandra.yaml --clean
+
+.PHONY: test
+test:  ## Run the test suite
+	poetry run pytest -v
+
+.PHONY: lint
+lint:  ## Run ruff + mypy
+	poetry run ruff check src tests
+	poetry run mypy src
+
+.PHONY: clean
+clean:  ## Remove caches and generated SDK output
+	rm -rf dist .pytest_cache .ruff_cache .mypy_cache
+	find . -type d -name __pycache__ -exec rm -rf {} +
