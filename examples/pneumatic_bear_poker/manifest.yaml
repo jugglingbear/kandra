@@ -125,8 +125,11 @@ commands:
         expects_response: true
 
 vendoring:
-  # Pulled in dynamically at runtime, so the import-closure walker misses it.
-  extra_include: [devices/pneumatic_bear_poker/handlers/super_important.py]
+  # extra_include takes a file, a whole directory, or a glob (relative to a
+  # source_root) -- for code or assets the static import walker can't discover.
+  extra_include:
+    - devices/pneumatic_bear_poker/handlers/super_important.py  # dynamically imported module
+    - devices/pneumatic_bear_poker/assets/  # whole directory of runtime data files
   # Internal bench tooling -- keep it out of every shipped SDK.
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 

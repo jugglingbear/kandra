@@ -52,8 +52,11 @@ commands:
     idempotent: true
 
 vendoring:
-  # Pulled in dynamically at runtime, so the import-closure walker misses it.
-  extra_include: [devices/pneumatic_bear_poker/handlers/super_important.py]
+  # extra_include takes a file, a whole directory, or a glob (relative to a
+  # source_root) -- for code or assets the static import walker can't discover.
+  extra_include:
+    - devices/pneumatic_bear_poker/handlers/super_important.py  # dynamically imported module
+    - devices/pneumatic_bear_poker/assets/  # whole directory of runtime data files
   # Internal bench tooling -- keep it out of every shipped SDK.
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 ```
@@ -61,7 +64,8 @@ vendoring:
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
 
-The `vendoring` block tunes the import-closure walker with **paths relative to a `source_root`** (globs allowed) —
-**not** dotted class names. `extra_include` force-vendors files the static walker can't reach (for example a module
-pulled in via a dynamic `import`), and `exclude` drops files from the shipped SDK. This is a **planned** feature: the
-manifest accepts these keys today, but the generator does not act on them yet.
+The `vendoring` block tunes the import-closure walker. Each `extra_include` / `exclude` entry is a path relative to a
+`source_root` and may be a single **file**, a whole **directory**, or a **glob** — never a dotted class name.
+`extra_include` force-vendors code or data the static walker can't reach (a dynamically imported module, a directory of
+runtime assets), and `exclude` drops files from the shipped SDK. This is a **planned** feature: the manifest accepts
+these keys today, but the generator does not act on them yet.

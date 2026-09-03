@@ -1,0 +1,5 @@
+{
+  "gentle": { "pressure_psi": 20, "hold_ms": 250 },
+  "standard": { "pressure_psi": 42, "hold_ms": 500 },
+  "assertive": { "pressure_psi": 80, "hold_ms": 750 }
+}
