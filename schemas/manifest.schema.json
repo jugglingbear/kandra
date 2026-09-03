@@ -1,0 +1,702 @@
+{
+  "$defs": {
+    "Attribute": {
+      "additionalProperties": false,
+      "description": "Named device-state primitive: read / write / subscribe.\n\nThe loader rejects manifests that contain attribute entries until the\nruntime implementation lands.",
+      "properties": {
+        "audience": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Handler"
+        },
+        "http_subscribe": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Http Subscribe"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "enum": [
+              "read",
+              "write",
+              "subscribe"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Operations",
+          "type": "array"
+        },
+        "transports": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Transports",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "handler",
+        "transports",
+        "operations",
+        "audience"
+      ],
+      "title": "Attribute",
+      "type": "object"
+    },
+    "BleChannelSpec": {
+      "additionalProperties": false,
+      "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nSee kandra.md section 11.9. Channels live on the *transport*; commands\nselect one via ``ble.<transport_id>.channel``.",
+      "properties": {
+        "notify": {
+          "minLength": 1,
+          "title": "Notify",
+          "type": "string"
+        },
+        "write": {
+          "minLength": 1,
+          "title": "Write",
+          "type": "string"
+        }
+      },
+      "required": [
+        "write",
+        "notify"
+      ],
+      "title": "BleChannelSpec",
+      "type": "object"
+    },
+    "BleCommandSpec": {
+      "additionalProperties": false,
+      "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's\n``channels:`` map. See kandra.md section 11.9.",
+      "properties": {
+        "channel": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Channel",
+          "type": "string"
+        },
+        "expects_response": {
+          "default": true,
+          "title": "Expects Response",
+          "type": "boolean"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "title": "BleCommandSpec",
+      "type": "object"
+    },
+    "BleDiscoverySpec": {
+      "additionalProperties": false,
+      "description": "Match criteria for a BLE advertisement (all fields optional, AND'd).\n\nSee kandra.md section 8. Generated SDK emits a\n``default_ble_matcher(candidate)`` that returns ``True`` only when\nevery present criterion matches the advertisement.",
+      "properties": {
+        "manufacturer_id": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manufacturer Id"
+        },
+        "name_prefix": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name Prefix"
+        },
+        "service_uuids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Service Uuids",
+          "type": "array"
+        }
+      },
+      "title": "BleDiscoverySpec",
+      "type": "object"
+    },
+    "Command": {
+      "additionalProperties": false,
+      "description": "One request/response operation against the device.",
+      "properties": {
+        "audience": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "ble": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/BleCommandSpec"
+            }
+          },
+          "title": "Ble",
+          "type": "object"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Handler"
+        },
+        "http": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/HttpCommandSpec"
+            }
+          },
+          "title": "Http",
+          "type": "object"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "idempotent": {
+          "default": false,
+          "title": "Idempotent",
+          "type": "boolean"
+        },
+        "opcode": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opcode"
+        },
+        "retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "session_required": {
+          "default": false,
+          "title": "Session Required",
+          "type": "boolean"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "transports": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Transports",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "handler",
+        "transports",
+        "audience"
+      ],
+      "title": "Command",
+      "type": "object"
+    },
+    "Device": {
+      "additionalProperties": false,
+      "description": "Metadata for the target device.",
+      "properties": {
+        "audience": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "display_name": {
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "firmware_min": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware Min"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "display_name",
+        "audience"
+      ],
+      "title": "Device",
+      "type": "object"
+    },
+    "DiscoverySpec": {
+      "additionalProperties": false,
+      "description": "Optional top-level discovery configuration.\n\nLists at least one transport-family sub-block. Each present sub-block\ndrives generation of a corresponding ``make_<family>_scanner()`` and\n``default_<family>_matcher()`` in the SDK's ``scanners.py`` module.",
+      "properties": {
+        "ble": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BleDiscoverySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "http": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpDiscoverySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DiscoverySpec",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "description": "Stateless device emission primitive: subscribe-only stream.\n\nReserved; same handling as `Attribute`.",
+      "properties": {
+        "audience": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Handler"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "transports": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Transports",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "handler",
+        "transports",
+        "audience"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "HttpCommandSpec": {
+      "additionalProperties": false,
+      "description": "Per-(command, http-transport) wire-format and behavior block.\n\nSee kandra.md section 11.1 (envelope shape) and 11.3\n(``expects_response``).",
+      "properties": {
+        "body_codec": {
+          "default": "json",
+          "enum": [
+            "json",
+            "none"
+          ],
+          "title": "Body Codec",
+          "type": "string"
+        },
+        "expects_response": {
+          "default": true,
+          "title": "Expects Response",
+          "type": "boolean"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "query_from_request": {
+          "default": false,
+          "title": "Query From Request",
+          "type": "boolean"
+        },
+        "response_codec": {
+          "default": "json",
+          "enum": [
+            "json",
+            "none"
+          ],
+          "title": "Response Codec",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "method",
+        "path"
+      ],
+      "title": "HttpCommandSpec",
+      "type": "object"
+    },
+    "HttpDiscoverySpec": {
+      "additionalProperties": false,
+      "description": "Probe-list configuration for HTTP discovery.\n\nUnlike BLE, HTTP discovery has nothing to listen for \u2014 the scanner\nmust be told which URLs to probe. ``base_urls`` is therefore\nrequired whenever this sub-block is present.",
+      "properties": {
+        "base_urls": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Base Urls",
+          "type": "array"
+        },
+        "probe_path": {
+          "default": "/",
+          "minLength": 1,
+          "title": "Probe Path",
+          "type": "string"
+        },
+        "server_header_prefix": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Server Header Prefix"
+        }
+      },
+      "required": [
+        "base_urls"
+      ],
+      "title": "HttpDiscoverySpec",
+      "type": "object"
+    },
+    "Transport": {
+      "additionalProperties": false,
+      "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\nThe optional ``family`` field tags the transport for cross-validation:\nwhen set, commands riding this transport must supply the matching\nper-transport block (``http:`` for ``family=http``, ``ble:`` for\n``family=ble``). Loopback / unknown / null transports impose no such\nrequirement (this preserves the lightweight test-fixture style used\nin unit tests).",
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "auth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransportAuth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "capabilities": {
+          "additionalProperties": true,
+          "title": "Capabilities",
+          "type": "object"
+        },
+        "channels": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/BleChannelSpec"
+            }
+          },
+          "title": "Channels",
+          "type": "object"
+        },
+        "codec": {
+          "title": "Codec",
+          "type": "string"
+        },
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "enum": [
+                "loopback",
+                "http",
+                "ble"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "adapter",
+        "codec"
+      ],
+      "title": "Transport",
+      "type": "object"
+    },
+    "TransportAuth": {
+      "additionalProperties": false,
+      "description": "Optional per-transport handshake recipe for session-required commands.",
+      "properties": {
+        "handler": {
+          "title": "Handler",
+          "type": "string"
+        }
+      },
+      "required": [
+        "handler"
+      ],
+      "title": "TransportAuth",
+      "type": "object"
+    },
+    "Vendoring": {
+      "additionalProperties": false,
+      "description": "Explicit overrides for the import-closure walker.\n\nThe walker auto-discovers most files; these knobs handle edge cases\n(dynamic imports, intentionally vendored extras, exclusions).",
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude",
+          "type": "array"
+        },
+        "extra_include": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Include",
+          "type": "array"
+        }
+      },
+      "title": "Vendoring",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level manifest: one device, its transports, and its operations.",
+  "properties": {
+    "attributes": {
+      "items": {
+        "$ref": "#/$defs/Attribute"
+      },
+      "title": "Attributes",
+      "type": "array"
+    },
+    "commands": {
+      "items": {
+        "$ref": "#/$defs/Command"
+      },
+      "title": "Commands",
+      "type": "array"
+    },
+    "device": {
+      "$ref": "#/$defs/Device"
+    },
+    "discovery": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiscoverySpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "schema_version": {
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_roots": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Source Roots",
+      "type": "array"
+    },
+    "transports": {
+      "items": {
+        "$ref": "#/$defs/Transport"
+      },
+      "minItems": 1,
+      "title": "Transports",
+      "type": "array"
+    },
+    "vendoring": {
+      "$ref": "#/$defs/Vendoring"
+    }
+  },
+  "required": [
+    "schema_version",
+    "device",
+    "source_roots",
+    "transports"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}
