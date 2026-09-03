@@ -1,0 +1,42 @@
+# Pre-commit hooks for the Kandra monorepo.
+#
+# Install once per clone:
+#     make precommit-install
+#
+# Run on demand:
+#     make precommit          # all files
+#     pre-commit run --files <paths>
+#
+# Most hooks are stock; the schema-regen hook is local because it must
+# call the package's own CLI.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Regenerate schemas/manifest.schema.json whenever the Pydantic models
+  # (or the CLI) change. The hook re-stages the file so the resulting
+  # commit always has the up-to-date schema beside the code change.
+  - repo: local
+    hooks:
+      - id: regenerate-manifest-schema
+        name: regenerate manifest JSON schema
+        language: system
+        entry: bash -c 'poetry run kandra schema > schemas/manifest.schema.json && git add schemas/manifest.schema.json'
+        files: '^(packages/kandra/src/kandra/loader\.py|packages/kandra/src/kandra/cli\.py)$'
+        pass_filenames: false

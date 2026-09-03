@@ -1,0 +1,82 @@
+[tool.poetry]
+name = "kandra-monorepo"
+version = "0.0.0"
+description = "Workspace root for the kandra + kandra-runtime packages; not published."
+authors = ["Sean Foley"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# Both packages installed editable into one shared venv.
+kandra-runtime = { path = "packages/kandra-runtime", develop = true }
+kandra = { path = "packages/kandra", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+# Shared dev tooling -- same versions across both packages so we never
+# get "passes locally, fails in CI" drift.
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+pytest-cov = "^7.1.0"
+ruff = "^0.5"
+mypy = "^1.10"
+pre-commit = "^3.7"
+# Integration-test stack (gated by `@pytest.mark.integration`).
+testcontainers = { version = "^4.7", extras = ["core"] }
+flask = "^3.0"
+
+[tool.poetry.group.docs.dependencies]
+# Sphinx-based documentation site (Markdown-first via MyST, Furo theme,
+# Mermaid for sequence + class diagrams, autodoc-pydantic for rich
+# model rendering).
+sphinx = "^7.3"
+myst-parser = "^3.0"
+furo = "^2024.5"
+autodoc-pydantic = "^2.2"
+sphinxcontrib-mermaid = "^0.9"
+sphinx-autobuild = "^2024.4"
+sphinx-copybutton = "^0.5"
+sphinx-design = "^0.6"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "RUF", "SIM", "C90", "ANN", "D"]
+ignore = ["D100", "D104", "D203", "D213", "ANN101", "ANN102", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D", "ANN"]
+"scripts/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+# Workspace-level pytest discovers all three test buckets:
+#   - packages/kandra-runtime/tests/  (runtime-only)
+#   - packages/kandra/tests/          (generator + CLI)
+#   - tests/                          (cross-package end-to-end)
+testpaths = [
+    "tests",
+    "packages/kandra-runtime/tests",
+    "packages/kandra/tests",
+]
+asyncio_mode = "auto"
+# Slow integration tests (require Docker) are opt-in:
+#   poetry run pytest -m integration
+addopts = "-m 'not integration'"
+markers = [
+    "integration: spins real services (Docker containers) -- requires docker daemon",
+]
