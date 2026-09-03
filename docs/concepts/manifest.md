@@ -24,8 +24,7 @@ device:
   audience: [internal, partner_woodland]
 
 source_roots:
-  - src/devices/pneumatic_bear_poker
-  - src/common
+  - src
 
 transports:
   - id: ble
@@ -46,7 +45,7 @@ commands:
     idempotent: false
 
   - id: safety.emergency_retract
-    handler: null              # uses the default echo-and-decode handler
+    handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
     transports: [http, ble]
     audience: [internal, partner_woodland]
     timeout: 1.0
@@ -59,3 +58,8 @@ vendoring:
 
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
+
+The `vendoring` block tunes the import-closure walker with **paths relative to a `source_root`** (globs allowed) —
+**not** dotted class names. `extra_include` force-vendors files the static walker can't reach (for example a module
+pulled in via a dynamic `import`), and `exclude` drops files from the shipped SDK. This is a **planned** feature: the
+manifest accepts these keys today, but the generator does not act on them yet.
