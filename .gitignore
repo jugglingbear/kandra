@@ -17,8 +17,9 @@ htmlcov/
 .venv/
 poetry.lock
 
-# Editor
-.vscode/
+# Editor -- share workspace settings, ignore everything else under .vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 
