@@ -5,12 +5,14 @@ under a shared `src/devices/<device_id>/` tree plus `src/common/` for things lik
 across devices. The generator is invoked once per (manifest, audience) pair and produces a distinct SDK package each
 time, so N devices × M audiences = N × M shipped SDKs out of a single source repo.
 
-Kandra ships with one reference manifest: the **Pneumatic Bear Poker**, a fictional device whose sole job is to poke
-bears (pneumatically). It has one operational command (`poker.deploy`) and one safety command
-(`safety.emergency_retract`), exposed over BLE and HTTP to two audiences: the internal team and the `partner_woodland`
-partner.
+Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
+fictional device whose sole job is to poke bears (pneumatically). It has one operational command (`poker.deploy`) and
+one safety command (`safety.emergency_retract`), exposed over BLE and HTTP to two audiences: the internal team and the
+`partner_woodland` partner.
 
-A minimal manifest looks like this (see the full example in `examples/pneumatic_bear_poker/manifest.yaml`):
+A minimal manifest looks like this (see the full
+[Pneumatic Bear Poker example](https://github.com/jugglingbear/kandra/tree/main/examples/pneumatic_bear_poker) for the
+complete version):
 
 ```yaml
 schema_version: 1
@@ -39,14 +41,14 @@ commands:
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
     transports: [http, ble]
-    audience: [internal, partner_woodland, public]
+    audience: [internal, partner_woodland]
     timeout: 5.0
     idempotent: false
 
   - id: safety.emergency_retract
     handler: null              # uses the default echo-and-decode handler
     transports: [http, ble]
-    audience: [internal, partner_woodland, public]
+    audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
 

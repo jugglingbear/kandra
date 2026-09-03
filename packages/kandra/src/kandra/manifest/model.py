@@ -377,6 +377,9 @@ class Manifest(_ManifestModel):
         - Every `command.transports[*]` must name a defined transport.
         - Transport ids must be unique.
         - Command / attribute / event ids must be unique within their section.
+        - Every command / attribute / event audience must be a subset of
+          `device.audience` — you can't ship an operation to an audience the
+          device isn't built for.
         - At least one operation (command) must be defined — empty manifests
           are almost always a mistake.
         """
@@ -386,6 +389,7 @@ class Manifest(_ManifestModel):
             raise ValueError(f"duplicate transport ids: {sorted(dupes)}")
         transports_by_id = {t.id: t for t in self.transports}
 
+        device_audiences = set(self.device.audience)
         for section_name, items in (
             ("commands", self.commands),
             ("attributes", self.attributes),
@@ -394,6 +398,13 @@ class Manifest(_ManifestModel):
             ids = [item.id for item in items]
             if len(set(ids)) != len(ids):
                 raise ValueError(f"duplicate ids in {section_name}: {sorted(_find_duplicates(ids))}")
+            for item in items:
+                undeclared = set(item.audience) - device_audiences
+                if undeclared:
+                    raise ValueError(
+                        f"{section_name[:-1]} {item.id!r} targets audience(s) {sorted(undeclared)} "
+                        f"not declared in device.audience={sorted(device_audiences)}"
+                    )
 
         for cmd in self.commands:
             unknown = set(cmd.transports) - transport_ids

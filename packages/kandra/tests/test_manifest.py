@@ -99,6 +99,29 @@ commands:
         load_manifest(bad)
 
 
+def test_command_audience_must_be_subset_of_device() -> None:
+    """A command may not target an audience the device isn't built for."""
+    bad = """
+schema_version: 1
+device:
+  id: foo
+  display_name: Foo
+  audience: [internal]
+source_roots: [src]
+transports:
+  - id: http
+    adapter: pkg.mod:Adapter
+    codec: pkg.mod:Codec
+commands:
+  - id: x
+    handler: pkg.mod:Handler
+    transports: [http]
+    audience: [internal, public]
+"""
+    with pytest.raises(LoaderError, match="not declared in device.audience"):
+        load_manifest(bad)
+
+
 def test_duplicate_transport_id_is_rejected() -> None:
     bad = """
 schema_version: 1
