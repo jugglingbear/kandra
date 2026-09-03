@@ -1,0 +1,16 @@
+# Minimal scaffold answers fixture for create-sdk smoke tests.
+project_name: Fixture Device SDK
+slug: fixture-device-sdk
+package_name: fixture_device_sdk
+device_id: fixture_device_sdk
+display_name: Fixture Device
+audience: [public]
+python_version: "3.11"
+transports:
+  - family: http
+    wire_format: json
+    base_url: "http://192.168.1.1:8080"
+  - family: ble
+    wire_format: json
+    service_uuid: "abcdef01-2345-6789-abcd-ef0123456789"
+    name_prefix: "FixtureDev-"
