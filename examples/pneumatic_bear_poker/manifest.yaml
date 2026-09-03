@@ -125,8 +125,10 @@ commands:
         expects_response: true
 
 vendoring:
-  extra_include: []
-  exclude: []
+  # Pulled in dynamically at runtime, so the import-closure walker misses it.
+  extra_include: [devices/pneumatic_bear_poker/handlers/super_important.py]
+  # Internal bench tooling -- keep it out of every shipped SDK.
+  exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 
 # Discovery criteria the generator bakes into `scanners.py` so callers
 # can run `await scan_ble(timeout=5)` / `await scan_http(timeout=5)`

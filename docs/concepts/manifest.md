@@ -52,8 +52,10 @@ commands:
     idempotent: true
 
 vendoring:
-  extra_include: []
-  exclude: []
+  # Pulled in dynamically at runtime, so the import-closure walker misses it.
+  extra_include: [devices/pneumatic_bear_poker/handlers/super_important.py]
+  # Internal bench tooling -- keep it out of every shipped SDK.
+  exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 ```
 
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
