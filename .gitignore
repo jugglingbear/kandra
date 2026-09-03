@@ -22,3 +22,5 @@ poetry.lock
 *.swp
 
 kandra.md
+temp/
+sandbox.py
