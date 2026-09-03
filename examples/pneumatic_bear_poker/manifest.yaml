@@ -1,0 +1,152 @@
+# Example manifest for the fictional Pneumatic Bear Poker.
+# A device that pokes bears, pneumatically. This file exists to exercise
+# the loader and JSON Schema during M0; it does NOT (yet) reference any
+# real Python handlers.
+
+schema_version: 1
+
+device:
+  id: pneumatic_bear_poker
+  display_name: Pneumatic Bear Poker
+  firmware_min: "2.4.0"
+  audience: [internal, partner_woodland]
+
+source_roots:
+  - src
+
+transports:
+  - id: ble
+    adapter: devices.pneumatic_bear_poker.transports.ble:BleakAdapter
+    codec: common.codecs.tlv:LengthPrefixedTLV
+    family: ble
+    capabilities: { mtu: 244, notifications: true }
+    channels:
+      command: { write: "b5f90001-aa8d-11e3-9046-0002a5d5c51b", notify: "b5f90002-aa8d-11e3-9046-0002a5d5c51b" }
+      query:   { write: "b5f90003-aa8d-11e3-9046-0002a5d5c51b", notify: "b5f90004-aa8d-11e3-9046-0002a5d5c51b" }
+  - id: http
+    adapter: common.transports.http:HttpxAdapter
+    codec: common.codecs.json:JsonCodec
+    family: http
+    config: { base_url: "http://192.168.1.1:8080" }
+
+commands:
+  - id: poker.deploy
+    handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 5.0
+    idempotent: false
+    http:
+      http:
+        method: POST
+        path: /v1/poker/deploy
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+  - id: safety.emergency_retract
+    handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 1.0
+    idempotent: true
+    http:
+      http:
+        method: POST
+        path: /v1/safety/emergency_retract
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+  - id: power.on
+    handler: devices.pneumatic_bear_poker.handlers.power:PowerOn
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 10.0
+    idempotent: true
+    http:
+      http:
+        method: POST
+        path: /v1/power/on
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+  - id: power.off
+    handler: devices.pneumatic_bear_poker.handlers.power:PowerOff
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 10.0
+    idempotent: true
+    http:
+      http:
+        method: POST
+        path: /v1/power/off
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        # Fire-and-forget on the wireless link: once the device cuts its
+        # own power rail the BLE notify channel goes down anyway, so we
+        # don't wait for an ACK we'll never see.
+        expects_response: false
+
+  - id: logs.download
+    handler: devices.pneumatic_bear_poker.handlers.diagnostics:DownloadLogs
+    # HTTP only -- BLE's MTU and notify-based framing makes pulling a
+    # multi-kilobyte log buffer over BLE a bad idea.
+    transports: [http]
+    audience: [internal, partner_woodland]
+    timeout: 30.0
+    idempotent: true
+    http:
+      http:
+        method: GET
+        path: /v1/logs
+        body_codec: json
+        response_codec: json
+        # GET with a body is legal in JSON-RPC-style APIs but messy;
+        # ask the generator to lift request fields onto the query string.
+        query_from_request: true
+        expects_response: true
+
+vendoring:
+  extra_include: []
+  exclude: []
+
+# Discovery criteria the generator bakes into `scanners.py` so callers
+# can run `await scan_ble(timeout=5)` / `await scan_http(timeout=5)`
+# without supplying their own matcher. Per-family blocks are optional;
+# at least one must be present, and each declared family must match a
+# transport listed above (cross-validated by the manifest loader).
+discovery:
+  ble:
+    # Advertising name prefix observed on real devices in the wild.
+    name_prefix: "BearPoker-"
+    # The "Pneumatic Bear Poker Control Service" GATT service UUID
+    # the firmware advertises; same 128-bit base as the characteristic
+    # UUIDs declared in transports.ble.channels above.
+    service_uuids:
+      - "b5f90000-aa8d-11e3-9046-0002a5d5c51b"
+  http:
+    # Probe these hosts in parallel; the first one whose
+    # `/.well-known/pneumatic-bear-poker` returns 200 wins.
+    base_urls:
+      - "http://192.168.1.1:8080"
+      - "http://pneumatic-bear-poker.local:8080"
+    probe_path: "/.well-known/pneumatic-bear-poker"
+    server_header_prefix: "PneumaticBearPoker"
