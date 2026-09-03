@@ -1,17 +1,13 @@
 # Minimal Kandra manifest for a GoPro camera.
 #
-# Audience: one device, one command -- shutter start/stop -- exposed over
-# both BLE (Open GoPro Control & Query service) and HTTP (Open GoPro v2
-# REST API over Wi-Fi). This is intentionally the smallest manifest that
-# is still wire-accurate against a real camera.
+# Audience: one device, one command -- shutter start/stop -- exposed over both BLE (Open GoPro Control & Query service)
+# and HTTP (Open GoPro v2 REST API over Wi-Fi). This is intentionally the smallest manifest that is still wire-accurate
+# against a real camera.
 #
-# Why two commands instead of one ``shutter`` with a boolean? Because
-# the wire encoding genuinely differs: HTTP uses two distinct paths
-# (``/shutter/start`` vs ``/shutter/stop``) and BLE uses two distinct
-# TLV payloads (``\x03\x01\x01\x01`` vs ``\x03\x01\x01\x00``). Modeling
-# them as separate commands keeps the manifest declarative; a thin
-# ``def set_shutter(on: bool)`` convenience can wrap the two on the
-# client side.
+# Why two commands instead of one ``shutter`` with a boolean? Because the wire encoding genuinely differs: HTTP uses
+# two distinct paths (``/shutter/start`` vs ``/shutter/stop``) and BLE uses two distinct TLV payloads
+# (``\x03\x01\x01\x01`` vs ``\x03\x01\x01\x00``). Modeling them as separate commands keeps the manifest declarative;
+# a thin ``def set_shutter(on: bool)`` convenience can wrap the two on the client side.
 
 schema_version: 1
 
@@ -26,11 +22,9 @@ source_roots:
   - src
 
 transports:
-  # --- BLE -----------------------------------------------------------
-  # Open GoPro "Control & Query Service" (a.k.a. the "Wireless Control
-  # Service"). The command channel write/notify pair handles set-shutter,
-  # power, etc.; the query channel pair (not used here) handles
-  # get-state / register-for-updates.
+  # --- BLE ------------------------------------------------------------------------------------------------------------
+  # Open GoPro "Control & Query Service" (a.k.a. the "Wireless Control Service"). The command channel write/notify pair
+  # handles set-shutter, power, etc.; the query channel pair (not used here) handles get-state / register-for-updates.
   - id: ble
     family: ble
     adapter: gopro_sdk.transports.ble:BleakAdapter
@@ -41,10 +35,9 @@ transports:
         write:  "b5f90072-aa8d-11e3-9046-0002a5d5c51b"
         notify: "b5f90073-aa8d-11e3-9046-0002a5d5c51b"
 
-  # --- HTTP / Wi-Fi --------------------------------------------------
-  # Default station-mode IP when the camera is the AP. The probe path
-  # ``/gopro/camera/state`` is the canonical "is this a GoPro?" check
-  # used by the official Open GoPro tutorials.
+  # --- HTTP / Wi-Fi ---------------------------------------------------------------------------------------------------
+  # Default station-mode IP when the camera is the AP. The probe path ``/gopro/camera/state`` is the canonical
+  # "is this a GoPro?" check used by the official Open GoPro tutorials.
   - id: http
     family: http
     adapter: gopro_sdk.transports.http:HttpxAdapter
