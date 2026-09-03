@@ -28,10 +28,11 @@ Full documentation — concepts, architecture and sequence diagrams, API referen
 
 ## Quick start
 
-> Kandra is in early development. Today you can author and validate a
-> manifest and drive the runtime from Python directly. The code
-> generator that turns a manifest into a per-audience SDK package is
-> still on the way — see [Roadmap](#roadmap).
+> Kandra is pre-alpha. Today you can author and validate a manifest and run
+> `kandra build` to generate a working, typed SDK — client, transports,
+> discovery, and enrollment. The audience-pruning and vendoring layer that
+> splits one manifest into per-audience packages is still on the way — see
+> [Roadmap](#roadmap).
 
 ```bash
 git clone <this-repo> your_project
@@ -90,10 +91,11 @@ All code must pass `make qa` (ruff clean, mypy strict clean, 100% of tests passi
 | Generic `Transport[WireReqT, WireRespT]` envelope + per-transport `expects_response` (`SyncClient` + fire-and-forget) | ✅ Available |
 | Built-in async HTTP transport (`HttpTransport` over `aiohttp`) with GET / POST / PUT / DELETE | ✅ Available |
 | Typed `Result[T]` envelope with `ACCEPTED` / `REJECTED` / `DEVICE_FAULT` / `TRANSPORT_FAILURE` / `ANOMALOUS` classification, pluggable `ResponseInterpreter`, `on_non_accepted` hook, `ignore_failures()` context manager | ✅ Available |
-| Built-in BLE transport with named channels (`BleTransport` + per-command `ble.channel`) | ⏸️ Planned |
-| Discovery, enrollment, identity persistence (`Scanner` / `Enrollment` / `IdentityStore` protocols + `discover()`) | ⏸️ Planned |
+| Built-in BLE transport with named channels (`BleTransport` + per-command `ble.channel`) | ✅ Available |
+| Discovery, enrollment, identity persistence (`Scanner` / `Enrollment` / `IdentityStore` + `connect()` / `discover_and_connect()`) | ✅ Available |
 | Audience pruning, leakage scan, vendoring (`internal` vs `partner-*` artifacts from one manifest) | ⏸️ Planned |
 | Capability negotiation + `Attribute` (read / write / subscribe) + `Event` primitives | ⏸️ Planned |
+| Credential lifecycle — re-enrollment / rotation (`IdentityStaleError`, `re_enroll()`) | ⏸️ Planned |
 
 ---
 

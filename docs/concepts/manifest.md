@@ -2,8 +2,8 @@
 
 A manifest describes **one device**. A repo can hold any number of manifests side-by-side — typically one per device
 under a shared `src/devices/<device_id>/` tree plus `src/common/` for things like codecs and transports that are reused
-across devices. The generator is invoked once per (manifest, audience) pair and produces a distinct SDK package each
-time, so N devices × M audiences = N × M shipped SDKs out of a single source repo.
+across devices. The generator runs per manifest today; once audience pruning lands it will run once per (manifest,
+audience) pair, so N devices × M audiences = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
 fictional device whose sole job is to poke bears (pneumatically). It has one operational command (`poker.deploy`) and

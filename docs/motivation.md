@@ -14,10 +14,10 @@ Kandra picks a different tradeoff:
   You refactor with the IDE, lint with ruff, and test with pytest. No schema language.
 - **YAML is wiring only.** The manifest references your Python classes by dotted path and declares which commands ship
   on which transports for which audience. It contains **no** type definitions.
-- **Audience is first-class.** Each command, attribute, and module is tagged. The generator emits one SDK per audience,
-  and a final subprocess import-check fails the build if anything leaks across.
-- **One runtime, many SDKs.** The generated package depends on a small `kandra-runtime` PyPI package and otherwise
-  vendors only its own transitive code closure.
+- **Audience is first-class.** Each command, attribute, and module is tagged so Kandra can emit one SDK per audience and
+  fail the build if anything leaks across. This pruning + leakage scan is the current in-progress milestone.
+- **One runtime, many SDKs.** The generated package depends on a small `kandra-runtime` PyPI package and (once vendoring
+  lands) will carry only its own transitive code closure.
 
 ## How It Works
 
@@ -31,7 +31,7 @@ flowchart LR
         models["models/*.py"]
     end
     build(["kandra build"])
-    subgraph artifact["Per-audience artifact"]
+    subgraph artifact["Generated SDK"]
         client["client.py"]
         commands["commands/*.py"]
         amodels["models/*.py"]
@@ -54,5 +54,8 @@ For each manifest the generator:
    low-level `dispatch(cmd, …)`.
 7. Verifies the generated package compiles and imports cleanly in an isolated subprocess before the build succeeds —
    a manifest or handler flaw that would emit a broken SDK fails the build instead of shipping.
+
+Steps 1–2 and 6–7 run today. The closure restriction, audience pruning, and vendoring in steps 3–5 are the in-progress
+isolation layer — for now the generated client imports handlers from your `source_roots` rather than vendoring them.
 
 For the full layer breakdown and the runtime/generator split, see [Architecture](concepts/architecture.md).
