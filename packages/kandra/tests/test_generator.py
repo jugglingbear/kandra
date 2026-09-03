@@ -9,7 +9,7 @@ from contextlib import suppress
 from pathlib import Path
 
 import pytest
-from kandra.generator import build_sdk
+from kandra.generator import BuildError, build_sdk
 from kandra_runtime import HttpRequest, HttpResponse
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[3] / "examples" / "pneumatic_bear_poker"
@@ -46,6 +46,48 @@ def test_generated_sdk_files_are_written(sdk_on_path: Path) -> None:
     """Generator writes the expected file set into the output directory."""
     for name in ("__init__.py", "py.typed", "transports.py", "registry.py", "client.py", "_generated_from.json"):
         assert (sdk_on_path / name).is_file(), f"missing generated file: {name}"
+
+
+def test_build_verification_accepts_the_reference_sdk(tmp_path: Path) -> None:
+    """The reference SDK passes the compile + clean-import gate (verify defaults on)."""
+    result = build_sdk(EXAMPLE_MANIFEST, output_root=tmp_path, verify=True)
+    assert result.package_path.is_dir()
+
+
+def test_build_verification_rejects_a_syntax_error(tmp_path: Path) -> None:
+    """A syntactically broken generated module fails the gate instead of shipping."""
+    from kandra.generator.build import _verify_package
+
+    result = build_sdk(EXAMPLE_MANIFEST, output_root=tmp_path)
+    (result.package_path / "client.py").write_text("def broken(:\n", encoding="utf-8")
+    with pytest.raises(BuildError, match="failed to compile"):
+        _verify_package(
+            result.package_path,
+            result.package_name,
+            written_files=list(result.files),
+            import_roots=[EXAMPLE_SRC, tmp_path],
+        )
+
+
+def test_build_verification_rejects_an_unimportable_module(tmp_path: Path) -> None:
+    """A generated module that imports a missing name fails the gate."""
+    from kandra.generator.build import _verify_package
+
+    result = build_sdk(EXAMPLE_MANIFEST, output_root=tmp_path)
+    (result.package_path / "client.py").write_text("import kandra_missing_dependency_xyz\n", encoding="utf-8")
+    with pytest.raises(BuildError, match="does not import cleanly"):
+        _verify_package(
+            result.package_path,
+            result.package_name,
+            written_files=list(result.files),
+            import_roots=[EXAMPLE_SRC, tmp_path],
+        )
+
+
+def test_generated_reference_sdk_passes_mypy_strict(tmp_path: Path) -> None:
+    """The generated reference SDK type-checks under mypy --strict (opt-in gate)."""
+    result = build_sdk(EXAMPLE_MANIFEST, output_root=tmp_path, typecheck=True)
+    assert result.package_path.is_dir()
 
 
 async def test_generated_sdk_async_dispatch(sdk_on_path: Path) -> None:

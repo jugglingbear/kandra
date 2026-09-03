@@ -199,13 +199,15 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
 
 from __future__ import annotations
 
+from typing import Any
+
 {runtime_imports}
 
 {imports_block}
 
 from {_relative()}.transports import TransportId
 
-COMMANDS: dict[str, dict[TransportId, Command]] = {{
+COMMANDS: dict[str, dict[TransportId, Command[Any, Any, Any, Any]]] = {{
 {entries_block}
 }}
 '''
@@ -355,7 +357,7 @@ import contextlib
 from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager
 from types import TracebackType
-from typing import Any, cast
+from typing import Any
 
 from kandra_runtime import Command, Result, Transport, dispatch, format_failure
 {connect_section.imports}
@@ -466,7 +468,7 @@ class {device_class}:
             if chosen_opt is None:
                 raise ValueError(f"no wired transport supports command {{command_id!r}}")
             chosen = chosen_opt
-        command = cast(Command[Any, Any, Any, Any], per_transport[chosen])
+        command = per_transport[chosen]
         result = await dispatch(command, self._transports[chosen], request)
         if (
             result is not None

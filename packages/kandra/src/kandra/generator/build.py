@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib
+import os
 import re
 import shutil
+import subprocess
 import sys
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -53,6 +55,8 @@ def build_sdk(
     *,
     output_root: Path | None = None,
     clean: bool = False,
+    verify: bool = True,
+    typecheck: bool = False,
 ) -> BuildResult:
     """Generate the SDK package described by ``manifest_path``.
 
@@ -64,6 +68,12 @@ def build_sdk(
     When ``clean`` is true, the target package directory is removed
     before regeneration. This prevents stale files (e.g. a command
     removed from the manifest) from lingering in the output tree.
+
+    When ``verify`` is true (the default), the freshly written package must
+    byte-compile and import cleanly in an isolated subprocess before the
+    build succeeds; ``typecheck`` additionally runs ``mypy --strict`` over
+    it. Either check raises :class:`BuildError` on failure, so a manifest or
+    handler flaw fails the build instead of shipping a broken SDK.
     """
     manifest_path = manifest_path.resolve()
     manifest = load_manifest(manifest_path)
@@ -94,6 +104,15 @@ def build_sdk(
         discovery=discovery_spec,
         clean=clean,
     )
+
+    if verify:
+        _verify_package(
+            package_path,
+            package_name,
+            written_files=list(files),
+            import_roots=[*resolved_roots, out_root],
+            typecheck=typecheck,
+        )
 
     return BuildResult(
         package_path=package_path,
@@ -294,6 +313,97 @@ def _write_package(
         target.write_text(content, encoding="utf-8")
         written.append(target)
     return written
+
+
+# ---------------------------------------------------------------------------
+# Post-generation verification
+# ---------------------------------------------------------------------------
+
+
+def _verify_package(
+    package_path: Path,
+    package_name: str,
+    *,
+    written_files: list[Path],
+    import_roots: list[Path],
+    typecheck: bool = False,
+) -> None:
+    """Fail the build unless the freshly generated package is sound.
+
+    Escalating checks so a manifest or handler flaw surfaces here rather than
+    in a shipped SDK:
+
+    1. Byte-compile every generated module (precise syntax errors).
+    2. Import the package in a hermetic subprocess whose search path is
+       exactly ``import_roots`` plus the interpreter's own site-packages --
+       catching bad imports, missing symbols, and import-time exceptions.
+    3. Optionally run ``mypy --strict`` over the package.
+
+    Only files this build wrote are compiled; unrelated files a user may have
+    dropped into an additive (non-``clean``) output tree are left alone.
+    """
+    _compile_generated_sources(written_files)
+    _import_in_clean_subprocess(package_name, import_roots)
+    if typecheck:
+        _typecheck_generated_package(package_path, import_roots)
+
+
+def _compile_generated_sources(written_files: list[Path]) -> None:
+    for py_file in written_files:
+        if py_file.suffix != ".py":
+            continue
+        try:
+            compile(py_file.read_text(encoding="utf-8"), str(py_file), "exec")
+        except SyntaxError as exc:
+            raise BuildError(
+                f"generated module {py_file.name} failed to compile (line {exc.lineno}): {exc.msg}"
+            ) from exc
+
+
+def _clean_pythonpath(import_roots: list[Path]) -> str:
+    return os.pathsep.join(str(r) for r in import_roots)
+
+
+def _import_in_clean_subprocess(package_name: str, import_roots: list[Path]) -> None:
+    env = {**os.environ, "PYTHONPATH": _clean_pythonpath(import_roots)}
+    proc = subprocess.run(
+        [sys.executable, "-c", f"import {package_name}"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip()
+        raise BuildError(f"generated package {package_name!r} does not import cleanly:\n{detail}")
+
+
+def _typecheck_generated_package(package_path: Path, import_roots: list[Path]) -> None:
+    probe = subprocess.run([sys.executable, "-c", "import mypy"], capture_output=True, check=False)
+    if probe.returncode != 0:
+        raise BuildError("cannot type-check generated package: mypy is not installed (install it or drop --typecheck)")
+    env = {**os.environ, "MYPYPATH": _clean_pythonpath(import_roots)}
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--strict",
+            "--follow-imports=silent",
+            # Types from an unfollowed dep (e.g. an editable/untyped runtime) degrade to
+            # Any; that's about the environment, not the generated code, so don't fail on it.
+            "--disable-error-code=no-any-unimported",
+            "--no-error-summary",
+            str(package_path),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stdout or proc.stderr).strip()
+        raise BuildError(f"generated package failed --strict type checking:\n{detail}")
 
 
 # ---------------------------------------------------------------------------

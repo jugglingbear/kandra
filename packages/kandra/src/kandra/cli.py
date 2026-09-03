@@ -63,6 +63,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="remove the target SDK package directory before writing (defaults to off)",
     )
+    build.add_argument(
+        "--no-verify",
+        dest="verify",
+        action="store_false",
+        help="skip the post-generation compile+import safety check (not recommended)",
+    )
+    build.add_argument(
+        "--typecheck",
+        action="store_true",
+        help="also run mypy --strict over the generated package (requires mypy)",
+    )
 
     create = subparsers.add_parser(
         "create-sdk",
@@ -110,7 +121,13 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 def _cmd_build(args: argparse.Namespace) -> int:
     try:
-        result = build_sdk(args.path, output_root=args.output_dir, clean=args.clean)
+        result = build_sdk(
+            args.path,
+            output_root=args.output_dir,
+            clean=args.clean,
+            verify=args.verify,
+            typecheck=args.typecheck,
+        )
     except (LoaderError, BuildError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

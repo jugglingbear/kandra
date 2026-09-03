@@ -50,8 +50,9 @@ For each manifest the generator:
    unlisted packages).
 4. Audience-filters the closure.
 5. Vendors the surviving files into `dist/<audience>/<sdk_pkg>/`.
-6. Emits a thin typed facade so consumers write `await client.poker.deploy(...)` instead of `dispatch(cmd, …)`.
-7. Verifies the result imports cleanly in a clean subprocess — if a dynamic import reaches back into the source tree,
-   the build fails.
+6. Emits a thin typed facade so consumers call typed methods like `await client.<group>.<command>(...)` instead of the
+   low-level `dispatch(cmd, …)`.
+7. Verifies the generated package compiles and imports cleanly in an isolated subprocess before the build succeeds —
+   a manifest or handler flaw that would emit a broken SDK fails the build instead of shipping.
 
 For the full layer breakdown and the runtime/generator split, see [Architecture](concepts/architecture.md).
