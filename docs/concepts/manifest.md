@@ -1,0 +1,59 @@
+# The Manifest
+
+A manifest describes **one device**. A repo can hold any number of manifests side-by-side — typically one per device
+under a shared `src/devices/<device_id>/` tree plus `src/common/` for things like codecs and transports that are reused
+across devices. The generator is invoked once per (manifest, audience) pair and produces a distinct SDK package each
+time, so N devices × M audiences = N × M shipped SDKs out of a single source repo.
+
+Kandra ships with one reference manifest: the **Pneumatic Bear Poker**, a fictional device whose sole job is to poke
+bears (pneumatically). It has one operational command (`poker.deploy`) and one safety command
+(`safety.emergency_retract`), exposed over BLE and HTTP to two audiences: the internal team and the `partner_woodland`
+partner.
+
+A minimal manifest looks like this (see the full example in `examples/pneumatic_bear_poker/manifest.yaml`):
+
+```yaml
+schema_version: 1
+
+device:
+  id: pneumatic_bear_poker
+  display_name: Pneumatic Bear Poker
+  firmware_min: "2.4.0"
+  audience: [internal, partner_woodland]
+
+source_roots:
+  - src/devices/pneumatic_bear_poker
+  - src/common
+
+transports:
+  - id: ble
+    adapter: devices.pneumatic_bear_poker.transports.ble:BleakAdapter
+    codec: common.codecs.tlv:LengthPrefixedTLV
+    capabilities: { mtu: 244, notifications: true }
+  - id: http
+    adapter: common.transports.http:HttpxAdapter
+    codec: common.codecs.json:JsonCodec
+    config: { base_url: "http://192.168.1.1:8080" }
+
+commands:
+  - id: poker.deploy
+    handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 5.0
+    idempotent: false
+
+  - id: safety.emergency_retract
+    handler: null              # uses the default echo-and-decode handler
+    transports: [http, ble]
+    audience: [internal, partner_woodland, public]
+    timeout: 1.0
+    idempotent: true
+
+vendoring:
+  extra_include: []
+  exclude: []
+```
+
+What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
+else that would duplicate Python. Those live in the handler classes referenced by `handler:`.

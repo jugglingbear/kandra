@@ -38,10 +38,18 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 [Lifecycle](concepts/lifecycle.md) for the full picture and the explicit phase-by-phase flow.
 
 ```{toctree}
+:caption: Overview
+:maxdepth: 1
+
+motivation
+```
+
+```{toctree}
 :caption: Concepts
 :maxdepth: 2
 
 concepts/architecture
+concepts/manifest
 concepts/lifecycle
 concepts/identity
 concepts/scanner

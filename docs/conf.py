@@ -70,11 +70,10 @@ html_title = f"{project} {release}"
 html_theme_options = {
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
-    # TODO: set the public repository URL once the project has a home, then
-    # re-enable the source-link options below (they add "edit source" links).
-    # "source_repository": "https://github.com/OWNER/kandra/",
-    # "source_branch": "main",
-    # "source_directory": "docs/",
+    # "Edit source" links point back at the docs tree on the default branch.
+    "source_repository": "https://github.com/jugglingbear/kandra/",
+    "source_branch": "main",
+    "source_directory": "docs/",
 }
 
 # Force dark mode as the default. Furo has no built-in "default theme"
