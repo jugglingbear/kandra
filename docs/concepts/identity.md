@@ -19,6 +19,7 @@ classDiagram
     class _IdentityBase {
         +saved_name: str
         +enrolled_at: datetime
+        +last_validated: datetime?
     }
     class BleIdentity {
         +transport: "ble"

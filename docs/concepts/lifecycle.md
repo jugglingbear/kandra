@@ -177,14 +177,44 @@ async with await MyDeviceClient.connect("kitchen", store=store) as client:
 * - Device's IP changed but same identity
   - 4 (transport reconnects automatically) → 5
 * - Device factory-reset; bond / token invalid
-  - 2 → 3 → 4 → 5 — delete the saved record, then call
-    `discover_and_connect()` again
+  - `connect(saved_name, on_stale=re_enroll)` recovers automatically at
+    connect time (or run `re_enroll()` then `connect()`) — see below
 * - User wants to forget the device
   - `IdentityStore.delete(saved_name)`
 ```
 
+## Credential Staleness & Re-Enrollment
+
+Stored credentials don't live forever: an HTTP token expires, or a BLE peripheral is factory-reset and forgets its
+bond. Kandra surfaces this as a distinct, *recoverable* failure — {class}`~kandra_runtime.IdentityStaleError` (a
+subclass of `TransportError`, so existing handlers still catch it) — rather than a generic dropped link.
+
+**Detection.** The HTTP transport maps a `401` / `403` to `IdentityStaleError` by default (opt out with
+`HttpTransport(..., stale_statuses=[])`). BLE has no portable "stale bond" signal, so a BLE adapter raises
+`IdentityStaleError` itself when it recognizes one and the transport lets it propagate untouched. Because an HTTP
+transport opens *lazily* (no request at `open()`), a stale **token** surfaces on the first call, while a stale **BLE
+bond** surfaces at `open()` — so connect-time recovery mainly rescues BLE; token expiry is raised to the caller.
+
+**Recovery.** The generated client offers two pieces:
+
+- `re_enroll(saved_name, *, enrollment=...)` — re-discovers the device via the manifest scanners, runs enrollment
+  again, and atomically overwrites the saved record. Returns the fresh `Identity`.
+- `connect(saved_name, on_stale=...)` — when `open()` raises `IdentityStaleError`, the `on_stale` callback is invoked
+  to re-establish credentials and the connect is retried once.
+
+Wire them together so recovery is one argument:
+
+```python
+client = await MyDeviceClient.connect(
+    "kitchen",
+    on_stale=lambda name: MyDeviceClient.re_enroll(name, enrollment=my_enrollment),
+)
+```
+
+A successful connect also stamps `last_validated` on the stored identity, so a store can surface "credentials last
+confirmed working."
+
 ```{note}
-Automatic re-enrollment on stale credentials (an `IdentityStaleError`
-+ `re_enroll()` helper) is planned. Today,
-detecting and recovering from staleness is left to the caller.
+Recovery today is **connect-time** (it rescues a stale bond at `open()`). Auto-refreshing a mid-session HTTP token
+expiry — catching `IdentityStaleError` on a live dispatch and retrying — is a planned follow-on; see the roadmap.
 ```

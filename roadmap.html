@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kandra Roadmap</title>
+  <style>
+    :root {
+      --bg: #131416;
+      --surface: #1b1d20;
+      --surface-2: #23262a;
+      --border: #2e3237;
+      --text: #e6e8ea;
+      --muted: #9aa0a6;
+      --accent: #7cc4ff;
+      --accent-2: #b484ff;
+      --planned: #f0b34a;
+      --candidate: #7d848c;
+      --done: #5bd18a;
+      --code-bg: #101215;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 2.5rem 1.25rem 5rem;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    header.page { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 2rem; margin: 0 0 .35rem; letter-spacing: -0.01em; }
+    h1 .glyph { color: var(--accent-2); }
+    .tagline { color: var(--muted); margin: 0 0 1rem; font-size: 1.02rem; }
+    .callout {
+      background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+      border-radius: 8px; padding: .85rem 1.1rem; font-size: .95rem; color: var(--text);
+    }
+    .callout a { color: var(--accent); text-decoration: none; }
+    .callout a:hover { text-decoration: underline; }
+    .legend { display: flex; flex-wrap: wrap; gap: .5rem .9rem; margin: 1.5rem 0 2.25rem; font-size: .85rem; color: var(--muted); }
+    .legend .badge { margin-right: .3rem; }
+    section.tier > h2 {
+      font-size: .82rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+      margin: 2.5rem 0 1rem; font-weight: 600;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.35rem 1.5rem; margin: 1rem 0;
+    }
+    .card > header { display: flex; align-items: baseline; flex-wrap: wrap; gap: .6rem; margin-bottom: .35rem; }
+    .card h3 { font-size: 1.18rem; margin: 0; }
+    .card .code-id { color: var(--accent); font-weight: 700; }
+    .badge {
+      display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      padding: .15rem .5rem; border-radius: 999px; vertical-align: middle;
+    }
+    .badge.planned { background: rgba(240,179,74,.14); color: var(--planned); border: 1px solid rgba(240,179,74,.35); }
+    .badge.candidate { background: rgba(125,132,140,.16); color: var(--candidate); border: 1px solid rgba(125,132,140,.4); }
+    .badge.progress { background: rgba(124,196,255,.14); color: var(--accent); border: 1px solid rgba(124,196,255,.35); }
+    .badge.done { background: rgba(91,209,138,.14); color: var(--done); border: 1px solid rgba(91,209,138,.35); }
+    .why { color: var(--muted); font-size: .96rem; margin: .25rem 0 1rem; }
+    .card h4 {
+      font-size: .74rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+      margin: 1.1rem 0 .5rem; font-weight: 600;
+    }
+    ul.scope { margin: 0; padding-left: 1.15rem; }
+    ul.scope li { margin: .3rem 0; }
+    code {
+      background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
+      padding: .08rem .35rem; font-size: .86em; font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+      color: #d7e2ee;
+    }
+    .depends { font-size: .82rem; color: var(--muted); margin-top: 1rem; }
+    .depends strong { color: var(--text); font-weight: 600; }
+    footer.page {
+      margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+      color: var(--muted); font-size: .85rem;
+    }
+    footer.page a { color: var(--accent); text-decoration: none; }
+    footer.page a:hover { text-decoration: underline; }
+    .note-superseded { color: var(--candidate); font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="page">
+      <h1><span class="glyph">&#9679;</span> Kandra Roadmap</h1>
+      <p class="tagline">A data-driven framework for producing typed, lint-clean, IP-isolated Python SDKs for embedded-Linux devices.</p>
+      <div class="callout">
+        This page tracks only the <strong>remaining</strong> work. Everything already shipped
+        (the manifest model, runtime transports/codecs/results, discovery &amp; enrollment, BLE + HTTP,
+        one-call <code>discover_and_connect()</code>, the M8 audience-pruning / vendoring / leakage
+        pipeline, and the M9 attribute / event / capability-negotiation primitives) is documented under
+        <a href="docs/index.md"><code>docs/</code></a>. When a milestone below lands, its design detail
+        moves into <code>docs/</code> and its entry is removed from here.
+      </div>
+      <div class="legend">
+        <span><span class="badge progress">In progress</span> partially shipped</span>
+        <span><span class="badge planned">Planned</span> committed, not yet started</span>
+        <span><span class="badge candidate">Candidate</span> may be dropped if unneeded</span>
+      </div>
+    </header>
+
+    <section class="tier">
+      <h2>Next up</h2>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M10</span> &mdash; Credential lifecycle (re-enrollment + rotation)</h3>
+          <span class="badge progress">In progress</span>
+        </header>
+        <p class="why">A saved identity that stops authenticating is now a first-class, <em>recoverable</em> condition
+          instead of a generic transport error.</p>
+
+        <h4>Shipped</h4>
+        <ul class="scope">
+          <li><code>IdentityStaleError</code> (a recoverable <code>TransportError</code>): the HTTP transport maps
+            <code>401</code>/<code>403</code> to it by default (opt out via <code>stale_statuses</code>); a BLE adapter
+            raises it for a dead bond and the transport propagates it untouched.</li>
+          <li><code>Identity.last_validated</code> timestamp, stamped on every successful connect.</li>
+          <li><code>re_enroll(saved_name, enrollment=...)</code> re-scans, re-enrolls, and atomically overwrites the
+            saved record; <code>connect(saved_name, on_stale=...)</code> recovers a stale bond at <code>open()</code> and
+            retries once. Documented under
+            <a href="docs/concepts/lifecycle.md"><code>docs/concepts/lifecycle.md</code></a>.</li>
+        </ul>
+
+        <h4>Remaining: mid-session auto-refresh</h4>
+        <p class="why">Because an HTTP transport opens lazily, connect-time recovery rescues a stale BLE bond but not a
+          <em>token that expires mid-session</em> (which surfaces on the next request, raised to the caller). The
+          follow-on would wrap dispatch so a mid-session <code>IdentityStaleError</code> triggers <code>re_enroll</code>
+          + a one-time retry &mdash; valuable for long-lived HTTP-token clients, but trickier (retry semantics; a BLE
+          re-enroll mid-session tears down the live connection). Deferred deliberately.</p>
+      </div>
+    </section>
+
+    <section class="tier">
+      <h2>Later</h2>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M11</span> &mdash; Codegen enrollment helpers</h3>
+          <span class="badge candidate">Candidate</span>
+        </header>
+        <p class="why note-superseded">Largely superseded by the shipped <code>discover_and_connect()</code>
+          shortcut &mdash; most apps never instantiate an <code>*Enrollment</code> adapter at top level anymore; they
+          just hand one to the generated classmethod.</p>
+
+        <h4>Keep only if&hellip;</h4>
+        <ul class="scope">
+          <li>A future survey shows a declarative <code>enrollment:</code> manifest block would meaningfully shrink the
+            adapter constructor itself &mdash; login payload shapes, captive-portal flows, multi-step pairing.</li>
+          <li>Original idea: the generator already emits <code>scan_ble()</code> / <code>scan_http()</code> discovery
+            helpers but no enrollment helpers. It could instead read
+            <code>enrollment: {kind: http_login, path: /v1/auth/login}</code> and emit a typed
+            <code>enroll(candidate, saved_name=...) &rarr; Identity</code> helper per device.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M12</span> &mdash; Generated-SDK device reference (docs)</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">The generated SDK is already a typed, docstringed Python package &mdash; standard tools
+          (<code>sphinx-autodoc</code>, <code>pdoc</code>, <code>mkdocstrings</code>, IDE hovers) document its API for
+          free. Kandra should <strong>not reinvent that</strong>. What no generic tool can see is the manifest-level
+          metadata &mdash; wire wiring, capability gates, audiences &mdash; and <em>that</em> is the doc worth
+          generating.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>Emit an optional <strong>device reference</strong> at build time (<code>kandra build --docs</code>),
+            reusing the handler + type introspection the generator already does: per operation &mdash; dotted id,
+            summary (handler docstring), transports and their wire details (HTTP method/path, BLE channel,
+            <code>expects_response</code>, timeout), request/response schema, required <code>capabilities</code>,
+            <code>idempotent</code>, and audience; plus device-level firmware floor, transports, and discovery.</li>
+          <li><strong>Audience-scoped for free.</strong> Generate from the <em>pruned</em> profile, so a
+            <code>--profile partner_woodland</code> reference documents exactly that partner&rsquo;s surface and leaks
+            nothing internal &mdash; the IP-isolation guarantee extended to the docs.</li>
+          <li>Formats: <strong>Markdown</strong> primary (renders on GitHub, feeds a consumer&rsquo;s own Sphinx /
+            MkDocs) plus an optional self-contained single-file <strong>HTML</strong> (inline CSS, zero deps &mdash;
+            hand it to a partner).</li>
+          <li><strong>Enable, don&rsquo;t reinvent, the Python API docs.</strong> Document pointing
+            <code>autodoc</code> / <code>pdoc</code> at the package, and optionally have <code>create-sdk</code> drop a
+            ready <code>docs/</code> stub.</li>
+          <li>Possible follow-on: an OpenAPI-style spec for HTTP devices, or a <code>manifest-digest.json</code> for
+            consumers who want to render their own.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="tier">
+      <h2>Loose ends (small, independent)</h2>
+
+      <div class="card">
+        <header>
+          <h3>Manifest / doc cleanups</h3>
+        </header>
+        <ul class="scope">
+          <li><strong><code>idempotent</code> / <code>retries</code> command fields.</strong> Declared in the manifest
+            model but not wired into the runtime. Either implement them (retry-on-link-drop semantics are non-trivial,
+            especially over BLE) or strike them from the model.</li>
+          <li><strong>Attributes / events interim guard.</strong> <em>Resolved.</em> Both primitives are now wired
+            (9b / 9c) and generate working facades; the loader validates their per-transport subscribe wiring. No silent
+            accept-and-ignore, and a shape-valid manifest builds.</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="page">
+      Completed milestones &amp; design detail live in <a href="docs/index.md"><code>docs/</code></a>
+      (built with <code>make build-docs</code> / served with <code>make serve-docs</code>).
+      Quality gate for any change: <code>make qa</code>.
+    </footer>
+  </div>
+</body>
+</html>
