@@ -200,6 +200,16 @@ class Command(_ManifestModel):
             return None
         return _validate_dotted_path(value)
 
+    @model_validator(mode="after")
+    def _check_retries_idempotent(self) -> Command:
+        """A retry budget is only honored for idempotent commands, so require the pairing."""
+        if self.retries > 0 and not self.idempotent:
+            raise ValueError(
+                f"command {self.id!r}: retries={self.retries} requires 'idempotent: true' "
+                "(auto-resending a non-idempotent command risks double execution)"
+            )
+        return self
+
 
 # ---------------------------------------------------------------------------
 # State + emission primitives: attributes (read/write/subscribe) and events

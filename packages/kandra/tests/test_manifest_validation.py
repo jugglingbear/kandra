@@ -251,6 +251,26 @@ def test_duplicate_command_ids_rejected() -> None:
         )
 
 
+def test_retries_without_idempotent_rejected() -> None:
+    with pytest.raises(LoaderError, match="requires 'idempotent"):
+        _load(
+            "transports:\n  - {id: loop, adapter: a.b:C, codec: a.b:D, family: loopback}\n"
+            "commands:\n"
+            "  - {id: x.y, handler: a.b:H, transports: [loop], audience: [internal], retries: 2}\n"
+        )
+
+
+def test_retries_with_idempotent_accepted() -> None:
+    manifest = _load(
+        "transports:\n  - {id: loop, adapter: a.b:C, codec: a.b:D, family: loopback}\n"
+        "commands:\n"
+        "  - {id: x.y, handler: a.b:H, transports: [loop], audience: [internal], idempotent: true, retries: 2}\n"
+    )
+    cmd = manifest.commands[0]
+    assert cmd.idempotent is True
+    assert cmd.retries == 2
+
+
 def test_manifest_with_no_operations_rejected() -> None:
     with pytest.raises(LoaderError, match="no commands, attributes, or events"):
         _load("transports:\n  - {id: loop, adapter: a.b:C, codec: a.b:D, family: loopback}\ncommands: []\n")
