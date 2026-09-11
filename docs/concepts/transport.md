@@ -103,5 +103,36 @@ All transport-level failures derive from a single base class so calling code onl
 
 ## Streaming / Notifications
 
-The transport protocol is **request/response only**. Streaming primitives (`subscribe()`, `stream()`) are deferred to
-the features that consume them — see `kandra.md` §8 for the roadmap and §11.5 Q6 for the rationale.
+The core `Transport` protocol is **request/response only** — one envelope in, one envelope out. Push delivery is an
+*opt-in* capability expressed by a separate protocol, {class}`~kandra_runtime.transport.Subscribable`:
+
+```{eval-rst}
+.. autoclass:: kandra_runtime.transport.Subscribable
+   :members:
+   :no-index:
+```
+
+A transport that can carry server-initiated updates (HTTP server-sent events, a BLE notify characteristic, or a scripted
+loopback) implements `subscribe(envelope)` and returns an `AsyncIterator` of wire responses. Keeping it out of the base
+`Transport` means a plain request/response transport is never forced to fake streaming, and consumers can
+`isinstance(transport, Subscribable)` to negotiate at runtime.
+
+`subscribe()` powers the [Attribute](attribute.md) `.subscribe()` facade (and, in a later milestone, events). The built-in
+transports wire it up as follows:
+
+```{list-table}
+:header-rows: 1
+
+* - Transport
+  - `subscribe()` mechanism
+* - HTTP
+  - Server-sent events (`text/event-stream`); one `HttpResponse` yielded per `data:` frame.
+* - BLE
+  - Drains the channel's notify queue; one `bytes` payload yielded per notification.
+* - Loopback (testing)
+  - Replays a scripted `subscribe_handler` — deterministic push for unit tests.
+```
+
+Bulk **byte downloads** (`stream()`) remain deferred until a feature consumes them — see `kandra.md` §8 for the roadmap
+and §11.5 Q6 for the rationale.
+

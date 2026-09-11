@@ -44,6 +44,13 @@ The runtime library imported by every generated SDK. Stable; bumped on breaking 
    :members:
 ```
 
+## Capabilities
+
+```{eval-rst}
+.. automodule:: kandra_runtime.capabilities
+   :members:
+```
+
 ## Errors
 
 ```{eval-rst}

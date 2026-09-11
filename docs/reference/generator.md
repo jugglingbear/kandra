@@ -23,3 +23,26 @@ integration.
 .. automodule:: kandra.generator
    :members:
 ```
+
+## Audience &amp; IP Isolation
+
+The `--profile` pipeline (see [Audiences &amp; IP Isolation](../concepts/audiences.md)): audience policy, import-closure
+walking, vendoring with namespace rewrite, the leakage scan, and the `kandra audit` report.
+
+```{eval-rst}
+.. automodule:: kandra.audience
+   :members:
+
+.. automodule:: kandra.closure
+   :members:
+
+.. automodule:: kandra.vendor
+   :members:
+
+.. automodule:: kandra.leakage
+   :members:
+
+.. automodule:: kandra.audit
+   :members:
+```
+

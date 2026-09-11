@@ -105,6 +105,13 @@ autodoc_pydantic_model_show_validator_summary = True
 autodoc_pydantic_field_list_validators = True
 autodoc_pydantic_field_show_constraints = False  # regex like [a-z0-9] confuses RST
 
+# -- Napoleon (Google-style docstrings) --------------------------------------
+# Render class ``Attributes:`` sections as inline ``:ivar:`` fields instead of
+# separate object descriptions. Plain dataclasses document each field once from
+# its annotation already, so without this the ``Attributes:`` block produces a
+# second description and Sphinx warns about a duplicate.
+napoleon_use_ivar = True
+
 # -- Intersphinx -------------------------------------------------------------
 # Auto-link any mention of e.g. `aiohttp.ClientSession` to its upstream docs.
 intersphinx_mapping = {

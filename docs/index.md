@@ -56,7 +56,11 @@ concepts/scanner
 concepts/enrollment
 concepts/transport
 concepts/codec
+concepts/attribute
+concepts/event
+concepts/capabilities
 concepts/result
+concepts/audiences
 ```
 
 ```{toctree}

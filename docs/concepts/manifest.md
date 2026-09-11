@@ -2,12 +2,13 @@
 
 A manifest describes **one device**. A repo can hold any number of manifests side-by-side — typically one per device
 under a shared `src/devices/<device_id>/` tree plus `src/common/` for things like codecs and transports that are reused
-across devices. The generator runs per manifest today; once audience pruning lands it will run once per (manifest,
+across devices. The generator runs per manifest; building with `--profile <audience>` emits one SDK per (manifest,
 audience) pair, so N devices × M audiences = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
-fictional device whose sole job is to poke bears (pneumatically). It has one operational command (`poker.deploy`) and
-one safety command (`safety.emergency_retract`), exposed over BLE and HTTP to two audiences: the internal team and the
+fictional device whose sole job is to poke bears (pneumatically). It has commands (`poker.deploy`,
+`safety.emergency_retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
+[event](event.md) (`alerts.bear_stirred`), exposed over BLE and HTTP to two audiences: the internal team and the
 `partner_woodland` partner.
 
 A minimal manifest looks like this (see the full
@@ -51,6 +52,23 @@ commands:
     timeout: 1.0
     idempotent: true
 
+attributes:
+  # Named device *state* (read / write / subscribe), as opposed to a one-shot
+  # command. Emitted as `client.settings.poke_intensity.read()/.write(v)/.subscribe()`.
+  - id: settings.poke_intensity
+    handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
+    transports: [http, ble]
+    operations: [read, write, subscribe]
+    audience: [internal, partner_woodland]
+
+events:
+  # Stateless emission (subscribe-only). Emitted as
+  # `client.alerts.bear_stirred.subscribe()` (async-only).
+  - id: alerts.bear_stirred
+    handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
+    transports: [http, ble]
+    audience: [internal, partner_woodland]
+
 vendoring:
   # extra_include takes a file, a whole directory, or a glob (relative to a
   # source_root) -- for code or assets the static import walker can't discover.
@@ -64,8 +82,15 @@ vendoring:
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
 
+Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
+to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live
+in the referenced handler classes. (The per-transport `http:` / `ble:` subscribe wiring for the attribute and event is
+elided above; see the [Attribute](attribute.md) and [Event](event.md) pages for the full blocks.) Any operation may also
+declare `capabilities: [tag, ...]` to gate it behind [device capabilities](capabilities.md).
+
 The `vendoring` block tunes the import-closure walker. Each `extra_include` / `exclude` entry is a path relative to a
 `source_root` and may be a single **file**, a whole **directory**, or a **glob** — never a dotted class name.
 `extra_include` force-vendors code or data the static walker can't reach (a dynamically imported module, a directory of
-runtime assets), and `exclude` drops files from the shipped SDK. This is a **planned** feature: the manifest accepts
-these keys today, but the generator does not act on them yet.
+runtime assets), and `exclude` drops files from the shipped SDK. The generator honors these during a `--profile`
+(vendoring) build; a plain `kandra build` imports from `source_roots` and ignores them. See
+[Audiences & IP Isolation](audiences.md).

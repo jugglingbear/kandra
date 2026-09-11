@@ -14,10 +14,12 @@ Kandra picks a different tradeoff:
   You refactor with the IDE, lint with ruff, and test with pytest. No schema language.
 - **YAML is wiring only.** The manifest references your Python classes by dotted path and declares which commands ship
   on which transports for which audience. It contains **no** type definitions.
-- **Audience is first-class.** Each command, attribute, and module is tagged so Kandra can emit one SDK per audience and
-  fail the build if anything leaks across. This pruning + leakage scan is the current in-progress milestone.
-- **One runtime, many SDKs.** The generated package depends on a small `kandra-runtime` PyPI package and (once vendoring
-  lands) will carry only its own transitive code closure.
+- **Audience is first-class.** Each command and module is tagged so Kandra can emit one SDK per audience and fail the
+  build if anything leaks across. Building with `--profile <audience>` runs the pruning + vendoring + leakage scan; see
+  [Audiences & IP Isolation](concepts/audiences.md).
+- **One runtime, many SDKs.** The generated package depends on a small `kandra-runtime` PyPI package; a `--profile`
+  build additionally vendors only its own transitive code closure under `_internal/`, so the artifact is fully
+  self-contained.
 
 ## How It Works
 
@@ -55,7 +57,9 @@ For each manifest the generator:
 7. Verifies the generated package compiles and imports cleanly in an isolated subprocess before the build succeeds —
    a manifest or handler flaw that would emit a broken SDK fails the build instead of shipping.
 
-Steps 1–2 and 6–7 run today. The closure restriction, audience pruning, and vendoring in steps 3–5 are the in-progress
-isolation layer — for now the generated client imports handlers from your `source_roots` rather than vendoring them.
+A plain `kandra build` runs steps 1–2 and 6–7 and has the generated client import handlers from your `source_roots`
+(the lightweight development mode). Adding `--profile <audience>` turns on the full isolation layer — the closure
+restriction, audience pruning, and vendoring in steps 3–5 — emitting a self-contained package under `dist/<audience>/`.
+See [Audiences & IP Isolation](concepts/audiences.md) for the full pipeline.
 
 For the full layer breakdown and the runtime/generator split, see [Architecture](concepts/architecture.md).
