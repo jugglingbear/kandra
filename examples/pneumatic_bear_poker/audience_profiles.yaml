@@ -1,0 +1,48 @@
+# Audience policy for the Pneumatic Bear Poker example (kandra.md section 8.2).
+#
+# Two layers cooperate to keep a generated SDK IP-isolated:
+#   1. This file — the repo-level policy. It declares build *profiles* and a
+#      STATIC path -> audience-tags map. Every file defaults to `internal`;
+#      authors must consciously opt a file into a wider audience here.
+#   2. Per-file `# kandra-audience:` headers — may NARROW (never widen) a grant.
+#
+# Build a profile with:  kandra build manifest.yaml --profile partner_woodland
+# Audit a profile with:  kandra audit  manifest.yaml --profile partner_woodland
+
+profiles:
+  internal:
+    description: "Full internal build — nothing pruned, no denylist."
+    include_audience: [internal, partner_woodland]
+    deny_substrings: []
+
+  partner_woodland:
+    description: "Release for Woodland Robotics (external partner)."
+    include_audience: [partner_woodland]
+    # These tokens must never appear in the shipped partner tree. The internal
+    # bench module (super_secret) is dropped via vendoring.exclude, so its name
+    # and its register-dump helper should be nowhere in the output.
+    deny_substrings:
+      - super_secret
+      - dump_internal_registers
+      - "@bearcorp.internal"
+
+# Static path -> audience-tags map. Files absent here default to [internal].
+# Every file reachable from a partner_woodland command must be granted the
+# partner_woodland tag, or the build fails loud (a command it can call would
+# otherwise import a file it may not have).
+files:
+  src/common/__init__.py: [internal, partner_woodland]
+  src/common/codecs/__init__.py: [internal, partner_woodland]
+  src/common/codecs/tlv.py: [internal, partner_woodland]
+  src/devices/__init__.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/__init__.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/__init__.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/poker.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/safety.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/power.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/settings.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/alerts.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/diagnostics.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/super_important.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/assets/poke_profiles.json: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/assets/pressure_curve.csv: [internal, partner_woodland]
