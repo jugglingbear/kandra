@@ -113,6 +113,11 @@ commands:
     audience: [internal, partner_woodland]
     timeout: 30.0
     idempotent: true
+    # Gated: only firmware built with the diagnostics package exposes the log
+    # buffer. `await client.discover_capabilities(probe)` marks it unavailable on
+    # devices whose probe doesn't report the "diagnostics" tag (fails locally
+    # with CapabilityUnavailableError instead of on the wire).
+    capabilities: [diagnostics]
     http:
       http:
         method: GET
@@ -123,6 +128,41 @@ commands:
         # ask the generator to lift request fields onto the query string.
         query_from_request: true
         expects_response: true
+
+# Attributes are named device *state* (read / write / subscribe), as opposed to
+# commands (one-shot actions). The generator emits a namespaced sub-object:
+# `client.settings.poke_intensity.read() / .write(v) / .subscribe()`.
+attributes:
+  - id: settings.poke_intensity
+    handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
+    transports: [http, ble]
+    operations: [read, write, subscribe]
+    audience: [internal, partner_woodland]
+    http:
+      http:
+        # Explicit verbs, exactly like commands: read via GET, write via PUT.
+        read: { method: GET, path: /v1/settings/poke_intensity }
+        write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
+        # Native server-sent-events stream (no polling). `mode: poll` would
+        # require an explicit `interval` — polling is never a silent default.
+        subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
+    ble:
+      ble:
+        # One BLE channel carries read (write+notify), write, and notify-stream.
+        channel: query
+
+# Events are stateless device emissions (subscribe-only), distinct from an
+# attribute subscribe (which streams changes of a stored value). The generator
+# emits `client.alerts.bear_stirred.subscribe()` (async-only).
+events:
+  - id: alerts.bear_stirred
+    handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
+    transports: [http, ble]
+    audience: [internal, partner_woodland]
+    http:
+      http: { mode: sse, path: /v1/alerts/bear_stirred/events }
+    ble:
+      ble: { channel: query }
 
 vendoring:
   # extra_include takes a file, a whole directory, or a glob (relative to a

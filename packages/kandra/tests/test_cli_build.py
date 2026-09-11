@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from kandra.cli import main
 from kandra.generator import build_sdk
 
@@ -58,3 +59,34 @@ def test_build_sdk_clean_param_on_nonexistent_dir(tmp_path: Path) -> None:
     result = build_sdk(EXAMPLE_MANIFEST, output_root=target, clean=True)
     assert result.package_path.is_dir()
     assert (result.package_path / "client.py").is_file()
+
+
+def test_cli_build_profile_vendors(tmp_path: Path) -> None:
+    """``--profile`` routes through the vendoring pipeline into ``<profile>/``."""
+    rc = main(["build", str(EXAMPLE_MANIFEST), "--output-dir", str(tmp_path), "--profile", "partner_woodland"])
+    assert rc == 0
+    pkg = tmp_path / "partner_woodland" / "pneumatic_bear_poker_sdk"
+    assert (pkg / "_internal" / "__init__.py").is_file()
+    assert not (pkg / "_internal" / "common" / "codecs" / "json.py").exists()
+
+
+def test_cli_build_unknown_profile_exit_code(tmp_path: Path) -> None:
+    """An unknown profile fails with a non-zero exit and a message on stderr."""
+    rc = main(["build", str(EXAMPLE_MANIFEST), "--output-dir", str(tmp_path), "--profile", "ghost"])
+    assert rc == 1
+
+
+def test_cli_audit_lists_files(capsys: pytest.CaptureFixture[str]) -> None:
+    """``kandra audit`` prints included/pruned rows for a profile."""
+    rc = main(["audit", str(EXAMPLE_MANIFEST), "--profile", "partner_woodland"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "audit profile=partner_woodland" in out
+    assert "+ src/devices/pneumatic_bear_poker/handlers/poker.py" in out
+    assert "- src/common/codecs/json.py" in out
+
+
+def test_cli_audit_unknown_profile_exit_code(tmp_path: Path) -> None:
+    """``kandra audit`` with a bad profile exits non-zero."""
+    rc = main(["audit", str(EXAMPLE_MANIFEST), "--profile", "ghost"])
+    assert rc == 1

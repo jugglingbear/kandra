@@ -5,7 +5,10 @@ Subcommands:
 * ``kandra schema``      — dump the manifest JSON Schema (for editor
                           autocomplete / external validation).
 * ``kandra validate``    — load and validate a manifest YAML.
-* ``kandra build``       — generate the SDK package for a manifest.
+* ``kandra build``       — generate the SDK package for a manifest (optionally
+                          audience-pruned + vendored via ``--profile``).
+* ``kandra audit``       — report the effective audience of every source file
+                          for a profile (InfoSec release sign-off).
 * ``kandra create-sdk``  — scaffold a new Poetry project that uses kandra
                           (interactive wizard or YAML-driven).
 """
@@ -17,7 +20,10 @@ import json
 import sys
 from pathlib import Path
 
+from kandra.audience import AudienceError
+from kandra.audit import audit_profile, format_report
 from kandra.generator import BuildError, build_sdk
+from kandra.leakage import LeakageError
 from kandra.loader import LoaderError, load_manifest
 from kandra.manifest import Manifest
 from kandra.scaffold import (
@@ -74,6 +80,32 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="also run mypy --strict over the generated package (requires mypy)",
     )
+    build.add_argument(
+        "--profile",
+        default=None,
+        help="audience profile to build (activates pruning + vendoring + leakage scan)",
+    )
+    build.add_argument(
+        "--profiles",
+        dest="profiles_path",
+        type=Path,
+        default=None,
+        help="path to audience_profiles.yaml (default: <manifest_dir>/audience_profiles.yaml)",
+    )
+
+    audit = subparsers.add_parser(
+        "audit",
+        help="report the effective audience of every source file for a profile",
+    )
+    audit.add_argument("path", type=Path, help="path to the manifest YAML")
+    audit.add_argument("--profile", required=True, help="audience profile to audit")
+    audit.add_argument(
+        "--profiles",
+        dest="profiles_path",
+        type=Path,
+        default=None,
+        help="path to audience_profiles.yaml (default: <manifest_dir>/audience_profiles.yaml)",
+    )
 
     create = subparsers.add_parser(
         "create-sdk",
@@ -112,10 +144,15 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     except LoaderError as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    print(
+    summary = (
         f"OK: {args.path} \u2014 device={manifest.device.id} "
         f"transports={len(manifest.transports)} commands={len(manifest.commands)}"
     )
+    if manifest.attributes:
+        summary += f" attributes={len(manifest.attributes)}"
+    if manifest.events:
+        summary += f" events={len(manifest.events)}"
+    print(summary)
     return 0
 
 
@@ -127,13 +164,25 @@ def _cmd_build(args: argparse.Namespace) -> int:
             clean=args.clean,
             verify=args.verify,
             typecheck=args.typecheck,
+            profile=args.profile,
+            profiles_path=args.profiles_path,
         )
-    except (LoaderError, BuildError) as exc:
+    except (LoaderError, BuildError, AudienceError, LeakageError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     print(f"Wrote {result.package_name} \u2192 {result.package_path}")
     for f in result.files:
         print(f"  {f.relative_to(result.package_path.parent)}")
+    return 0
+
+
+def _cmd_audit(args: argparse.Namespace) -> int:
+    try:
+        report = audit_profile(args.path, args.profile, profiles_path=args.profiles_path)
+    except (LoaderError, AudienceError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(format_report(report))
     return 0
 
 
@@ -181,6 +230,7 @@ _DISPATCH = {
     "schema": _cmd_schema,
     "validate": _cmd_validate,
     "build": _cmd_build,
+    "audit": _cmd_audit,
     "create-sdk": _cmd_create_sdk,
 }
 

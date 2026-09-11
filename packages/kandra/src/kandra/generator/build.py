@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import os
 import re
@@ -9,17 +10,31 @@ import shutil
 import subprocess
 import sys
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from kandra.audience import (
+    AUDIENCE_PROFILES_FILENAME,
+    AudienceProfiles,
+    audience_intersects,
+    load_audience_profiles,
+    posix_relpath,
+    resolve_file_audience,
+)
+from kandra.closure import ClosureResult, ModuleFile, build_module_index, walk_closure
 from kandra.generator.render import (
+    AttributeSpec,
     BleCommandWire,
     BleDiscoverySpec,
     CommandSpec,
     DiscoverySpec,
+    EventSpec,
     HttpCommandWire,
     HttpDiscoverySpec,
+    SubscribeWire,
     TransportSpec,
     render_client,
     render_init,
@@ -28,11 +43,14 @@ from kandra.generator.render import (
     render_scanners,
     render_transports,
 )
+from kandra.leakage import assert_no_leakage
 from kandra.loader import load_manifest
-from kandra.manifest import Manifest
+from kandra.manifest import Attribute, Command, Event, Manifest
+from kandra.manifest.model import HttpAttributeSpec
+from kandra.vendor import internal_prefix, rewrite_imports, vendor_closure
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
 _IDENT_SAFE = re.compile(r"[^A-Za-z0-9_]")
 
@@ -57,6 +75,8 @@ def build_sdk(
     clean: bool = False,
     verify: bool = True,
     typecheck: bool = False,
+    profile: str | None = None,
+    profiles_path: Path | None = None,
 ) -> BuildResult:
     """Generate the SDK package described by ``manifest_path``.
 
@@ -74,34 +94,62 @@ def build_sdk(
     build succeeds; ``typecheck`` additionally runs ``mypy --strict`` over
     it. Either check raises :class:`BuildError` on failure, so a manifest or
     handler flaw fails the build instead of shipping a broken SDK.
+
+    When ``profile`` is set, the **audience-pruning + vendoring** pipeline runs
+    instead of the plain import-from-source-roots build: the manifest is pruned
+    to that profile's audiences, the handler import closure is vendored into
+    ``<output_root>/<profile>/<device_id>_sdk/_internal`` with imports rewritten,
+    a leakage scan enforces the profile's denylist, and the self-contained
+    package is import-checked with the source roots *off* ``sys.path``.
+    ``profiles_path`` overrides the default
+    ``<manifest_dir>/audience_profiles.yaml`` location.
     """
     manifest_path = manifest_path.resolve()
     manifest = load_manifest(manifest_path)
-
     manifest_dir = manifest_path.parent
     resolved_roots = [(manifest_dir / r).resolve() for r in manifest.source_roots]
-
     package_name = f"{manifest.device.id}_sdk"
+
+    if profile is not None:
+        return _build_profile_sdk(
+            manifest,
+            manifest_path=manifest_path,
+            manifest_dir=manifest_dir,
+            resolved_roots=resolved_roots,
+            package_name=package_name,
+            output_root=output_root,
+            profile=profile,
+            profiles_path=profiles_path,
+            clean=clean,
+            verify=verify,
+            typecheck=typecheck,
+        )
+
     out_root = (output_root or (manifest_dir / "dist")).resolve()
     package_path = out_root / package_name
 
     with _augment_sys_path(resolved_roots):
         transport_specs = _resolve_transports(manifest)
-        command_specs = _resolve_commands(manifest)
+        command_specs, _entry = _resolve_commands(manifest.commands)
+        attribute_op_specs, attribute_specs, _attr_entry = _resolve_attributes(manifest.attributes)
+        event_op_specs, event_specs, _event_entry = _resolve_events(manifest.events)
 
     discovery_spec = _resolve_discovery(manifest)
-
     device_class = _pascal(manifest.device.id) + "Client"
+    provenance = _make_provenance(manifest_path=manifest_path, manifest=manifest)
 
     files = _write_package(
         package_path,
         device_class=device_class,
-        manifest_path=str(manifest_path),
         device_id=manifest.device.id,
-        schema_version=manifest.schema_version,
+        provenance=provenance,
         transports=transport_specs,
         commands=command_specs,
         discovery=discovery_spec,
+        attribute_op_specs=attribute_op_specs,
+        attribute_specs=attribute_specs,
+        event_op_specs=event_op_specs,
+        event_specs=event_specs,
         clean=clean,
     )
 
@@ -119,6 +167,277 @@ def build_sdk(
         package_name=package_name,
         files=tuple(files),
     )
+
+
+# ---------------------------------------------------------------------------
+# Profile pipeline (audience prune -> closure -> vendor -> leakage scan)
+# ---------------------------------------------------------------------------
+
+
+def _build_profile_sdk(
+    manifest: Manifest,
+    *,
+    manifest_path: Path,
+    manifest_dir: Path,
+    resolved_roots: list[Path],
+    package_name: str,
+    output_root: Path | None,
+    profile: str,
+    profiles_path: Path | None,
+    clean: bool,
+    verify: bool,
+    typecheck: bool,
+) -> BuildResult:
+    """Audience-prune, vendor, and leakage-scan an SDK for a single profile."""
+    profiles_file = profiles_path or (manifest_dir / AUDIENCE_PROFILES_FILENAME)
+    profiles = load_audience_profiles(profiles_file)
+    selected = profiles.profile(profile)  # AudienceError on unknown profile
+    include = selected.include_audience
+
+    surviving = [c for c in manifest.commands if audience_intersects(c.audience, include)]
+    surviving_attrs = [a for a in manifest.attributes if audience_intersects(a.audience, include)]
+    surviving_events = [e for e in manifest.events if audience_intersects(e.audience, include)]
+    if not surviving and not surviving_attrs and not surviving_events:
+        raise BuildError(
+            f"profile {profile!r}: no commands, attributes, or events survive audience pruning "
+            f"(include_audience={sorted(include)})"
+        )
+
+    out_root = (output_root or (manifest_dir / "dist")).resolve() / profile
+    package_path = out_root / package_name
+
+    with _augment_sys_path(resolved_roots):
+        transport_specs = _resolve_transports(manifest)
+        command_specs, entry_modules = _resolve_commands(surviving)
+        attribute_op_specs, attribute_specs, attr_entry = _resolve_attributes(surviving_attrs)
+        event_op_specs, event_specs, event_entry = _resolve_events(surviving_events)
+    entry_modules |= attr_entry | event_entry
+
+    used_transport_ids = {tid for cmd in surviving for tid in cmd.transports}
+    used_transport_ids |= {tid for attr in surviving_attrs for tid in attr.transports}
+    used_transport_ids |= {tid for event in surviving_events for tid in event.transports}
+    entry_modules |= _transport_codec_entry_modules(manifest, used_transport_ids)
+
+    closure = walk_closure(
+        entry_modules,
+        resolved_roots,
+        extra_include=manifest.vendoring.extra_include,
+        exclude=manifest.vendoring.exclude,
+    )
+
+    kept, dropped = _filter_closure_by_audience(closure, profiles, manifest_dir, include)
+    _check_entry_files_survive(entry_modules, resolved_roots, dropped, manifest_dir, include)
+
+    if clean and package_path.exists():
+        shutil.rmtree(package_path)
+    package_path.mkdir(parents=True, exist_ok=True)
+
+    prefix = internal_prefix(package_name)
+    tops = kept.top_level_packages
+    vendored = vendor_closure(kept, resolved_roots, package_path, package_name)
+
+    transport_specs = [_rewrite_transport_spec(t, tops, prefix) for t in transport_specs]
+    command_specs = [_rewrite_command_spec(c, tops, prefix) for c in command_specs]
+    attribute_op_specs = [_rewrite_command_spec(c, tops, prefix) for c in attribute_op_specs]
+    attribute_specs = tuple(_rewrite_attribute_spec(a, tops, prefix) for a in attribute_specs)
+    event_op_specs = [_rewrite_command_spec(c, tops, prefix) for c in event_op_specs]
+    event_specs = tuple(_rewrite_event_spec(e, tops, prefix) for e in event_specs)
+
+    discovery_spec = _resolve_discovery(manifest)
+    device_class = _pascal(manifest.device.id) + "Client"
+    provenance = _make_provenance(
+        manifest_path=manifest_path,
+        manifest=manifest,
+        profile=profile,
+        profiles_file=profiles_file,
+    )
+
+    glue = _write_package(
+        package_path,
+        device_class=device_class,
+        device_id=manifest.device.id,
+        provenance=provenance,
+        transports=transport_specs,
+        commands=command_specs,
+        discovery=discovery_spec,
+        attribute_op_specs=attribute_op_specs,
+        attribute_specs=attribute_specs,
+        event_op_specs=event_op_specs,
+        event_specs=event_specs,
+        clean=False,  # already cleaned + vendored above; don't wipe _internal
+    )
+
+    assert_no_leakage(package_path, selected.deny_substrings, base=package_path)
+
+    if verify:
+        # Self-containment check: import the vendored package with the source
+        # roots OFF the path. Any reach back into the authoring tree fails here.
+        _verify_package(
+            package_path,
+            package_name,
+            written_files=[*glue, *vendored],
+            import_roots=[out_root],
+            typecheck=typecheck,
+        )
+
+    return BuildResult(
+        package_path=package_path,
+        package_name=package_name,
+        files=tuple([*glue, *vendored]),
+    )
+
+
+def _transport_codec_entry_modules(manifest: Manifest, used_transport_ids: set[str]) -> frozenset[str]:
+    """Return codec modules the generated registry imports for used non-HTTP transports.
+
+    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor); BLE
+    and loopback/unknown transports import the user's codec, so its module must
+    be part of the closure.
+    """
+    modules: set[str] = set()
+    for t in manifest.transports:
+        if t.id in used_transport_ids and t.family != "http":
+            modules.add(t.codec.split(":")[0])
+    return frozenset(modules)
+
+
+def _filter_closure_by_audience(
+    closure: ClosureResult,
+    profiles: AudienceProfiles,
+    base_dir: Path,
+    include: Sequence[str],
+) -> tuple[ClosureResult, set[Path]]:
+    """Drop closure files whose effective audience excludes the target profile.
+
+    Modules are resolved with their ``# kandra-audience:`` header applied; assets
+    use the YAML grant only. A build error is raised if any surviving file still
+    imports a dropped one (the exact chain is reported).
+    """
+    include_set = set(include)
+    dropped: set[Path] = set()
+    kept_modules: list[ModuleFile] = []
+    for module in closure.modules:
+        rel = posix_relpath(module.path, base_dir)
+        effective = resolve_file_audience(rel, module.path.read_text(encoding="utf-8"), profiles)
+        if include_set & effective:
+            kept_modules.append(module)
+        else:
+            dropped.add(module.path)
+
+    for module in kept_modules:
+        for dep in closure.imports.get(module.path, frozenset()):
+            if dep in dropped:
+                raise BuildError(
+                    f"audience leak: {posix_relpath(module.path, base_dir)} is included for "
+                    f"audience {sorted(include_set)} but imports "
+                    f"{posix_relpath(dep, base_dir)}, which is excluded for that audience"
+                )
+
+    kept_assets: list[Path] = []
+    for asset in closure.assets:
+        grant = profiles.grant_for(posix_relpath(asset, base_dir))
+        if include_set & grant:
+            kept_assets.append(asset)
+        else:
+            dropped.add(asset)
+
+    kept = ClosureResult(modules=tuple(kept_modules), assets=tuple(kept_assets), imports=closure.imports)
+    return kept, dropped
+
+
+def _check_entry_files_survive(
+    entry_modules: frozenset[str],
+    roots: list[Path],
+    dropped: set[Path],
+    base_dir: Path,
+    include: Sequence[str],
+) -> None:
+    """Fail the build if a surviving command's own handler/model/codec was dropped."""
+    index = build_module_index(roots)
+    for dotted in sorted(entry_modules):
+        module = index.get(dotted)
+        if module is None:  # external module (e.g. kandra_runtime.*) — never vendored
+            continue
+        if module.path in dropped:
+            raise BuildError(
+                f"audience leak: entry module {dotted!r} "
+                f"({posix_relpath(module.path, base_dir)}) is excluded for audience "
+                f"{sorted(include)}, but a surviving command requires it"
+            )
+
+
+def _rewrite_transport_spec(spec: TransportSpec, tops: frozenset[str], prefix: str) -> TransportSpec:
+    """Rewrite a transport spec's codec import to the vendored ``_internal`` namespace."""
+    if spec.codec_import is None:
+        return spec
+    return replace(spec, codec_import=_rewrite_import_line(spec.codec_import, tops, prefix))
+
+
+def _rewrite_command_spec(spec: CommandSpec, tops: frozenset[str], prefix: str) -> CommandSpec:
+    """Rewrite a command spec's request/response imports to the vendored namespace."""
+    return replace(
+        spec,
+        request_import=_rewrite_import_line(spec.request_import, tops, prefix),
+        response_import=_rewrite_import_line(spec.response_import, tops, prefix),
+    )
+
+
+def _rewrite_attribute_spec(spec: AttributeSpec, tops: frozenset[str], prefix: str) -> AttributeSpec:
+    """Rewrite an attribute facade spec's value/write-ack imports to the vendored namespace."""
+    return replace(
+        spec,
+        value_import=_rewrite_import_line(spec.value_import, tops, prefix),
+        write_ack_import=_rewrite_import_line(spec.write_ack_import, tops, prefix),
+    )
+
+
+def _rewrite_event_spec(spec: EventSpec, tops: frozenset[str], prefix: str) -> EventSpec:
+    """Rewrite an event facade spec's payload import to the vendored namespace."""
+    return replace(spec, payload_import=_rewrite_import_line(spec.payload_import, tops, prefix))
+
+
+def _rewrite_import_line(line: str, tops: frozenset[str], prefix: str) -> str:
+    """Apply the vendoring import rewrite to a single generated ``from ... import`` line."""
+    return rewrite_imports(line + "\n", tops, prefix).rstrip("\n")
+
+
+# ---------------------------------------------------------------------------
+# Provenance
+# ---------------------------------------------------------------------------
+
+
+def _make_provenance(
+    *,
+    manifest_path: Path,
+    manifest: Manifest,
+    profile: str | None = None,
+    profiles_file: Path | None = None,
+) -> str:
+    """Build the ``_generated_from.json`` provenance document for this build."""
+    manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    profiles_sha = (
+        hashlib.sha256(profiles_file.read_bytes()).hexdigest()
+        if profiles_file is not None and profiles_file.exists()
+        else None
+    )
+    return render_provenance(
+        manifest_path=str(manifest_path),
+        device_id=manifest.device.id,
+        schema_version=manifest.schema_version,
+        kandra_version=_kandra_version(),
+        generated_at=datetime.now(UTC).isoformat(),
+        profile=profile,
+        manifest_sha256=manifest_sha,
+        profiles_sha256=profiles_sha,
+    )
+
+
+def _kandra_version() -> str:
+    """Return the installed kandra version, or a sentinel when unavailable."""
+    try:
+        return metadata.version("kandra")
+    except metadata.PackageNotFoundError:
+        return "0+unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -168,15 +487,23 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
     return specs
 
 
-def _resolve_commands(manifest: Manifest) -> list[CommandSpec]:
+def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], frozenset[str]]:
+    """Resolve manifest commands into render specs and their entry-point modules.
+
+    Returns the per-command specs plus the set of dotted module names the
+    generated glue will import (handler modules and the request/response model
+    modules read off each handler). Those seed the vendoring import closure.
+    """
     specs: list[CommandSpec] = []
-    for cmd in manifest.commands:
+    entry_modules: set[str] = set()
+    for cmd in commands:
         assert cmd.handler is not None  # loader rejects null handlers
         module_path, class_name = cmd.handler.split(":")
         handler_cls = _import_attr(module_path, class_name, what=f"command {cmd.id!r} handler")
 
         request_cls = _read_handler_type(handler_cls, "request", cmd.id)
         response_cls = _read_handler_type(handler_cls, "response", cmd.id)
+        entry_modules.update({module_path, request_cls.__module__, response_cls.__module__})
 
         safe = _sanitize(cmd.id)
         req_alias = f"_Req_{safe}"
@@ -210,20 +537,307 @@ def _resolve_commands(manifest: Manifest) -> list[CommandSpec]:
                 namespace=ns,
                 method=method,
                 timeout=cmd.timeout,
-                request_import=(
-                    f"from {request_cls.__module__} import {request_cls.__name__} as {req_alias}"
-                ),
+                request_import=(f"from {request_cls.__module__} import {request_cls.__name__} as {req_alias}"),
                 request_alias=req_alias,
-                response_import=(
-                    f"from {response_cls.__module__} import {response_cls.__name__} as {resp_alias}"
-                ),
+                response_import=(f"from {response_cls.__module__} import {response_cls.__name__} as {resp_alias}"),
                 response_alias=resp_alias,
                 transports=list(cmd.transports),
                 http_wires=http_wires,
                 ble_wires=ble_wires,
+                capabilities=tuple(cmd.capabilities),
             )
         )
-    return specs
+    return specs, frozenset(entry_modules)
+
+
+def _resolve_attributes(
+    attributes: Sequence[Attribute],
+) -> tuple[list[CommandSpec], tuple[AttributeSpec, ...], frozenset[str]]:
+    """Resolve manifest attributes into synthetic op commands, facade specs, and entry modules.
+
+    Each attribute expands to one synthetic command per declared operation
+    (``<id>.read`` / ``.write`` / ``.subscribe``) wired into the same registry
+    the command layer uses, plus one :class:`AttributeSpec` describing the
+    ``client.<namespace>.<name>`` facade. Read/subscribe requests carry the
+    runtime :class:`NoArgs` sentinel; the handler's ``value`` type is the
+    read/subscribe payload and the write input, and an optional ``write_ack``
+    type (defaulting to ``value``) is the write response.
+    """
+    op_specs: list[CommandSpec] = []
+    attr_specs: list[AttributeSpec] = []
+    entry_modules: set[str] = set()
+
+    for attr in attributes:
+        if attr.handler is None:
+            raise BuildError(
+                f"attribute {attr.id!r}: a handler is required to generate its facade "
+                "(set `handler: 'module:HandlerClass'`)"
+            )
+        if "." not in attr.id:
+            raise BuildError(
+                f"attribute id {attr.id!r} must be dotted ('<namespace>.<name>') so it maps to "
+                "client.<namespace>.<name>"
+            )
+        module_path, class_name = attr.handler.split(":")
+        handler_cls = _import_attr(module_path, class_name, what=f"attribute {attr.id!r} handler")
+
+        value_cls = _read_attribute_type(handler_cls, "value", attr.id, required=True)
+        assert value_cls is not None  # required=True raises rather than returning None
+        write_ack_cls = _read_attribute_type(handler_cls, "write_ack", attr.id, required=False) or value_cls
+        entry_modules.update({module_path, value_cls.__module__, write_ack_cls.__module__})
+
+        safe = _sanitize(attr.id)
+        namespace, attr_name = _split_namespace(attr.id)
+        value_alias = f"_Val_{safe}"
+        value_import = f"from {value_cls.__module__} import {value_cls.__name__} as {value_alias}"
+        if write_ack_cls is value_cls:
+            ack_alias, ack_import = value_alias, value_import
+        else:
+            ack_alias = f"_Ack_{safe}"
+            ack_import = f"from {write_ack_cls.__module__} import {write_ack_cls.__name__} as {ack_alias}"
+
+        operations = tuple(attr.operations)
+        for op in operations:
+            op_specs.append(
+                _attribute_op_spec(
+                    attr,
+                    op,
+                    value_alias=value_alias,
+                    value_import=value_import,
+                    ack_alias=ack_alias,
+                    ack_import=ack_import,
+                )
+            )
+
+        attr_specs.append(
+            AttributeSpec(
+                attr_id=attr.id,
+                namespace=namespace,
+                attr_name=attr_name,
+                class_name=f"_{_pascal(namespace)}{_pascal(attr_name)}Attribute",
+                sync_class_name=f"_Sync{_pascal(namespace)}{_pascal(attr_name)}Attribute",
+                value_import=value_import,
+                value_alias=value_alias,
+                write_ack_import=ack_import,
+                write_ack_alias=ack_alias,
+                operations=operations,
+                subscribe_wires=(_attribute_subscribe_wires(attr) if "subscribe" in operations else ()),
+            )
+        )
+
+    return op_specs, tuple(attr_specs), frozenset(entry_modules)
+
+
+def _attribute_op_spec(
+    attr: Attribute,
+    op: str,
+    *,
+    value_alias: str,
+    value_import: str,
+    ack_alias: str,
+    ack_import: str,
+) -> CommandSpec:
+    """Build the synthetic :class:`CommandSpec` for one attribute operation."""
+    command_id = f"{attr.id}.{op}"
+    namespace, method = _split_namespace(command_id)
+    if op == "write":
+        req_alias, req_import = value_alias, value_import
+        resp_alias, resp_import = ack_alias, ack_import
+    else:  # read / subscribe carry the empty NoArgs request; response is the value.
+        req_alias, req_import = "_NoArgs", "from kandra_runtime import NoArgs as _NoArgs"
+        resp_alias, resp_import = value_alias, value_import
+
+    http_wires = {tid: _attribute_http_wire(op, spec) for tid, spec in attr.http.items()}
+    ble_wires = {
+        tid: BleCommandWire(channel=spec.channel, expects_response=True, timeout=spec.timeout)
+        for tid, spec in attr.ble.items()
+    }
+    return CommandSpec(
+        command_id=command_id,
+        namespace=namespace,
+        method=method,
+        timeout=None,
+        request_import=req_import,
+        request_alias=req_alias,
+        response_import=resp_import,
+        response_alias=resp_alias,
+        transports=list(attr.transports),
+        http_wires=http_wires,
+        ble_wires=ble_wires,
+        capabilities=tuple(attr.capabilities),
+    )
+
+
+def _attribute_http_wire(op: str, spec: HttpAttributeSpec) -> HttpCommandWire:
+    """Translate one attribute HTTP op block into an :class:`HttpCommandWire`."""
+    if op == "subscribe":
+        sub = spec.subscribe
+        assert sub is not None  # validation guarantees a block for every declared op
+        return HttpCommandWire(
+            method="GET",
+            path=sub.path,
+            body_codec="none",
+            response_codec="json",
+            query_from_request=False,
+            expects_response=True,
+            timeout=sub.timeout,
+        )
+    http_op = spec.read if op == "read" else spec.write
+    assert http_op is not None  # validation guarantees a block for every declared op
+    return HttpCommandWire(
+        method=http_op.method,
+        path=http_op.path,
+        body_codec=http_op.body_codec,
+        response_codec=http_op.response_codec,
+        query_from_request=http_op.query_from_request,
+        expects_response=True,
+        timeout=http_op.timeout,
+    )
+
+
+def _attribute_subscribe_wires(attr: Attribute) -> tuple[SubscribeWire, ...]:
+    """Build the per-transport subscribe delivery table for one attribute."""
+    wires: list[SubscribeWire] = []
+    for tid in attr.transports:
+        if tid in attr.http:
+            sub = attr.http[tid].subscribe
+            assert sub is not None  # validation guarantees a subscribe block here
+            wires.append(
+                SubscribeWire(enum_member=_enum_member(tid), mode=sub.mode, interval=sub.interval)
+            )
+        elif tid in attr.ble:
+            wires.append(SubscribeWire(enum_member=_enum_member(tid), mode="ble", interval=None))
+    return tuple(wires)
+
+
+def _read_attribute_type(handler_cls: type, attr: str, attribute_id: str, *, required: bool) -> type | None:
+    """Read a class-valued attribute (``value`` / ``write_ack``) off an attribute handler."""
+    value = getattr(handler_cls, attr, None)
+    if value is None:
+        if required:
+            raise BuildError(
+                f"attribute {attribute_id!r}: handler {handler_cls.__module__}:{handler_cls.__name__} "
+                f"is missing required attribute {attr!r} (set `{attr} = SomeDataclass`)"
+            )
+        return None
+    if not isinstance(value, type):
+        raise BuildError(
+            f"attribute {attribute_id!r}: handler.{attr} must be a class, got {type(value).__name__}"
+        )
+    return value
+
+
+def _resolve_events(
+    events: Sequence[Event],
+) -> tuple[list[CommandSpec], tuple[EventSpec, ...], frozenset[str]]:
+    """Resolve manifest events into synthetic subscribe commands, facade specs, and entry modules.
+
+    Each event becomes one synthetic ``<id>.subscribe`` command wired into the
+    same registry the command layer uses, plus one :class:`EventSpec` describing
+    the ``client.<namespace>.<name>.subscribe()`` facade. The subscribe request
+    carries the runtime :class:`NoArgs` sentinel; the handler's ``payload`` type
+    is the streamed emission payload.
+    """
+    op_specs: list[CommandSpec] = []
+    event_specs: list[EventSpec] = []
+    entry_modules: set[str] = set()
+
+    for event in events:
+        if event.handler is None:
+            raise BuildError(
+                f"event {event.id!r}: a handler is required to generate its facade "
+                "(set `handler: 'module:HandlerClass'`)"
+            )
+        if "." not in event.id:
+            raise BuildError(
+                f"event id {event.id!r} must be dotted ('<namespace>.<name>') so it maps to "
+                "client.<namespace>.<name>"
+            )
+        module_path, class_name = event.handler.split(":")
+        handler_cls = _import_attr(module_path, class_name, what=f"event {event.id!r} handler")
+        payload_cls = _read_event_payload(handler_cls, event.id)
+        entry_modules.update({module_path, payload_cls.__module__})
+
+        safe = _sanitize(event.id)
+        namespace, event_name = _split_namespace(event.id)
+        payload_alias = f"_Evt_{safe}"
+        payload_import = f"from {payload_cls.__module__} import {payload_cls.__name__} as {payload_alias}"
+
+        op_specs.append(_event_op_spec(event, payload_alias, payload_import))
+        event_specs.append(
+            EventSpec(
+                event_id=event.id,
+                namespace=namespace,
+                event_name=event_name,
+                class_name=f"_{_pascal(namespace)}{_pascal(event_name)}Event",
+                payload_import=payload_import,
+                payload_alias=payload_alias,
+                subscribe_wires=_event_subscribe_wires(event),
+            )
+        )
+
+    return op_specs, tuple(event_specs), frozenset(entry_modules)
+
+
+def _event_op_spec(event: Event, payload_alias: str, payload_import: str) -> CommandSpec:
+    """Build the synthetic ``<id>.subscribe`` :class:`CommandSpec` for one event."""
+    command_id = f"{event.id}.subscribe"
+    namespace, method = _split_namespace(command_id)
+    http_wires = {
+        tid: HttpCommandWire(
+            method="GET",
+            path=spec.path,
+            body_codec="none",
+            response_codec="json",
+            query_from_request=False,
+            expects_response=True,
+            timeout=spec.timeout,
+        )
+        for tid, spec in event.http.items()
+    }
+    ble_wires = {
+        tid: BleCommandWire(channel=spec.channel, expects_response=True, timeout=spec.timeout)
+        for tid, spec in event.ble.items()
+    }
+    return CommandSpec(
+        command_id=command_id,
+        namespace=namespace,
+        method=method,
+        timeout=None,
+        request_import="from kandra_runtime import NoArgs as _NoArgs",
+        request_alias="_NoArgs",
+        response_import=payload_import,
+        response_alias=payload_alias,
+        transports=list(event.transports),
+        http_wires=http_wires,
+        ble_wires=ble_wires,
+        capabilities=tuple(event.capabilities),
+    )
+
+
+def _event_subscribe_wires(event: Event) -> tuple[SubscribeWire, ...]:
+    """Build the per-transport subscribe delivery table for one event."""
+    wires: list[SubscribeWire] = []
+    for tid in event.transports:
+        if tid in event.http:
+            spec = event.http[tid]
+            wires.append(SubscribeWire(enum_member=_enum_member(tid), mode=spec.mode, interval=spec.interval))
+        elif tid in event.ble:
+            wires.append(SubscribeWire(enum_member=_enum_member(tid), mode="ble", interval=None))
+    return tuple(wires)
+
+
+def _read_event_payload(handler_cls: type, event_id: str) -> type:
+    """Read the required class-valued ``payload`` type off an event handler."""
+    value = getattr(handler_cls, "payload", None)
+    if value is None:
+        raise BuildError(
+            f"event {event_id!r}: handler {handler_cls.__module__}:{handler_cls.__name__} "
+            "is missing required attribute 'payload' (set `payload = SomeDataclass`)"
+        )
+    if not isinstance(value, type):
+        raise BuildError(f"event {event_id!r}: handler.payload must be a class, got {type(value).__name__}")
+    return value
 
 
 def _resolve_discovery(manifest: Manifest) -> DiscoverySpec | None:
@@ -273,23 +887,32 @@ def _write_package(
     package_path: Path,
     *,
     device_class: str,
-    manifest_path: str,
     device_id: str,
-    schema_version: int,
+    provenance: str,
     transports: list[TransportSpec],
     commands: list[CommandSpec],
     discovery: DiscoverySpec | None,
+    attribute_op_specs: list[CommandSpec] | None = None,
+    attribute_specs: tuple[AttributeSpec, ...] = (),
+    event_op_specs: list[CommandSpec] | None = None,
+    event_specs: tuple[EventSpec, ...] = (),
     clean: bool = False,
 ) -> list[Path]:
     if clean and package_path.exists():
         shutil.rmtree(package_path)
     package_path.mkdir(parents=True, exist_ok=True)
 
+    # The registry carries real commands plus the synthetic attribute + event ops;
+    # the client facade groups real commands into namespace methods, attributes
+    # into read/write/subscribe sub-objects, and events into subscribe sub-objects.
+    registry_commands = commands + list(attribute_op_specs or []) + list(event_op_specs or [])
+    # op id -> required capability tags, for every gated op (commands + attr/event ops).
+    capability_map = {c.command_id: c.capabilities for c in registry_commands if c.capabilities}
     files: list[tuple[str, str]] = [
         ("__init__.py", render_init(device_class, discovery=discovery)),
         ("py.typed", ""),
         ("transports.py", render_transports(transports)),
-        ("registry.py", render_registry(commands, transports)),
+        ("registry.py", render_registry(registry_commands, transports)),
         (
             "client.py",
             render_client(
@@ -298,12 +921,12 @@ def _write_package(
                 device_id=device_id,
                 transports=transports,
                 discovery=discovery,
+                attributes=attribute_specs,
+                events=event_specs,
+                capabilities=capability_map,
             ),
         ),
-        (
-            "_generated_from.json",
-            render_provenance(manifest_path, device_id, schema_version),
-        ),
+        ("_generated_from.json", provenance),
     ]
     if discovery is not None:
         files.append(("scanners.py", render_scanners(discovery)))

@@ -8,6 +8,7 @@ involves filesystem or import-system side effects lives in
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Literal
@@ -94,6 +95,46 @@ class CommandSpec:
     transports: list[str]  # transport ids (enum values) this command supports
     http_wires: dict[str, HttpCommandWire] = field(default_factory=dict)
     ble_wires: dict[str, BleCommandWire] = field(default_factory=dict)
+    capabilities: tuple[str, ...] = ()  # capability tags gating this op (empty = ungated)
+
+
+@dataclass(frozen=True)
+class SubscribeWire:
+    """Per-(primitive, transport) subscribe delivery mode (shared by attributes + events)."""
+
+    enum_member: str  # TransportId member name (e.g. "HTTP")
+    mode: Literal["sse", "poll", "ble"]  # native push (sse/ble) or opt-in polling
+    interval: float | None  # poll period in seconds; None for push modes
+
+
+@dataclass(frozen=True)
+class AttributeSpec:
+    """Facade wiring for one attribute (namespaced read / write / subscribe)."""
+
+    attr_id: str  # dotted: "settings.resolution"
+    namespace: str  # first segment: "settings"
+    attr_name: str  # remaining segments joined with "_": "resolution"
+    class_name: str  # async sub-object class, e.g. "_SettingsResolutionAttribute"
+    sync_class_name: str  # sync sub-object class
+    value_import: str  # import line for the value type
+    value_alias: str  # alias for the value type (read/subscribe payload, write input)
+    write_ack_import: str  # import line for the write-ack type
+    write_ack_alias: str  # alias for the write-ack type
+    operations: tuple[str, ...]  # subset of ("read", "write", "subscribe")
+    subscribe_wires: tuple[SubscribeWire, ...]  # empty unless "subscribe" declared
+
+
+@dataclass(frozen=True)
+class EventSpec:
+    """Facade wiring for one event (namespaced, subscribe-only, async)."""
+
+    event_id: str  # dotted: "recording.state_changed"
+    namespace: str  # first segment: "recording"
+    event_name: str  # remaining segments joined with "_": "state_changed"
+    class_name: str  # async sub-object class, e.g. "_RecordingStateChangedEvent"
+    payload_import: str  # import line for the payload type
+    payload_alias: str  # alias for the payload type
+    subscribe_wires: tuple[SubscribeWire, ...]  # per-transport delivery modes
 
 
 def render_init(device_class: str, *, discovery: DiscoverySpec | None = None) -> str:
@@ -268,6 +309,346 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
     )
 
 
+@dataclass(frozen=True)
+class _FacadeSection:
+    """Rendered fragments spliced into ``client.py`` for the attribute + event facades."""
+
+    imports: str  # extra top-level runtime imports (NoArgs / dispatch_subscribe / AsyncIterator)
+    type_imports: tuple[str, ...]  # value / write-ack / payload alias import lines
+    module_level: str  # the ``_SUBSCRIBE_MODES`` delivery-mode table (or "")
+    client_methods: str  # the ``_dispatch_subscribe`` method (or "")
+    async_classes: str  # attribute + event sub-object classes (async facade)
+    sync_classes: str  # attribute sub-object classes (sync facade; events are async-only)
+    async_assigns: dict[str, list[str]]  # namespace -> async ``self.<name> = ...`` lines
+    sync_assigns: dict[str, list[str]]  # namespace -> sync ``self.<name> = ...`` lines
+
+
+_EMPTY_FACADE_SECTION = _FacadeSection(
+    imports="",
+    type_imports=(),
+    module_level="",
+    client_methods="",
+    async_classes="",
+    sync_classes="",
+    async_assigns={},
+    sync_assigns={},
+)
+
+
+def _render_facade_section(
+    attributes: tuple[AttributeSpec, ...],
+    events: tuple[EventSpec, ...],
+    device_class: str,
+    subscribe_gate: str = "",
+) -> _FacadeSection:
+    """Render every fragment the client template needs for the attribute + event facades."""
+    if not attributes and not events:
+        return _EMPTY_FACADE_SECTION
+
+    # Every event subscribes (so needs NoArgs + the subscribe machinery); attributes
+    # need NoArgs for read/subscribe and the machinery only when they subscribe.
+    needs_no_args = bool(events) or any("read" in a.operations or "subscribe" in a.operations for a in attributes)
+    needs_subscribe = bool(events) or any("subscribe" in a.operations for a in attributes)
+
+    runtime_names = ["NoArgs"] if needs_no_args else []
+    if needs_subscribe:
+        runtime_names.append("dispatch_subscribe")
+    import_lines: list[str] = []
+    if runtime_names:
+        import_lines.append("from kandra_runtime import " + ", ".join(sorted(runtime_names)))
+    if needs_subscribe:
+        import_lines.append("from collections.abc import AsyncIterator")
+
+    type_import_set: set[str] = set()
+    for a in attributes:
+        type_import_set.add(a.value_import)
+        if "write" in a.operations:
+            type_import_set.add(a.write_ack_import)
+    for e in events:
+        type_import_set.add(e.payload_import)
+
+    async_classes: list[str] = []
+    sync_classes: list[str] = []
+    async_assigns: dict[str, list[str]] = {}
+    sync_assigns: dict[str, list[str]] = {}
+    for a in attributes:
+        async_classes.append(_render_attr_class(a, device_class))
+        sync_classes.append(_render_sync_attr_class(a, device_class))
+        async_assigns.setdefault(a.namespace, []).append(f"        self.{a.attr_name} = {a.class_name}(client)")
+        sync_assigns.setdefault(a.namespace, []).append(
+            f"        self.{a.attr_name} = {a.sync_class_name}(async_client)"
+        )
+    for e in events:
+        async_classes.append(_render_event_class(e, device_class))
+        async_assigns.setdefault(e.namespace, []).append(f"        self.{e.event_name} = {e.class_name}(client)")
+
+    return _FacadeSection(
+        imports="\n".join(import_lines),
+        type_imports=tuple(sorted(type_import_set)),
+        module_level=_render_subscribe_table(attributes, events) if needs_subscribe else "",
+        client_methods=_render_dispatch_subscribe(subscribe_gate) if needs_subscribe else "",
+        async_classes="\n\n\n".join(async_classes),
+        sync_classes="\n\n\n".join(sync_classes),
+        async_assigns=async_assigns,
+        sync_assigns=sync_assigns,
+    )
+
+
+
+def _render_attr_class(a: AttributeSpec, device_class: str) -> str:
+    """Render the async attribute sub-object exposing read / write / subscribe."""
+    methods: list[str] = []
+    if "read" in a.operations:
+        methods.append(
+            f"    async def read(self, *, via: TransportId | None = None) -> Result[{a.value_alias}] | None:\n"
+            f'        """Read the current `{a.attr_id}` value."""\n'
+            f'        return await self._client._dispatch("{a.attr_id}.read", NoArgs(), via=via)'
+        )
+    if "write" in a.operations:
+        methods.append(
+            f"    async def write(\n"
+            f"        self, value: {a.value_alias}, *, via: TransportId | None = None\n"
+            f"    ) -> Result[{a.write_ack_alias}] | None:\n"
+            f'        """Write a new `{a.attr_id}` value."""\n'
+            f'        return await self._client._dispatch("{a.attr_id}.write", value, via=via)'
+        )
+    if "subscribe" in a.operations:
+        methods.append(
+            f"    def subscribe(\n"
+            f"        self, *, via: TransportId | None = None\n"
+            f"    ) -> AsyncIterator[Result[{a.value_alias}]]:\n"
+            f'        """Stream `{a.attr_id}` updates, one Result per change."""\n'
+            f'        return self._client._dispatch_subscribe("{a.attr_id}.subscribe", NoArgs(), via=via)'
+        )
+    body = "\n\n".join(methods)
+    return (
+        f"class {a.class_name}:\n"
+        f'    """`{a.attr_id}` attribute (read / write / subscribe as declared)."""\n\n'
+        f'    def __init__(self, client: "{device_class}") -> None:\n'
+        f"        self._client = client\n\n"
+        f"{body}"
+    )
+
+
+def _render_sync_attr_class(a: AttributeSpec, device_class: str) -> str:
+    """Render the sync attribute sub-object (read / write only; subscribe is async-only)."""
+    methods: list[str] = []
+    if "read" in a.operations:
+        methods.append(
+            f"    def read(self, *, via: TransportId | None = None) -> Result[{a.value_alias}] | None:\n"
+            f'        """Sync read of `{a.attr_id}`."""\n'
+            f'        return asyncio.run(self._async._dispatch("{a.attr_id}.read", NoArgs(), via=via))'
+        )
+    if "write" in a.operations:
+        methods.append(
+            f"    def write(\n"
+            f"        self, value: {a.value_alias}, *, via: TransportId | None = None\n"
+            f"    ) -> Result[{a.write_ack_alias}] | None:\n"
+            f'        """Sync write of `{a.attr_id}`."""\n'
+            f'        return asyncio.run(self._async._dispatch("{a.attr_id}.write", value, via=via))'
+        )
+    header = (
+        f"class {a.sync_class_name}:\n"
+        f'    """`{a.attr_id}` attribute (sync; read / write only)."""\n\n'
+        f'    def __init__(self, async_client: "{device_class}") -> None:\n'
+        f"        self._async = async_client"
+    )
+    if not methods:
+        return header
+    return header + "\n\n" + "\n\n".join(methods)
+
+
+def _render_event_class(e: EventSpec, device_class: str) -> str:
+    """Render the async event sub-object exposing a single subscribe() stream."""
+    return (
+        f"class {e.class_name}:\n"
+        f'    """`{e.event_id}` event (subscribe-only stream)."""\n\n'
+        f'    def __init__(self, client: "{device_class}") -> None:\n'
+        f"        self._client = client\n\n"
+        f"    def subscribe(\n"
+        f"        self, *, via: TransportId | None = None\n"
+        f"    ) -> AsyncIterator[Result[{e.payload_alias}]]:\n"
+        f'        """Stream `{e.event_id}` emissions, one Result per event."""\n'
+        f'        return self._client._dispatch_subscribe("{e.event_id}.subscribe", NoArgs(), via=via)'
+    )
+
+
+def _render_subscribe_entry(op_id: str, wires: tuple[SubscribeWire, ...]) -> str:
+    """Render one ``"<id>.subscribe": {TransportId.X: (mode, interval), ...}`` table block."""
+    wire_lines = [f'        TransportId.{w.enum_member}: ("{w.mode}", {w.interval!r}),' for w in wires]
+    return f'    "{op_id}.subscribe": {{\n' + "\n".join(wire_lines) + "\n    },"
+
+
+def _render_subscribe_table(attributes: tuple[AttributeSpec, ...], events: tuple[EventSpec, ...]) -> str:
+    """Render the ``_SUBSCRIBE_MODES`` map: subscribe op id -> transport -> (mode, interval)."""
+    entries = [
+        _render_subscribe_entry(a.attr_id, a.subscribe_wires) for a in attributes if "subscribe" in a.operations
+    ]
+    entries += [_render_subscribe_entry(e.event_id, e.subscribe_wires) for e in events]
+    return "_SUBSCRIBE_MODES: dict[str, dict[TransportId, tuple[str, float | None]]] = {\n" + "\n".join(entries) + "\n}"
+
+
+
+# Spliced verbatim into the client class when any attribute *or* event subscribes.
+# Braces are intentionally literal: this string is substituted as a value, not a template.
+def _render_dispatch_subscribe(capability_gate: str) -> str:
+    """Render the client ``_dispatch_subscribe`` method, with an optional capability gate."""
+    return f'''
+    def _dispatch_subscribe(
+        self,
+        command_id: str,
+        request: Any,
+        *,
+        via: TransportId | None,
+    ) -> "AsyncIterator[Result[Any]]":
+        """Internal: stream Results for an attribute/event subscribe (native push or opt-in poll)."""
+{capability_gate}
+        async def _stream() -> "AsyncIterator[Result[Any]]":
+            chosen = self._resolve_transport(command_id, via)
+            command = COMMANDS[command_id][chosen]
+            transport = self._transports[chosen]
+            mode, interval = _SUBSCRIBE_MODES[command_id][chosen]
+            if mode == "poll":
+                while True:
+                    result = await dispatch(command, transport, request)
+                    if result is not None:
+                        self._fire_hook(result)
+                        yield result
+                    await asyncio.sleep(interval if interval is not None else 0.0)
+            else:
+                async for result in dispatch_subscribe(command, transport, request):
+                    self._fire_hook(result)
+                    yield result
+
+        return _stream()'''
+
+
+def _render_command_method(c: CommandSpec, *, sync: bool) -> str:
+    """Render one namespace command method (async coroutine or sync ``asyncio.run`` wrapper)."""
+    if sync:
+        return (
+            f"    def {c.method}(\n"
+            f"        self,\n"
+            f"        request: {c.request_alias},\n"
+            f"        *,\n"
+            f"        via: TransportId | None = None,\n"
+            f"    ) -> Result[{c.response_alias}] | None:\n"
+            f'        """Sync wrapper for `{c.command_id}`."""\n'
+            f"        return asyncio.run(\n"
+            f'            self._async._dispatch("{c.command_id}", request, via=via)\n'
+            f"        )"
+        )
+    return (
+        f"    async def {c.method}(\n"
+        f"        self,\n"
+        f"        request: {c.request_alias},\n"
+        f"        *,\n"
+        f"        via: TransportId | None = None,\n"
+        f"    ) -> Result[{c.response_alias}] | None:\n"
+        f'        """Invoke `{c.command_id}`.\n\n'
+        f"        Returns a :class:`Result` envelope wrapping the typed response,\n"
+        f"        or ``None`` when this transport's spec sets\n"
+        f'        ``expects_response: false`` (fire-and-forget)."""\n'
+        f'        return await self._client._dispatch("{c.command_id}", request, via=via)'
+    )
+
+
+def _render_namespace_class(
+    ns: str, *, sync: bool, device_class: str, methods: list[str], assigns: list[str]
+) -> str:
+    """Render one namespace class (async or sync) with its command methods + sub-object assigns."""
+    if sync:
+        header = (
+            f"class _Sync{_pascal(ns)}Namespace:\n"
+            f'    """`{ns}.*` sync operations."""\n\n'
+            f"    def __init__(self, async_client: {device_class}) -> None:\n"
+        )
+        init = "        self._async = async_client"
+    else:
+        header = (
+            f"class _{_pascal(ns)}Namespace:\n"
+            f'    """`{ns}.*` async operations."""\n\n'
+            f"    def __init__(self, client: {device_class}) -> None:\n"
+        )
+        init = "        self._client = client"
+    if assigns:
+        init += "\n" + "\n".join(assigns)
+    methods_block = "\n\n".join(methods)
+    body = init + (f"\n\n{methods_block}" if methods_block else "")
+    return header + body
+
+
+@dataclass(frozen=True)
+class _CapabilitySection:
+    """Rendered fragments spliced into ``client.py`` for capability negotiation."""
+
+    imports: str  # runtime capability imports (empty when no op is gated)
+    module_level: str  # the ``_CAPABILITIES`` table
+    init_line: str  # ``self._capabilities`` init line (trailing newline) or ""
+    client_methods: str  # discover_capabilities + _check_capability (async client)
+    sync_methods: str  # sync discover_capabilities wrapper
+    dispatch_gate: str  # gate line spliced into ``_dispatch`` (trailing newline) or ""
+    subscribe_gate: str  # gate line spliced into ``_dispatch_subscribe`` (no newline) or ""
+
+
+_EMPTY_CAPABILITY_SECTION = _CapabilitySection("", "", "", "", "", "", "")
+
+
+_CAPABILITY_CLIENT_METHODS = '''
+    async def discover_capabilities(self, probe: CapabilityProbe) -> Capabilities:
+        """Query the device via ``probe`` and cache which operations are available.
+
+        Until this is called, no operation is gated. Afterwards, calling an
+        operation whose required capability tags the device lacks raises
+        ``CapabilityUnavailableError`` locally instead of failing on the wire.
+        """
+        self._capabilities = Capabilities(await probe.probe(self))
+        return self._capabilities
+
+    def _check_capability(self, command_id: str) -> None:
+        """Raise if capabilities were discovered and ``command_id`` is unsupported."""
+        caps = self._capabilities
+        if caps is None:
+            return
+        required = _CAPABILITIES.get(command_id)
+        if required is not None and not caps.supports(required):
+            missing = tuple(t for t in required if t not in caps.supported)
+            raise CapabilityUnavailableError(command_id, missing)'''
+
+
+_CAPABILITY_SYNC_METHOD = '''
+    def discover_capabilities(self, probe: CapabilityProbe) -> Capabilities:
+        """Sync wrapper: query the device and cache which operations are available."""
+        return asyncio.run(self._async.discover_capabilities(probe))'''
+
+
+def _render_tag_tuple(tags: tuple[str, ...]) -> str:
+    """Render a tag tuple as a Python literal (trailing comma keeps 1-tuples valid)."""
+    inner = ", ".join(f'"{t}"' for t in tags)
+    return f"({inner},)"
+
+
+def _render_capability_section(capability_map: dict[str, tuple[str, ...]]) -> _CapabilitySection:
+    """Render the ``_CAPABILITIES`` table, discover method, and dispatch gates.
+
+    Returns the empty section when no operation declares capability tags, so a
+    manifest that never gates anything produces a byte-identical command-only client.
+    """
+    if not capability_map:
+        return _EMPTY_CAPABILITY_SECTION
+    entries = [f'    "{op_id}": {_render_tag_tuple(tags)},' for op_id, tags in capability_map.items()]
+    module_level = "_CAPABILITIES: dict[str, tuple[str, ...]] = {\n" + "\n".join(entries) + "\n}"
+    return _CapabilitySection(
+        imports="from kandra_runtime import Capabilities, CapabilityProbe, CapabilityUnavailableError",
+        module_level=module_level,
+        init_line="        self._capabilities: Capabilities | None = None\n",
+        client_methods=_CAPABILITY_CLIENT_METHODS,
+        sync_methods=_CAPABILITY_SYNC_METHOD,
+        dispatch_gate="        self._check_capability(command_id)\n",
+        subscribe_gate="        self._check_capability(command_id)",
+    )
+
+
 def render_client(
     device_class: str,
     commands: list[CommandSpec],
@@ -275,76 +656,68 @@ def render_client(
     device_id: str,
     transports: list[TransportSpec],
     discovery: DiscoverySpec | None = None,
+    attributes: tuple[AttributeSpec, ...] = (),
+    events: tuple[EventSpec, ...] = (),
+    capabilities: dict[str, tuple[str, ...]] | None = None,
 ) -> str:
     """Emit the user-facing async client facade plus a sync wrapper."""
-    # Group commands by namespace, preserving manifest order.
-    namespaces: dict[str, list[CommandSpec]] = {}
+    capability_section = _render_capability_section(capabilities or {})
+    facade_section = _render_facade_section(attributes, events, device_class, capability_section.subscribe_gate)
+
+    commands_by_ns: dict[str, list[CommandSpec]] = {}
     for c in commands:
-        namespaces.setdefault(c.namespace, []).append(c)
+        commands_by_ns.setdefault(c.namespace, []).append(c)
 
-    namespace_classes: list[str] = []
-    sync_namespace_classes: list[str] = []
-    namespace_assigns: list[str] = []
-    sync_namespace_assigns: list[str] = []
+    # The async facade groups commands + attributes + events; the sync facade
+    # omits events (subscribe is async-only) and so may skip event-only namespaces.
+    async_ns_order = list(commands_by_ns)
+    for ns in [a.namespace for a in attributes] + [e.namespace for e in events]:
+        if ns not in async_ns_order:
+            async_ns_order.append(ns)
+    sync_ns_order = list(commands_by_ns)
+    for a in attributes:
+        if a.namespace not in sync_ns_order:
+            sync_ns_order.append(a.namespace)
+
     sync_class = f"Sync{device_class}"
-
-    for ns, cmds in namespaces.items():
-        async_class_name = f"_{_pascal(ns)}Namespace"
-        sync_class_name = f"_Sync{_pascal(ns)}Namespace"
-        async_methods: list[str] = []
-        sync_methods: list[str] = []
-        for c in cmds:
-            async_methods.append(
-                f"    async def {c.method}(\n"
-                f"        self,\n"
-                f"        request: {c.request_alias},\n"
-                f"        *,\n"
-                f"        via: TransportId | None = None,\n"
-                f"    ) -> Result[{c.response_alias}] | None:\n"
-                f'        """Invoke `{c.command_id}`.\n\n'
-                f"        Returns a :class:`Result` envelope wrapping the typed response,\n"
-                f"        or ``None`` when this transport's spec sets\n"
-                f'        ``expects_response: false`` (fire-and-forget)."""\n'
-                f'        return await self._client._dispatch("{c.command_id}", request, via=via)'
-            )
-            sync_methods.append(
-                f"    def {c.method}(\n"
-                f"        self,\n"
-                f"        request: {c.request_alias},\n"
-                f"        *,\n"
-                f"        via: TransportId | None = None,\n"
-                f"    ) -> Result[{c.response_alias}] | None:\n"
-                f'        """Sync wrapper for `{c.command_id}`."""\n'
-                f"        return asyncio.run(\n"
-                f'            self._async._dispatch("{c.command_id}", request, via=via)\n'
-                f"        )"
-            )
-        async_methods_block = "\n\n".join(async_methods)
-        sync_methods_block = "\n\n".join(sync_methods)
-        namespace_classes.append(
-            f"class {async_class_name}:\n"
-            f'    """`{ns}.*` async operations."""\n\n'
-            f"    def __init__(self, client: {device_class}) -> None:\n"
-            f"        self._client = client\n\n"
-            f"{async_methods_block}"
+    namespace_classes = [
+        _render_namespace_class(
+            ns,
+            sync=False,
+            device_class=device_class,
+            methods=[_render_command_method(c, sync=False) for c in commands_by_ns.get(ns, [])],
+            assigns=facade_section.async_assigns.get(ns, []),
         )
-        sync_namespace_classes.append(
-            f"class {sync_class_name}:\n"
-            f'    """`{ns}.*` sync operations."""\n\n'
-            f"    def __init__(self, async_client: {device_class}) -> None:\n"
-            f"        self._async = async_client\n\n"
-            f"{sync_methods_block}"
+        for ns in async_ns_order
+    ]
+    namespace_assigns = [f"        self.{ns} = _{_pascal(ns)}Namespace(self)" for ns in async_ns_order]
+    sync_namespace_classes = [
+        _render_namespace_class(
+            ns,
+            sync=True,
+            device_class=device_class,
+            methods=[_render_command_method(c, sync=True) for c in commands_by_ns.get(ns, [])],
+            assigns=facade_section.sync_assigns.get(ns, []),
         )
-        namespace_assigns.append(f"        self.{ns} = {async_class_name}(self)")
-        sync_namespace_assigns.append(f"        self.{ns} = {sync_class_name}(self._async)")
+        for ns in sync_ns_order
+    ]
+    sync_namespace_assigns = [f"        self.{ns} = _Sync{_pascal(ns)}Namespace(self._async)" for ns in sync_ns_order]
 
     type_alias_imports = "\n".join(
-        sorted({c.request_import for c in commands} | {c.response_import for c in commands})
+        sorted(
+            {c.request_import for c in commands}
+            | {c.response_import for c in commands}
+            | set(facade_section.type_imports)
+        )
     )
     namespace_classes_block = "\n\n\n".join(namespace_classes)
     sync_namespace_classes_block = "\n\n\n".join(sync_namespace_classes)
     namespace_assigns_block = "\n".join(namespace_assigns)
     sync_namespace_assigns_block = "\n".join(sync_namespace_assigns)
+
+    facade_class_parts = [p for p in (facade_section.async_classes, facade_section.sync_classes) if p]
+    block_sep = "\n\n\n"
+    facade_classes_block = f"{block_sep}{block_sep.join(facade_class_parts)}" if facade_class_parts else ""
 
     connect_section = _render_connect_section(device_id, transports, discovery=discovery)
 
@@ -361,6 +734,8 @@ from typing import Any
 
 from kandra_runtime import Command, Result, Transport, dispatch, format_failure
 {connect_section.imports}
+{facade_section.imports}
+{capability_section.imports}
 
 {type_alias_imports}
 
@@ -368,6 +743,8 @@ from {_relative()}.registry import COMMANDS
 from {_relative()}.transports import TransportId
 
 {connect_section.module_level}
+{facade_section.module_level}
+{capability_section.module_level}
 
 class {device_class}:
     """Generated async facade for the device.
@@ -406,7 +783,7 @@ class {device_class}:
         ``fail_test`` entry point.
         """
         self._suppress_hook = False
-{namespace_assigns_block}
+{capability_section.init_line}{namespace_assigns_block}
 
 {connect_section.client_methods}
 
@@ -446,14 +823,8 @@ class {device_class}:
         finally:
             self._suppress_hook = previous
 
-    async def _dispatch(
-        self,
-        command_id: str,
-        request: Any,
-        *,
-        via: TransportId | None,
-    ) -> Result[Any] | None:
-        """Internal: resolve the transport, run the command, fire the hook if armed."""
+    def _resolve_transport(self, command_id: str, via: TransportId | None) -> TransportId:
+        """Pick the transport for an operation: explicit ``via`` or first wired one."""
         per_transport = COMMANDS[command_id]
         if via is not None:
             if via not in per_transport:
@@ -462,14 +833,14 @@ class {device_class}:
                 )
             if via not in self._transports:
                 raise ValueError(f"transport {{via.value!r}} is not wired into this client")
-            chosen = via
-        else:
-            chosen_opt = next((t for t in per_transport if t in self._transports), None)
-            if chosen_opt is None:
-                raise ValueError(f"no wired transport supports command {{command_id!r}}")
-            chosen = chosen_opt
-        command = per_transport[chosen]
-        result = await dispatch(command, self._transports[chosen], request)
+            return via
+        chosen = next((t for t in per_transport if t in self._transports), None)
+        if chosen is None:
+            raise ValueError(f"no wired transport supports command {{command_id!r}}")
+        return chosen
+
+    def _fire_hook(self, result: Result[Any] | None) -> None:
+        """Fire ``on_non_accepted`` for a non-ACCEPTED result when the hook is armed."""
         if (
             result is not None
             and not result.accepted
@@ -477,7 +848,22 @@ class {device_class}:
             and not self._suppress_hook
         ):
             self.on_non_accepted(format_failure(result))
+
+    async def _dispatch(
+        self,
+        command_id: str,
+        request: Any,
+        *,
+        via: TransportId | None,
+    ) -> Result[Any] | None:
+        """Internal: resolve the transport, run the command, fire the hook if armed."""
+{capability_section.dispatch_gate}        chosen = self._resolve_transport(command_id, via)
+        command = COMMANDS[command_id][chosen]
+        result = await dispatch(command, self._transports[chosen], request)
+        self._fire_hook(result)
         return result
+{facade_section.client_methods}
+{capability_section.client_methods}
 
 
 class {sync_class}:
@@ -497,12 +883,13 @@ class {sync_class}:
     def async_client(self) -> {device_class}:
         """The underlying async client (for hook configuration, etc)."""
         return self._async
+{capability_section.sync_methods}
 
 
 {namespace_classes_block}
 
 
-{sync_namespace_classes_block}
+{sync_namespace_classes_block}{facade_classes_block}
 '''
 
 
@@ -1013,20 +1400,48 @@ def _py_literal(value: str | int | None) -> str:
     return repr(value)
 
 
-def render_provenance(manifest_path: str, device_id: str, schema_version: int) -> str:
-    """Emit a JSON provenance file recording what was built and from where."""
-    import json as _json
+def render_provenance(
+    *,
+    manifest_path: str,
+    device_id: str,
+    schema_version: int,
+    kandra_version: str,
+    generated_at: str,
+    profile: str | None = None,
+    manifest_sha256: str | None = None,
+    profiles_sha256: str | None = None,
+) -> str:
+    """Emit a JSON provenance file recording what was built and from where.
 
-    return _json.dumps(
-        {
-            "device_id": device_id,
-            "schema_version": schema_version,
-            "manifest_path": manifest_path,
-            "generator": "kandra",
-        },
-        indent=2,
-        sort_keys=True,
-    ) + "\n"
+    Args:
+        manifest_path: Absolute path of the source manifest.
+        device_id: The device id the SDK was generated for.
+        schema_version: The manifest schema version.
+        kandra_version: Version of the generator that produced the SDK.
+        generated_at: UTC ISO-8601 timestamp of the build.
+        profile: The audience profile used (``None`` for a non-pruned build).
+        manifest_sha256: Hex digest of the manifest contents, when available.
+        profiles_sha256: Hex digest of ``audience_profiles.yaml``, when a
+            profile build was performed.
+
+    Returns:
+        The provenance JSON document, newline-terminated.
+    """
+    payload: dict[str, object] = {
+        "device_id": device_id,
+        "schema_version": schema_version,
+        "manifest_path": manifest_path,
+        "generator": "kandra",
+        "kandra_version": kandra_version,
+        "generated_at": generated_at,
+    }
+    if profile is not None:
+        payload["profile"] = profile
+    if manifest_sha256 is not None:
+        payload["manifest_sha256"] = manifest_sha256
+    if profiles_sha256 is not None:
+        payload["audience_profiles_sha256"] = profiles_sha256
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
 # ---------------------------------------------------------------------------
