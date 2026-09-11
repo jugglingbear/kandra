@@ -2,7 +2,7 @@
   "$defs": {
     "Attribute": {
       "additionalProperties": false,
-      "description": "Named device-state primitive: read / write / subscribe.\n\nThe loader rejects manifests that contain attribute entries until the\nruntime implementation lands.",
+      "description": "Named device-state primitive: read / write / subscribe.\n\nThe shape is accepted so authors and editors can work with it, but the\nruntime rejects manifests that declare attributes until support lands\n(see :func:`_check_reserved_primitives`).",
       "properties": {
         "audience": {
           "items": {
@@ -11,6 +11,22 @@
           },
           "minItems": 1,
           "title": "Audience",
+          "type": "array"
+        },
+        "ble": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/BleAttributeSpec"
+            }
+          },
+          "title": "Ble",
+          "type": "object"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
           "type": "array"
         },
         "handler": {
@@ -24,18 +40,14 @@
           ],
           "title": "Handler"
         },
-        "http_subscribe": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
+        "http": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/HttpAttributeSpec"
             }
-          ],
-          "default": null,
-          "title": "Http Subscribe"
+          },
+          "title": "Http",
+          "type": "object"
         },
         "id": {
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
@@ -73,6 +85,35 @@
         "audience"
       ],
       "title": "Attribute",
+      "type": "object"
+    },
+    "BleAttributeSpec": {
+      "additionalProperties": false,
+      "description": "Per-(attribute, ble-transport) wiring: one channel carries read/write/notify.",
+      "properties": {
+        "channel": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Channel",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "title": "BleAttributeSpec",
       "type": "object"
     },
     "BleChannelSpec": {
@@ -171,6 +212,35 @@
         }
       },
       "title": "BleDiscoverySpec",
+      "type": "object"
+    },
+    "BleEventSpec": {
+      "additionalProperties": false,
+      "description": "Per-(event, ble-transport) subscribe wiring: one channel's notify stream.",
+      "properties": {
+        "channel": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Channel",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "title": "BleEventSpec",
       "type": "object"
     },
     "Command": {
@@ -366,7 +436,7 @@
     },
     "Event": {
       "additionalProperties": false,
-      "description": "Stateless device emission primitive: subscribe-only stream.\n\nReserved; same handling as `Attribute`.",
+      "description": "Stateless device emission primitive: a subscribe-only stream.\n\nDistinct from an attribute subscribe (which streams changes of a named,\nread/writable *value*): an event has no stored state \u2014 it is a\nfire-and-forget emission (e.g. \"button pressed\", \"recording started\"). The\nhandler declares a single ``payload`` type; the generated facade exposes\n``client.<namespace>.<event>.subscribe()`` (async-only).",
       "properties": {
         "audience": {
           "items": {
@@ -375,6 +445,22 @@
           },
           "minItems": 1,
           "title": "Audience",
+          "type": "array"
+        },
+        "ble": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/BleEventSpec"
+            }
+          },
+          "title": "Ble",
+          "type": "object"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
           "type": "array"
         },
         "handler": {
@@ -387,6 +473,15 @@
             }
           ],
           "title": "Handler"
+        },
+        "http": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
+              "$ref": "#/$defs/HttpEventSpec"
+            }
+          },
+          "title": "Http",
+          "type": "object"
         },
         "id": {
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
@@ -410,6 +505,161 @@
         "audience"
       ],
       "title": "Event",
+      "type": "object"
+    },
+    "HttpAttributeOp": {
+      "additionalProperties": false,
+      "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via\n``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with\n``query_from_request: true``, exactly like a command (kandra.md 11.1).",
+      "properties": {
+        "body_codec": {
+          "default": "json",
+          "enum": [
+            "json",
+            "none"
+          ],
+          "title": "Body Codec",
+          "type": "string"
+        },
+        "method": {
+          "default": "GET",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "query_from_request": {
+          "default": false,
+          "title": "Query From Request",
+          "type": "boolean"
+        },
+        "response_codec": {
+          "default": "json",
+          "enum": [
+            "json",
+            "none"
+          ],
+          "title": "Response Codec",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "HttpAttributeOp",
+      "type": "object"
+    },
+    "HttpAttributeSpec": {
+      "additionalProperties": false,
+      "description": "Per-(attribute, http-transport) wiring: the ops this attribute supports here.",
+      "properties": {
+        "read": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpAttributeOp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subscribe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpAttributeSubscribe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "write": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpAttributeOp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "HttpAttributeSpec",
+      "type": "object"
+    },
+    "HttpAttributeSubscribe": {
+      "additionalProperties": false,
+      "description": "HTTP subscribe wiring for an attribute: native SSE, or explicit opt-in polling.\n\nPolling is never a surprise default \u2014 ``mode: poll`` must supply an\n``interval``. ``mode: sse`` opens one long-lived event stream instead.",
+      "properties": {
+        "interval": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval"
+        },
+        "mode": {
+          "default": "sse",
+          "enum": [
+            "sse",
+            "poll"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "HttpAttributeSubscribe",
       "type": "object"
     },
     "HttpCommandSpec": {
@@ -516,6 +766,57 @@
         "base_urls"
       ],
       "title": "HttpDiscoverySpec",
+      "type": "object"
+    },
+    "HttpEventSpec": {
+      "additionalProperties": false,
+      "description": "Per-(event, http-transport) subscribe wiring: native SSE, or explicit opt-in polling.\n\nIdentical shape to an attribute's subscribe block \u2014 an event *is* a\nsubscribe-only stream \u2014 but kept as its own model so the two primitives stay\nself-documenting. Polling is never a surprise default: ``mode: poll`` must\nsupply an ``interval``; ``mode: sse`` opens one long-lived event stream.",
+      "properties": {
+        "interval": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval"
+        },
+        "mode": {
+          "default": "sse",
+          "enum": [
+            "sse",
+            "poll"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "HttpEventSpec",
       "type": "object"
     },
     "Transport": {

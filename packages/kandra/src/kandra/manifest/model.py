@@ -202,17 +202,101 @@ class Command(_ManifestModel):
 
 
 # ---------------------------------------------------------------------------
-# Reserved primitives — accepted in the manifest, rejected at load time until
-# the runtime supports them. The shape is captured so editors get autocomplete
-# and authors can start drafting.
+# State + emission primitives: attributes (read/write/subscribe) and events
+# (subscribe-only). Both share the HTTP subscribe wiring below.
 # ---------------------------------------------------------------------------
+
+
+def _check_subscribe_interval(mode: str, interval: float | None, *, what: str) -> None:
+    """Enforce the poll/sse interval contract shared by attribute + event subscribe wiring."""
+    if mode == "poll" and interval is None:
+        raise ValueError(f"{what} mode='poll' requires an 'interval' (seconds)")
+    if mode == "sse" and interval is not None:
+        raise ValueError(f"{what} 'interval' only applies to mode='poll'")
+
+
+class HttpAttributeOp(_ManifestModel):
+    """One HTTP read/write operation for an attribute — a command-shaped block.
+
+    Verbs are explicit, never assumed: a non-REST device that *writes* via
+    ``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with
+    ``query_from_request: true``, exactly like a command (kandra.md 11.1).
+    """
+
+    method: Literal["GET", "POST", "PUT", "DELETE"] = "GET"
+    path: str = Field(min_length=1)
+    body_codec: Literal["json", "none"] = "json"
+    response_codec: Literal["json", "none"] = "json"
+    query_from_request: bool = False
+    timeout: float | None = Field(default=None, gt=0)
+
+
+class HttpAttributeSubscribe(_ManifestModel):
+    """HTTP subscribe wiring for an attribute: native SSE, or explicit opt-in polling.
+
+    Polling is never a surprise default — ``mode: poll`` must supply an
+    ``interval``. ``mode: sse`` opens one long-lived event stream instead.
+    """
+
+    mode: Literal["sse", "poll"] = "sse"
+    path: str = Field(min_length=1)
+    interval: float | None = Field(default=None, gt=0)
+    timeout: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _check_interval(self) -> HttpAttributeSubscribe:
+        _check_subscribe_interval(self.mode, self.interval, what="http attribute subscribe")
+        return self
+
+
+class HttpAttributeSpec(_ManifestModel):
+    """Per-(attribute, http-transport) wiring: the ops this attribute supports here."""
+
+    read: HttpAttributeOp | None = None
+    write: HttpAttributeOp | None = None
+    subscribe: HttpAttributeSubscribe | None = None
+
+
+class BleAttributeSpec(_ManifestModel):
+    """Per-(attribute, ble-transport) wiring: one channel carries read/write/notify."""
+
+    channel: IdentifierStr
+    timeout: float | None = Field(default=None, gt=0)
+
+
+class HttpEventSpec(_ManifestModel):
+    """Per-(event, http-transport) subscribe wiring: native SSE, or explicit opt-in polling.
+
+    Identical shape to an attribute's subscribe block — an event *is* a
+    subscribe-only stream — but kept as its own model so the two primitives stay
+    self-documenting. Polling is never a surprise default: ``mode: poll`` must
+    supply an ``interval``; ``mode: sse`` opens one long-lived event stream.
+    """
+
+    mode: Literal["sse", "poll"] = "sse"
+    path: str = Field(min_length=1)
+    interval: float | None = Field(default=None, gt=0)
+    timeout: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _check_interval(self) -> HttpEventSpec:
+        _check_subscribe_interval(self.mode, self.interval, what="http event subscribe")
+        return self
+
+
+class BleEventSpec(_ManifestModel):
+    """Per-(event, ble-transport) subscribe wiring: one channel's notify stream."""
+
+    channel: IdentifierStr
+    timeout: float | None = Field(default=None, gt=0)
 
 
 class Attribute(_ManifestModel):
     """Named device-state primitive: read / write / subscribe.
 
-    The loader rejects manifests that contain attribute entries until the
-    runtime implementation lands.
+    The shape is accepted so authors and editors can work with it, but the
+    runtime rejects manifests that declare attributes until support lands
+    (see :func:`_check_reserved_primitives`).
     """
 
     id: IdentifierStr
@@ -220,7 +304,9 @@ class Attribute(_ManifestModel):
     transports: list[IdentifierStr] = Field(min_length=1)
     operations: list[Literal["read", "write", "subscribe"]] = Field(min_length=1)
     audience: list[AudienceTag] = Field(min_length=1)
-    http_subscribe: dict[str, Any] | None = None
+    capabilities: list[str] = Field(default_factory=list)
+    http: dict[IdentifierStr, HttpAttributeSpec] = Field(default_factory=dict)
+    ble: dict[IdentifierStr, BleAttributeSpec] = Field(default_factory=dict)
 
     @field_validator("handler")
     @classmethod
@@ -229,15 +315,22 @@ class Attribute(_ManifestModel):
 
 
 class Event(_ManifestModel):
-    """Stateless device emission primitive: subscribe-only stream.
+    """Stateless device emission primitive: a subscribe-only stream.
 
-    Reserved; same handling as `Attribute`.
+    Distinct from an attribute subscribe (which streams changes of a named,
+    read/writable *value*): an event has no stored state — it is a
+    fire-and-forget emission (e.g. "button pressed", "recording started"). The
+    handler declares a single ``payload`` type; the generated facade exposes
+    ``client.<namespace>.<event>.subscribe()`` (async-only).
     """
 
     id: IdentifierStr
     handler: str | None
     transports: list[IdentifierStr] = Field(min_length=1)
     audience: list[AudienceTag] = Field(min_length=1)
+    capabilities: list[str] = Field(default_factory=list)
+    http: dict[IdentifierStr, HttpEventSpec] = Field(default_factory=dict)
+    ble: dict[IdentifierStr, BleEventSpec] = Field(default_factory=dict)
 
     @field_validator("handler")
     @classmethod
@@ -390,21 +483,10 @@ class Manifest(_ManifestModel):
         transports_by_id = {t.id: t for t in self.transports}
 
         device_audiences = set(self.device.audience)
-        for section_name, items in (
-            ("commands", self.commands),
-            ("attributes", self.attributes),
-            ("events", self.events),
-        ):
-            ids = [item.id for item in items]
-            if len(set(ids)) != len(ids):
-                raise ValueError(f"duplicate ids in {section_name}: {sorted(_find_duplicates(ids))}")
-            for item in items:
-                undeclared = set(item.audience) - device_audiences
-                if undeclared:
-                    raise ValueError(
-                        f"{section_name[:-1]} {item.id!r} targets audience(s) {sorted(undeclared)} "
-                        f"not declared in device.audience={sorted(device_audiences)}"
-                    )
+        _check_ids_and_audiences(self.commands, self.attributes, self.events, device_audiences)
+
+        _check_attribute_wiring(self.attributes, transports_by_id)
+        _check_event_wiring(self.events, transports_by_id)
 
         for cmd in self.commands:
             unknown = set(cmd.transports) - transport_ids
@@ -435,6 +517,126 @@ def _find_duplicates(items: list[str]) -> set[str]:
             dupes.add(item)
         seen.add(item)
     return dupes
+
+
+def _check_ids_and_audiences(
+    commands: list[Command],
+    attributes: list[Attribute],
+    events: list[Event],
+    device_audiences: set[str],
+) -> None:
+    """Ids unique within *and* across sections; every audience ⊆ device.audience."""
+    for section_name, items in (("commands", commands), ("attributes", attributes), ("events", events)):
+        ids = [item.id for item in items]
+        if len(set(ids)) != len(ids):
+            raise ValueError(f"duplicate ids in {section_name}: {sorted(_find_duplicates(ids))}")
+        for item in items:
+            undeclared = set(item.audience) - device_audiences
+            if undeclared:
+                raise ValueError(
+                    f"{section_name[:-1]} {item.id!r} targets audience(s) {sorted(undeclared)} "
+                    f"not declared in device.audience={sorted(device_audiences)}"
+                )
+    # A command, attribute, and event that share a dotted id would all map to the
+    # same ``client.<namespace>.<name>`` facade slot and silently shadow.
+    cross_ids = [c.id for c in commands] + [a.id for a in attributes] + [e.id for e in events]
+    if len(set(cross_ids)) != len(cross_ids):
+        raise ValueError(
+            f"ids must be unique across commands/attributes/events; duplicates: {sorted(_find_duplicates(cross_ids))}"
+        )
+
+
+def _check_event_wiring(events: list[Event], transports: dict[str, Transport]) -> None:
+    """Validate every event's transports and per-transport subscribe wiring."""
+    for event in events:
+        _check_event_blocks(event, transports)
+
+
+def _check_event_blocks(event: Event, transports: dict[str, Transport]) -> None:
+    """Validate one event's http/ble subscribe blocks against its transports."""
+    unknown = set(event.transports) - set(transports)
+    if unknown:
+        raise ValueError(f"event {event.id!r} references undefined transport(s): {sorted(unknown)}")
+    for tid in event.http:
+        _check_block_family("event", event.id, event.transports, tid, "http", transports)
+    for tid, ble_spec in event.ble.items():
+        _check_block_family("event", event.id, event.transports, tid, "ble", transports)
+        channels = transports[tid].channels
+        if ble_spec.channel not in channels:
+            raise ValueError(
+                f"event {event.id!r}: ble.{tid}.channel={ble_spec.channel!r} is not declared in "
+                f"transport {tid!r} channels={sorted(channels)}"
+            )
+    for tid in event.transports:
+        family = transports[tid].family
+        if family == "http" and tid not in event.http:
+            raise ValueError(f"event {event.id!r} rides http transport {tid!r} but has no http.{tid} block")
+        if family == "ble" and tid not in event.ble:
+            raise ValueError(f"event {event.id!r} rides ble transport {tid!r} but has no ble.{tid} block")
+
+
+def _check_attribute_wiring(attributes: list[Attribute], transports: dict[str, Transport]) -> None:
+    """Validate every attribute's transports and per-transport operation wiring."""
+    for attr in attributes:
+        _check_attribute_blocks(attr, transports)
+
+
+def _check_attribute_blocks(attr: Attribute, transports: dict[str, Transport]) -> None:
+    """Validate one attribute's http/ble blocks against its transports + operations."""
+    unknown = set(attr.transports) - set(transports)
+    if unknown:
+        raise ValueError(f"attribute {attr.id!r} references undefined transport(s): {sorted(unknown)}")
+    for tid in attr.http:
+        _check_block_family("attribute", attr.id, attr.transports, tid, "http", transports)
+    for tid, ble_spec in attr.ble.items():
+        _check_block_family("attribute", attr.id, attr.transports, tid, "ble", transports)
+        channels = transports[tid].channels
+        if ble_spec.channel not in channels:
+            raise ValueError(
+                f"attribute {attr.id!r}: ble.{tid}.channel={ble_spec.channel!r} is not declared in "
+                f"transport {tid!r} channels={sorted(channels)}"
+            )
+    ops: set[str] = {str(op) for op in attr.operations}
+    for tid in attr.transports:
+        family = transports[tid].family
+        if family == "http":
+            _check_http_attribute_ops(attr, tid, ops)
+        elif family == "ble" and tid not in attr.ble:
+            raise ValueError(f"attribute {attr.id!r} rides ble transport {tid!r} but has no ble.{tid} block")
+
+
+def _check_block_family(
+    kind: str,
+    item_id: str,
+    item_transports: list[str],
+    tid: str,
+    family: str,
+    transports: dict[str, Transport],
+) -> None:
+    """Verify a per-transport wiring block names a declared transport of ``family``."""
+    if tid not in item_transports:
+        raise ValueError(
+            f"{kind} {item_id!r}: {family} block names transport {tid!r} which is not in "
+            f"transports={item_transports}"
+        )
+    if transports[tid].family != family:
+        raise ValueError(
+            f"{kind} {item_id!r}: {family} block on transport {tid!r} but family is "
+            f"{transports[tid].family!r}"
+        )
+
+
+def _check_http_attribute_ops(attr: Attribute, tid: str, ops: set[str]) -> None:
+    """Ensure each declared operation has a matching entry in the http block."""
+    block = attr.http.get(tid)
+    if block is None:
+        raise ValueError(f"attribute {attr.id!r} rides http transport {tid!r} but has no http.{tid} block")
+    wired = {"read": block.read, "write": block.write, "subscribe": block.subscribe}
+    for op in sorted(ops):
+        if wired[op] is None:
+            raise ValueError(
+                f"attribute {attr.id!r}: operation {op!r} is declared but http.{tid}.{op} is missing"
+            )
 
 
 def _check_http_block(cmd: Command, transports: dict[str, Transport]) -> None:
