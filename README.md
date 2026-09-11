@@ -5,6 +5,11 @@
 > a framework that consumes a device manifest and produces a working
 > Python SDK in that device's shape.
 
+<p align="center">
+  <img src="docs/_static/kandra.png" width="800"
+       alt="You provide the bones (your device-specific code); Kandra brings your SDK to life.">
+</p>
+
 [![status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](#status) [![python:
 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 

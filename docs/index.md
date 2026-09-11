@@ -1,5 +1,10 @@
 # Kandra
 
+```{image} _static/kandra.png
+:alt: You provide the bones (your device-specific code); Kandra brings your SDK to life.
+:width: 100%
+```
+
 **Kandra** is a framework for generating typed, IP-isolated Python SDKs that control embedded-Linux devices over BLE,
 HTTP, and other transports from a single declarative manifest.
 
