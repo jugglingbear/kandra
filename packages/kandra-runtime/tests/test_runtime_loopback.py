@@ -17,6 +17,7 @@ from kandra_runtime import (
     dispatch_sync,
     open_transport,
 )
+from kandra_runtime.errors import IdentityStaleError, TransportError
 
 # -- Hand-written example command -----------------------------------------------
 
@@ -156,3 +157,78 @@ async def test_no_timeout_means_no_wait_for() -> None:
         result = await dispatch(cmd, transport, BumpRequest(value=5))
 
     _assert_accepted(result, BumpResponse(value=5))
+
+
+# -- Retry + stale-credential propagation (idempotent / retries) ----------------
+
+
+class _FlakyTransport:
+    """Fails the first ``fail_times`` requests with ``error``, then echoes the envelope."""
+
+    def __init__(self, *, fail_times: int, error: Exception) -> None:
+        self._fail_times = fail_times
+        self._error = error
+        self.calls = 0
+
+    async def request(self, envelope: bytes) -> bytes:
+        self.calls += 1
+        if self.calls <= self._fail_times:
+            raise self._error
+        return envelope
+
+
+def _flaky_command(
+    cid: str, *, idempotent: bool = False, retries: int = 0
+) -> Command[BumpRequest, BumpResponse, bytes, bytes]:
+    return Command(
+        id=cid,
+        codec=BumpCodec(),
+        interpreter=always_accepted_interpreter,
+        idempotent=idempotent,
+        retries=retries,
+    )
+
+
+async def test_dispatch_retries_idempotent_command_until_success() -> None:
+    """An idempotent command retries transient failures up to ``retries`` times."""
+    transport = _FlakyTransport(fail_times=2, error=TransportError("link dropped"))
+    cmd = _flaky_command("bump.retry", idempotent=True, retries=2)
+
+    result = await dispatch(cmd, transport, BumpRequest(value=7))
+
+    _assert_accepted(result, BumpResponse(value=7))
+    assert transport.calls == 3  # two failures + one success
+
+
+async def test_dispatch_exhausts_retries_then_transport_failure() -> None:
+    """When every attempt fails, dispatch reports TRANSPORT_FAILURE after 1 + retries tries."""
+    transport = _FlakyTransport(fail_times=99, error=TransportError("link dropped"))
+    cmd = _flaky_command("bump.exhaust", idempotent=True, retries=2)
+
+    result = await dispatch(cmd, transport, BumpRequest(value=1))
+
+    assert result is not None
+    assert result.classification is Classification.TRANSPORT_FAILURE
+    assert transport.calls == 3  # 1 initial + 2 retries, then give up
+
+
+async def test_dispatch_does_not_retry_non_idempotent_command() -> None:
+    """``retries`` is ignored for a non-idempotent command -- a single attempt only."""
+    transport = _FlakyTransport(fail_times=99, error=TransportError("link dropped"))
+    cmd = _flaky_command("bump.once", idempotent=False, retries=5)
+
+    result = await dispatch(cmd, transport, BumpRequest(value=1))
+
+    assert result is not None
+    assert result.classification is Classification.TRANSPORT_FAILURE
+    assert transport.calls == 1  # never retried
+
+
+async def test_dispatch_propagates_identity_stale_error() -> None:
+    """IdentityStaleError is never retried or flattened -- it propagates for the client to recover."""
+    transport = _FlakyTransport(fail_times=1, error=IdentityStaleError("token expired"))
+    cmd = _flaky_command("bump.stale", idempotent=True, retries=3)
+
+    with pytest.raises(IdentityStaleError):
+        await dispatch(cmd, transport, BumpRequest(value=1))
+    assert transport.calls == 1  # not retried despite retries=3

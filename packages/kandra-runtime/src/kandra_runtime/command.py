@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, cast
 
 from kandra_runtime.codec import RequestT, ResponseT, WireReqT, WireRespT
-from kandra_runtime.errors import CodecError, TransportError, TransportTimeoutError
+from kandra_runtime.errors import CodecError, IdentityStaleError, TransportError, TransportTimeoutError
 from kandra_runtime.result import Classification, ResponseInterpreter, Result
 from kandra_runtime.transport import Subscribable
 
@@ -53,6 +53,11 @@ class Command(Generic[RequestT, ResponseT, WireReqT, WireRespT]):
         expects_response: When False, the command is fire-and-forget.
             Dispatch treats a timeout as success and returns ``None``
             without invoking the interpreter or ``codec.decode``.
+        idempotent: When True, the command is safe to auto-resend, so
+            :func:`dispatch` may retry it after a transient transport
+            failure. Non-idempotent commands are never retried.
+        retries: Extra attempts after a transient transport failure.
+            Only honored when ``idempotent`` is True; ignored otherwise.
     """
 
     id: str
@@ -60,6 +65,8 @@ class Command(Generic[RequestT, ResponseT, WireReqT, WireRespT]):
     interpreter: ResponseInterpreter[WireRespT]
     timeout: float | None = None
     expects_response: bool = True
+    idempotent: bool = False
+    retries: int = 0
 
 
 async def dispatch(
@@ -84,7 +91,11 @@ async def dispatch(
         return None
 
     try:
-        response = await _request_with_timeout(transport, envelope, command)
+        response = await _request_with_retry(transport, envelope, command)
+    except IdentityStaleError:
+        # Recoverable + distinct: let the client's connect / mid-session recovery
+        # refresh credentials rather than flattening it to a TRANSPORT_FAILURE.
+        raise
     except TransportError as exc:
         return Result(
             classification=Classification.TRANSPORT_FAILURE,
@@ -175,6 +186,31 @@ def _classify_and_decode(
     except CodecError as exc:
         return Result(classification=Classification.ANOMALOUS, reason=str(exc), extra=verdict.extra)
     return Result(classification=Classification.ACCEPTED, data=payload, extra=verdict.extra)
+
+
+async def _request_with_retry(
+    transport: Transport[WireReqT, WireRespT],
+    envelope: WireReqT,
+    command: Command[RequestT, ResponseT, WireReqT, WireRespT],
+) -> WireRespT:
+    """Send a request, retrying transient transport failures for idempotent commands.
+
+    Retries up to ``command.retries`` extra times when ``command.idempotent`` is
+    set; a non-idempotent command gets a single attempt (re-sending it could
+    double-execute). ``IdentityStaleError`` is never retried -- it propagates so
+    the client's connect / mid-session recovery can refresh credentials.
+    """
+    max_attempts = 1 + (command.retries if command.idempotent else 0)
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return await _request_with_timeout(transport, envelope, command)
+        except IdentityStaleError:
+            raise
+        except TransportError:
+            if attempt >= max_attempts:
+                raise
 
 
 async def _request_with_timeout(
