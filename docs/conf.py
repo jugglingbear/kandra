@@ -67,8 +67,10 @@ templates_path = ["_templates"]
 html_theme = "furo"
 html_static_path = ["_static"]
 html_title = f"{project} {release}"
+html_logo = "_static/kandra_logo.png"
+html_favicon = "_static/kandra_favicon.ico"
 html_theme_options = {
-    "sidebar_hide_name": False,
+    "sidebar_hide_name": True,  # the logo already carries the "kandra" wordmark
     "navigation_with_keys": True,
     # "Edit source" links point back at the docs tree on the default branch.
     "source_repository": "https://github.com/jugglingbear/kandra/",
@@ -133,3 +135,23 @@ suppress_warnings: list[str] = []
 
 # -- Mermaid -----------------------------------------------------------------
 mermaid_version = "10.9.0"          # Pinned for reproducible builds
+
+
+# -- Extra favicon variants --------------------------------------------------
+# html_favicon takes a single file (the multi-resolution .ico). Append the
+# high-DPI PNG (Apple touch / PWA home screen) and an explicit 32px PNG icon to
+# each page's <head>; pathto() yields the correct relative URL per page depth.
+def _add_favicon_links(_app, _pagename, _templatename, context, _doctree):
+    pathto = context.get("pathto")
+    if not callable(pathto):
+        return
+    context["metatags"] = context.get("metatags", "") + (
+        f'\n    <link rel="apple-touch-icon" sizes="512x512" '
+        f'href="{pathto("_static/kandra_favicon_512.png", 1)}">'
+        f'\n    <link rel="icon" type="image/png" sizes="32x32" '
+        f'href="{pathto("_static/kandra_favicon_32.png", 1)}">'
+    )
+
+
+def setup(app):
+    app.connect("html-page-context", _add_favicon_links)
