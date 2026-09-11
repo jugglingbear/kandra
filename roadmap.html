@@ -97,6 +97,7 @@
         moves into <code>docs/</code> and its entry is removed from here.
       </div>
       <div class="legend">
+        <span><span class="badge done">Done</span> shipped this cycle</span>
         <span><span class="badge progress">In progress</span> partially shipped</span>
         <span><span class="badge planned">Planned</span> committed, not yet started</span>
         <span><span class="badge candidate">Candidate</span> may be dropped if unneeded</span>
@@ -104,34 +105,35 @@
     </header>
 
     <section class="tier">
-      <h2>Next up</h2>
+      <h2>Just shipped</h2>
 
       <div class="card">
         <header>
           <h3><span class="code-id">M10</span> &mdash; Credential lifecycle (re-enrollment + rotation)</h3>
-          <span class="badge progress">In progress</span>
+          <span class="badge done">Done</span>
         </header>
         <p class="why">A saved identity that stops authenticating is now a first-class, <em>recoverable</em> condition
-          instead of a generic transport error.</p>
+          instead of a generic transport error &mdash; at connect time <em>and</em> mid-session.</p>
 
         <h4>Shipped</h4>
         <ul class="scope">
           <li><code>IdentityStaleError</code> (a recoverable <code>TransportError</code>): the HTTP transport maps
             <code>401</code>/<code>403</code> to it by default (opt out via <code>stale_statuses</code>); a BLE adapter
             raises it for a dead bond and the transport propagates it untouched.</li>
-          <li><code>Identity.last_validated</code> timestamp, stamped on every successful connect.</li>
+          <li><code>Identity.last_validated</code> timestamp, stamped on every successful connect (and re-stamped after a
+            mid-session refresh).</li>
           <li><code>re_enroll(saved_name, enrollment=...)</code> re-scans, re-enrolls, and atomically overwrites the
             saved record; <code>connect(saved_name, on_stale=...)</code> recovers a stale bond at <code>open()</code> and
-            retries once. Documented under
-            <a href="docs/concepts/lifecycle.md"><code>docs/concepts/lifecycle.md</code></a>.</li>
+            retries once.</li>
+          <li><strong>Mid-session auto-refresh</strong> &mdash;
+            <code>connect(..., on_stale=..., refresh_mid_session=True)</code> wraps command dispatch so an
+            <code>IdentityStaleError</code> raised <em>after</em> connect (e.g. an HTTP token expiring) re-enrolls,
+            rebuilds transports in place, and retries the command exactly once. <strong>Off by default</strong>, and
+            toggled independently of connect-time <code>on_stale</code>, so a connectivity/auth test harness observes
+            the raw <code>IdentityStaleError</code> instead of silent recovery.</li>
         </ul>
-
-        <h4>Remaining: mid-session auto-refresh</h4>
-        <p class="why">Because an HTTP transport opens lazily, connect-time recovery rescues a stale BLE bond but not a
-          <em>token that expires mid-session</em> (which surfaces on the next request, raised to the caller). The
-          follow-on would wrap dispatch so a mid-session <code>IdentityStaleError</code> triggers <code>re_enroll</code>
-          + a one-time retry &mdash; valuable for long-lived HTTP-token clients, but trickier (retry semantics; a BLE
-          re-enroll mid-session tears down the live connection). Deferred deliberately.</p>
+        <p class="why">Design detail lives in
+          <a href="docs/concepts/lifecycle.md"><code>docs/concepts/lifecycle.md</code></a>.</p>
       </div>
     </section>
 

@@ -214,7 +214,36 @@ client = await MyDeviceClient.connect(
 A successful connect also stamps `last_validated` on the stored identity, so a store can surface "credentials last
 confirmed working."
 
+### Mid-session auto-refresh
+
+Connect-time recovery rescues a stale *bond* at `open()`, but not a *token that expires mid-session* — because an HTTP
+transport opens lazily, that surfaces on a later command. Opt into automatic recovery there with
+`refresh_mid_session=True`:
+
+```python
+client = await MyDeviceClient.connect(
+    "kitchen",
+    on_stale=lambda name: MyDeviceClient.re_enroll(name, enrollment=my_enrollment),
+    refresh_mid_session=True,
+)
+```
+
+When enabled, a command whose `dispatch` raises `IdentityStaleError` runs the same `on_stale` recovery, rebuilds the
+client's transports in place, re-stamps `last_validated`, and retries that command **exactly once** — a second stale
+error propagates.
+
+Crucially it is **off by default** and toggled *independently* of connect-time `on_stale`:
+
+- `on_stale` alone → recover at connect, but let a mid-session `IdentityStaleError` propagate raw.
+- `on_stale` + `refresh_mid_session=True` → self-heal in both places.
+- neither → every `IdentityStaleError` reaches the caller untouched.
+
+That last stance is deliberate: a **connectivity / auth test harness** wants to *observe* the raw
+`IdentityStaleError` (to assert a device really does expire a token or invalidate a bond), so it simply never opts in.
+`refresh_mid_session=True` requires `on_stale`; passing it without one raises `ValueError`.
+
 ```{note}
-Recovery today is **connect-time** (it rescues a stale bond at `open()`). Auto-refreshing a mid-session HTTP token
-expiry — catching `IdentityStaleError` on a live dispatch and retrying — is a planned follow-on; see the roadmap.
+Auto-refresh wraps request/response `dispatch` only, not a live `subscribe()` stream (re-establishing a mid-flight
+subscription after a transport swap is out of scope). A mid-session BLE re-enroll also tears down and rebuilds the
+live connection, so it is heavier than an HTTP token refresh.
 ```
