@@ -903,11 +903,11 @@ class _ConnectSection:
 
 
 def _render_discover_and_connect(families: list[str]) -> str:
-    """Render the ``discover_and_connect()`` classmethod body.
+    """Render ``_enroll_and_save`` (shared), ``re_enroll``, and ``discover_and_connect``.
 
     ``families`` lists the manifest families that have *both* a
     transport entry and a discovery block — those are the families
-    eligible for one-shot scan + enroll.
+    eligible for scan + enroll.
     """
     # Per-family scan+enroll snippet (executed inside the method).
     scan_blocks: list[str] = []
@@ -918,7 +918,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
             f"            candidates = await scan_{fam}(timeout=discovery_timeout)\n"
             f"            if not candidates:\n"
             f"                raise EnrollmentError(\n"
-            f'                    f"discover_and_connect: no {fam.upper()} candidates found "\n'
+            f'                    f"enroll: no {fam.upper()} candidates found "\n'
             f'                    f"within {{discovery_timeout}}s"\n'
             f"                )\n"
             f"            sub_identity = await enrollment_for_{fam}.enroll(\n"
@@ -930,6 +930,80 @@ def _render_discover_and_connect(families: list[str]) -> str:
     known_families_repr = ", ".join(repr(f) for f in families)
 
     return f'''
+
+    @classmethod
+    async def _enroll_and_save(
+        cls,
+        saved_name: str,
+        *,
+        enrollment: "Enrollment | Mapping[str, Enrollment]",
+        store: "IdentityStore",
+        discovery_timeout: float,
+    ) -> "Identity":
+        """Scan every discoverable family, enroll, and persist the (possibly composite) identity."""
+        known_families: tuple[str, ...] = ({known_families_repr},)
+        if isinstance(enrollment, Mapping):
+            enrollment_map: dict[str, Enrollment] = {{
+                fam: adapter for fam, adapter in enrollment.items()
+                if fam in known_families
+            }}
+        else:
+            if len(known_families) != 1:
+                raise ValueError(
+                    "enroll: this device has multiple discoverable families "
+                    f"({{known_families}}); pass enrollment as a mapping keyed by "
+                    "family, not a single Enrollment instance"
+                )
+            enrollment_map = {{known_families[0]: enrollment}}
+
+        if not enrollment_map:
+            raise ValueError(
+                "enroll: no enrollment adapter matches this device's "
+                f"discoverable families {{known_families}}"
+            )
+
+        collected: dict[str, Identity] = {{}}
+{scan_blocks_joined}
+
+        if len(collected) == 1:
+            (only_identity,) = collected.values()
+            identity_to_save: Identity = only_identity
+        else:
+            identity_to_save = CompositeIdentity(
+                saved_name=saved_name,
+                components=dict(collected),
+            )
+        store.save(identity_to_save)
+        return identity_to_save
+
+    @classmethod
+    async def re_enroll(
+        cls,
+        saved_name: str,
+        *,
+        enrollment: "Enrollment | Mapping[str, Enrollment]",
+        store: "IdentityStore | None" = None,
+        discovery_timeout: float = 10.0,
+    ) -> "Identity":
+        """Re-run enrollment for a known device and atomically overwrite its saved record.
+
+        Use when stored credentials have gone stale (see
+        :class:`~kandra_runtime.IdentityStaleError`): re-discovers the device via
+        the manifest ``scan_<family>`` helpers, runs ``enrollment`` again, and
+        replaces the ``saved_name`` record. Returns the fresh identity.
+
+        Typically wired into :meth:`connect` as the recovery hook::
+
+            await Client.connect(
+                saved_name,
+                on_stale=lambda name: Client.re_enroll(name, enrollment=my_enrollment),
+            )
+        """
+        if store is None:
+            store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
+        return await cls._enroll_and_save(
+            saved_name, enrollment=enrollment, store=store, discovery_timeout=discovery_timeout
+        )
 
     @classmethod
     async def discover_and_connect(
@@ -1003,43 +1077,9 @@ def _render_discover_and_connect(families: list[str]) -> str:
         except IdentityNotFoundError:
             pass
 
-        # Normalize enrollment argument.
-        known_families: tuple[str, ...] = ({known_families_repr},)
-        if isinstance(enrollment, Mapping):
-            enrollment_map: dict[str, Enrollment] = {{
-                fam: adapter for fam, adapter in enrollment.items()
-                if fam in known_families
-            }}
-        else:
-            if len(known_families) != 1:
-                raise ValueError(
-                    "discover_and_connect: this device has multiple discoverable "
-                    f"families ({{known_families}}); pass enrollment as a mapping "
-                    "keyed by family, not a single Enrollment instance"
-                )
-            enrollment_map = {{known_families[0]: enrollment}}
-
-        if not enrollment_map:
-            raise ValueError(
-                "discover_and_connect: no enrollment adapter matches this device's "
-                f"discoverable families {{known_families}}"
-            )
-
-        # Scan + enroll each requested family.
-        collected: dict[str, Identity] = {{}}
-{scan_blocks_joined}
-
-        # Build a single Identity (or wrap in CompositeIdentity for multi-family).
-        if len(collected) == 1:
-            (only_identity,) = collected.values()
-            identity_to_save: Identity = only_identity
-        else:
-            identity_to_save = CompositeIdentity(
-                saved_name=saved_name,
-                components=dict(collected),
-            )
-        store.save(identity_to_save)
-
+        await cls._enroll_and_save(
+            saved_name, enrollment=enrollment, store=store, discovery_timeout=discovery_timeout
+        )
         return await cls.connect(saved_name, store=store, transports=transports)'''
 
 
@@ -1082,7 +1122,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     if has_http:
         runtime_extra_imports.append("HttpTransport")
     runtime_extra_imports.extend(
-        ["Identity", "IdentityStore", "PlatformDirsJsonStore"]
+        ["Identity", "IdentityStaleError", "IdentityStore", "PlatformDirsJsonStore"]
     )
     if discoverable_families:
         runtime_extra_imports.extend(
@@ -1096,6 +1136,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     if discoverable_families:
         scanner_imports = ", ".join(f"scan_{fam}" for fam in discoverable_families)
         imports_block += f"\nfrom .scanners import {scanner_imports}"
+    # Stdlib used by connect()'s on_stale recovery + the last_validated stamp.
+    imports_block += "\nfrom collections.abc import Awaitable, Callable\nfrom datetime import UTC, datetime"
     imports = imports_block
 
     # Per-BLE-transport channel maps + factory entries.
@@ -1145,15 +1187,51 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
                 return sub
     return None'''
 
-    module_level = "\n\n".join([*module_lines, factories_block, identity_helper])
+    mark_validated_helper = '''def _mark_validated(store: "IdentityStore", identity: "Identity") -> None:
+    """Best-effort: stamp ``last_validated=now`` on a working identity and persist it.
+
+    Called after a successful connect so a store can surface "credentials last
+    confirmed working". Failures are swallowed -- a store write must never break
+    an otherwise-live connection.
+    """
+    with contextlib.suppress(Exception):
+        store.save(identity.model_copy(update={"last_validated": datetime.now(UTC)}))'''
+
+    module_level = "\n\n".join([*module_lines, factories_block, identity_helper, mark_validated_helper])
 
     client_methods = '''    @classmethod
+    async def _open_transports(
+        cls,
+        identity: "Identity",
+        filter_ids: "set[TransportId] | None",
+    ) -> "dict[TransportId, Transport[Any, Any]]":
+        """Build + open every transport the identity supports, closing partials on failure."""
+        built: dict[TransportId, Transport[Any, Any]] = {}
+        try:
+            for tid, family, factory in _TRANSPORT_FACTORIES:
+                if filter_ids is not None and tid not in filter_ids:
+                    continue
+                sub_identity = _identity_for_family(identity, family)
+                if sub_identity is None:
+                    continue
+                transport = factory(sub_identity)
+                await transport.open()
+                built[tid] = transport
+        except BaseException:
+            for opened in built.values():
+                with contextlib.suppress(Exception):
+                    await opened.close()
+            raise
+        return built
+
+    @classmethod
     async def connect(
         cls,
         saved_name: str,
         *,
         store: "IdentityStore | None" = None,
         transports: "Collection[TransportId] | None" = None,
+        on_stale: "Callable[[str], Awaitable[Identity]] | None" = None,
     ) -> "Any":
         """Build and open a client from a previously enrolled identity.
 
@@ -1175,11 +1253,20 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             Optional filter — restrict activation to this set of
             transport ids. If omitted, every transport the saved
             identity supplies is activated.
+        on_stale:
+            Optional async ``(saved_name) -> Identity`` recovery callback.
+            When a transport's ``open()`` raises :class:`IdentityStaleError`
+            (e.g. a stale BLE bond), it is invoked to re-establish
+            credentials (typically ``re_enroll``) and the connect is retried
+            once. When ``None`` (default), the stale error propagates.
 
         Raises
         ------
         IdentityNotFoundError:
             ``saved_name`` is not present in the store.
+        IdentityStaleError:
+            Credentials were rejected at ``open()`` and no ``on_stale``
+            recovery callback was supplied (or recovery failed again).
         ValueError:
             The saved identity supplied no usable transport (e.g. it
             stores only HTTP credentials but ``transports={TransportId.BLE}``
@@ -1191,27 +1278,17 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
         identity = store.load(saved_name)
-
         filter_ids: "set[TransportId] | None" = (
             None if transports is None else set(transports)
         )
-
-        built: dict[TransportId, Transport[Any, Any]] = {}
         try:
-            for tid, family, factory in _TRANSPORT_FACTORIES:
-                if filter_ids is not None and tid not in filter_ids:
-                    continue
-                sub_identity = _identity_for_family(identity, family)
-                if sub_identity is None:
-                    continue
-                transport = factory(sub_identity)
-                await transport.open()
-                built[tid] = transport
-        except BaseException:
-            for opened in built.values():
-                with contextlib.suppress(Exception):
-                    await opened.close()
-            raise
+            built = await cls._open_transports(identity, filter_ids)
+        except IdentityStaleError:
+            if on_stale is None:
+                raise
+            # Stored credentials rejected at open(); recover once via on_stale.
+            identity = await on_stale(saved_name)
+            built = await cls._open_transports(identity, filter_ids)
 
         if not built:
             raise ValueError(
@@ -1219,6 +1296,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
                 f"matching this device's manifest"
             )
 
+        _mark_validated(store, identity)
         client = cls(transports=built)
         client._owned_transports = built
         return client
