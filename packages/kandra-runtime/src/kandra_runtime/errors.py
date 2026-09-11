@@ -34,6 +34,19 @@ class TransportTimeoutError(TransportError, TimeoutError):
     """
 
 
+class IdentityStaleError(TransportError):
+    """Raised when a stored identity's credentials no longer authenticate.
+
+    A recoverable transport failure distinct from a generic dropped link: the
+    device is reachable but the saved credentials are no longer valid (an expired
+    HTTP token surfacing as 401/403, or a BLE bond invalidated by a peripheral
+    factory reset). Callers recover by re-enrolling — see the generated client's
+    ``connect(saved_name, on_stale=...)`` and ``re_enroll`` helpers. Subclasses
+    :class:`TransportError`, so existing ``except TransportError`` handlers still
+    catch it.
+    """
+
+
 class CodecError(KandraError):
     """A codec failed to encode a request or decode a response payload."""
 

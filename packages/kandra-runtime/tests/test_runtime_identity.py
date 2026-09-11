@@ -29,6 +29,36 @@ def test_http_identity_token_optional() -> None:
     assert ident.auth_token is None
 
 
+def test_last_validated_defaults_none_and_roundtrips() -> None:
+    from datetime import UTC, datetime
+
+    ident = BleIdentity(saved_name="poker", address="AA:BB:CC:DD:EE:FF")
+    assert ident.last_validated is None
+    stamped = ident.model_copy(update={"last_validated": datetime(2026, 1, 2, tzinfo=UTC)})
+    restored = BleIdentity.model_validate_json(stamped.model_dump_json())
+    assert restored.last_validated == datetime(2026, 1, 2, tzinfo=UTC)
+
+
+def test_identity_without_last_validated_parses() -> None:
+    # Records saved before credential-lifecycle support omit the field entirely.
+    adapter: TypeAdapter[Identity] = TypeAdapter(Identity)
+    legacy = (
+        '{"transport": "http", "saved_name": "cloud", "base_url": "http://x", '
+        '"enrolled_at": "2026-01-01T00:00:00Z"}'
+    )
+    ident = adapter.validate_json(legacy)
+    assert ident.last_validated is None
+    assert ident.saved_name == "cloud"
+
+
+def test_identity_stale_error_hierarchy() -> None:
+    from kandra_runtime import IdentityStaleError, KandraError, TransportError
+
+    err = IdentityStaleError("credentials rejected")
+    assert isinstance(err, TransportError)
+    assert isinstance(err, KandraError)
+
+
 def test_identity_discriminated_union_roundtrip() -> None:
     adapter: TypeAdapter[list[Identity]] = TypeAdapter(list[Identity])
     originals: list[Identity] = [

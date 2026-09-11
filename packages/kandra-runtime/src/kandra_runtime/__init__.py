@@ -15,6 +15,7 @@ from kandra_runtime.enrollment import (
 from kandra_runtime.errors import (
     CapabilityUnavailableError,
     CodecError,
+    IdentityStaleError,
     KandraError,
     TransportError,
     TransportNotOpenError,
@@ -91,6 +92,7 @@ __all__ = [
     "HttpTransport",
     "Identity",
     "IdentityNotFoundError",
+    "IdentityStaleError",
     "IdentityStore",
     "KandraError",
     "LoopbackTransport",

@@ -21,6 +21,7 @@ from kandra_runtime import (
     Classification,
     Codec,
     Command,
+    IdentityStaleError,
     TransportError,
     TransportNotOpenError,
     always_accepted_interpreter,
@@ -50,6 +51,10 @@ class FakeBleakClient:
         # Connect failure injection (set via constructor for test fixtures).
         self.fail_connect: bool = False
         self.fail_writes: bool = False
+        # Stale-bond injection: an adapter that classifies a dead bond raises
+        # IdentityStaleError (which the transport must let propagate untouched).
+        self.stale_connect: bool = False
+        self.stale_writes: bool = False
         # Track delivered writes for assertions.
         self.writes: list[tuple[str, bytes]] = []
 
@@ -68,6 +73,8 @@ class FakeBleakClient:
         return self._connected
 
     async def connect(self) -> None:
+        if self.stale_connect:
+            raise IdentityStaleError(f"FakeBleakClient bond invalidated for {self.address!r}")
         if self.fail_connect:
             raise RuntimeError(f"FakeBleakClient.connect failed for {self.address!r}")
         self._connected = True
@@ -88,6 +95,8 @@ class FakeBleakClient:
         data: bytes,
         response: bool = False,
     ) -> None:
+        if self.stale_writes:
+            raise IdentityStaleError("FakeBleakClient bond invalidated mid-session")
         if self.fail_writes:
             raise RuntimeError("FakeBleakClient.write_gatt_char synthetic failure")
         write_uuid = str(char_specifier)
@@ -215,6 +224,22 @@ async def test_connect_failure_normalized(fake: FakeBleakClient) -> None:
 async def test_write_failure_normalized(transport: BleTransport, fake: FakeBleakClient) -> None:
     fake.fail_writes = True
     with pytest.raises(TransportError, match="write_gatt_char"):
+        await transport.request(BleRequest(channel="command", payload=b"x"))
+
+
+async def test_stale_bond_propagates_from_open(fake: FakeBleakClient) -> None:
+    """An adapter-raised IdentityStaleError at connect() propagates (not re-wrapped)."""
+    fake.stale_connect = True
+    t = BleTransport("AA:BB:CC:DD:EE:FF", channels=_CHANNELS, client_factory=_make_factory(fake))
+    with pytest.raises(IdentityStaleError):
+        await t.open()
+    assert not t.is_open
+
+
+async def test_stale_bond_propagates_from_request(transport: BleTransport, fake: FakeBleakClient) -> None:
+    """An adapter-raised IdentityStaleError mid-session (write) propagates untouched."""
+    fake.stale_writes = True
+    with pytest.raises(IdentityStaleError):
         await transport.request(BleRequest(channel="command", payload=b"x"))
 
 

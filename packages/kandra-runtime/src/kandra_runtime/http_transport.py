@@ -21,11 +21,16 @@ from urllib.parse import urljoin
 
 import aiohttp
 
-from kandra_runtime.errors import TransportError, TransportNotOpenError, TransportTimeoutError
+from kandra_runtime.errors import (
+    IdentityStaleError,
+    TransportError,
+    TransportNotOpenError,
+    TransportTimeoutError,
+)
 from kandra_runtime.http import HttpRequest, HttpResponse
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Mapping
+    from collections.abc import AsyncIterator, Collection, Mapping
 
 
 class HttpTransport:
@@ -57,6 +62,7 @@ class HttpTransport:
         timeout: float | None = 30.0,
         verify_ssl: bool = True,
         session: aiohttp.ClientSession | None = None,
+        stale_statuses: Collection[int] | None = None,
     ) -> None:
         """Initialize the transport configuration. No I/O occurs here."""
         if not base_url:
@@ -68,6 +74,9 @@ class HttpTransport:
         self._verify_ssl = verify_ssl
         self._injected_session = session is not None
         self._session: aiohttp.ClientSession | None = session
+        # Statuses treated as "stored credentials rejected" -> IdentityStaleError.
+        # Pass an empty collection to opt out (let 4xx pass through to the codec).
+        self._stale_statuses = frozenset({401, 403}) if stale_statuses is None else frozenset(stale_statuses)
 
     @classmethod
     def from_identity(
@@ -78,6 +87,7 @@ class HttpTransport:
         timeout: float | None = 30.0,
         verify_ssl: bool = True,
         session: aiohttp.ClientSession | None = None,
+        stale_statuses: Collection[int] | None = None,
     ) -> HttpTransport:
         """Build a transport from a persisted :class:`~kandra_runtime.identity.HttpIdentity`.
 
@@ -101,6 +111,7 @@ class HttpTransport:
             timeout=timeout,
             verify_ssl=verify_ssl,
             session=session,
+            stale_statuses=stale_statuses,
         )
 
     async def open(self) -> None:
@@ -142,6 +153,8 @@ class HttpTransport:
 
         Raises:
             TransportNotOpenError: if called before :meth:`open`.
+            IdentityStaleError: on a 401/403 (stored credentials rejected), unless
+                ``stale_statuses`` was set empty to opt out.
             TransportTimeoutError: on aiohttp / asyncio timeout.
             TransportError: on connection or protocol failures.
         """
@@ -157,6 +170,10 @@ class HttpTransport:
                 headers=headers or None,
                 data=envelope.body,
             ) as resp:
+                if resp.status in self._stale_statuses:
+                    raise IdentityStaleError(
+                        f"HTTP {envelope.method} {url} returned {resp.status}: stored credentials rejected"
+                    )
                 body = await resp.read()
                 response_headers = {k: v for k, v in resp.headers.items()}
                 return HttpResponse(status=resp.status, headers=response_headers, body=body)
@@ -179,6 +196,7 @@ class HttpTransport:
 
         Raises:
             TransportNotOpenError: if called before :meth:`open`.
+            IdentityStaleError: on a 401/403 (stored credentials rejected), unless opted out.
             TransportTimeoutError: on aiohttp / asyncio timeout.
             TransportError: on a non-2xx status or connection failure.
         """
@@ -195,6 +213,8 @@ class HttpTransport:
                     params=envelope.query or None,
                     headers=headers,
                 ) as resp:
+                    if resp.status in self._stale_statuses:
+                        raise IdentityStaleError(f"HTTP SSE {url} returned {resp.status}: stored credentials rejected")
                     if resp.status >= 400:
                         raise TransportError(f"HTTP SSE {url} returned {resp.status}")
                     response_headers = {k: v for k, v in resp.headers.items()}

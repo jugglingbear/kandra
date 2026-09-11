@@ -19,7 +19,7 @@ from kandra_runtime import (
     default_http_interpreter,
     dispatch,
 )
-from kandra_runtime.errors import TransportError, TransportTimeoutError
+from kandra_runtime.errors import IdentityStaleError, TransportError, TransportTimeoutError
 
 # ---------------------------------------------------------------------------
 # Fixtures: a tiny aiohttp echo / sink server.
@@ -51,6 +51,11 @@ async def _hang(_request: web.Request) -> web.Response:
     return web.json_response({"never": "reached"})  # pragma: no cover
 
 
+async def _unauthorized(_request: web.Request) -> web.Response:
+    """Reject with 401 to simulate stale/expired credentials."""
+    return web.json_response({"error": "token expired"}, status=401)
+
+
 @pytest.fixture
 async def server() -> AsyncIterator[TestServer]:
     app = web.Application()
@@ -59,6 +64,7 @@ async def server() -> AsyncIterator[TestServer]:
     app.router.add_put("/replace", _replace)
     app.router.add_delete("/items/{item}", _delete)
     app.router.add_post("/hang", _hang)
+    app.router.add_get("/unauthorized", _unauthorized)
     test_server = TestServer(app)
     await test_server.start_server()
     try:
@@ -211,3 +217,38 @@ async def test_transport_level_timeout_raises(server: TestServer) -> None:
             await t.request(HttpRequest(method="POST", path="/hang", body=b"{}"))
     finally:
         await t.close()
+
+
+# ---------------------------------------------------------------------------
+# Stale-credential detection (401/403 -> IdentityStaleError).
+# ---------------------------------------------------------------------------
+
+
+async def test_401_raises_identity_stale(transport: HttpTransport) -> None:
+    """A 401 response is classified as a stale-credential failure by default."""
+    with pytest.raises(IdentityStaleError, match="401"):
+        await transport.request(HttpRequest(method="GET", path="/unauthorized"))
+
+
+async def test_identity_stale_is_a_transport_error(transport: HttpTransport) -> None:
+    """IdentityStaleError subclasses TransportError, so broad handlers still catch it."""
+    with pytest.raises(TransportError):
+        await transport.request(HttpRequest(method="GET", path="/unauthorized"))
+
+
+async def test_stale_statuses_opt_out_passes_401_through(server: TestServer) -> None:
+    """An empty stale_statuses set disables detection; the 401 returns as a normal response."""
+    t = HttpTransport(str(server.make_url("/")), stale_statuses=[])
+    await t.open()
+    try:
+        resp = await t.request(HttpRequest(method="GET", path="/unauthorized"))
+        assert resp.status == 401
+    finally:
+        await t.close()
+
+
+async def test_subscribe_401_raises_identity_stale(transport: HttpTransport) -> None:
+    """An SSE subscribe against a 401 endpoint raises IdentityStaleError."""
+    with pytest.raises(IdentityStaleError, match="401"):
+        async for _ in transport.subscribe(HttpRequest(method="GET", path="/unauthorized")):
+            pass  # pragma: no cover

@@ -22,7 +22,12 @@ import contextlib
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from kandra_runtime.ble import BleRequest
-from kandra_runtime.errors import TransportError, TransportNotOpenError, TransportTimeoutError
+from kandra_runtime.errors import (
+    IdentityStaleError,
+    TransportError,
+    TransportNotOpenError,
+    TransportTimeoutError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Mapping
@@ -162,6 +167,8 @@ class BleTransport:
             raise TransportTimeoutError(
                 f"BLE connect to {self._address!r} timed out after {self._connect_timeout}s"
             ) from exc
+        except IdentityStaleError:
+            raise  # adapter classified a stale bond; preserve the type for on_stale recovery
         except Exception as exc:  # normalize bleak's exception zoo
             raise TransportError(f"BLE connect to {self._address!r} failed: {exc}") from exc
         # Pre-create queues + locks; subscribe to every notify uuid.
@@ -222,6 +229,8 @@ class BleTransport:
                 queue.get_nowait()
             try:
                 await self._client.write_gatt_char(write_uuid, envelope.payload, response=False)
+            except IdentityStaleError:
+                raise  # adapter classified a stale bond mid-session; preserve the type
             except Exception as exc:
                 raise TransportError(f"BLE write_gatt_char({write_uuid!r}) failed: {exc}") from exc
             # Per-call timeout is enforced by the dispatcher (Command.timeout);

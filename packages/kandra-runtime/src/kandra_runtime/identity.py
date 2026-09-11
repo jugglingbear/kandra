@@ -42,6 +42,11 @@ class _IdentityBase(BaseModel):
         default_factory=lambda: datetime.now(UTC),
         description="UTC timestamp captured when the identity was first persisted.",
     )
+    last_validated: datetime | None = Field(
+        default=None,
+        description="UTC timestamp when these credentials last authenticated (connect/re-enroll); "
+        "None until first confirmed. Absent on records saved before credential-lifecycle support.",
+    )
 
 
 class BleIdentity(_IdentityBase):
