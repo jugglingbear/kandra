@@ -201,9 +201,12 @@
           <h3>Manifest / doc cleanups</h3>
         </header>
         <ul class="scope">
-          <li><strong><code>idempotent</code> / <code>retries</code> command fields.</strong> Declared in the manifest
-            model but not wired into the runtime. Either implement them (retry-on-link-drop semantics are non-trivial,
-            especially over BLE) or strike them from the model.</li>
+          <li><strong><code>idempotent</code> / <code>retries</code> command fields.</strong> <em>Resolved.</em> Now
+            wired end-to-end: an <code>idempotent</code> command with <code>retries: N</code> is re-sent up to N times
+            after a transient transport failure, and the loader requires <code>idempotent: true</code> for any
+            <code>retries &gt; 0</code>. Wiring this also surfaced and fixed a latent bug &mdash; <code>dispatch()</code>
+            was flattening <code>IdentityStaleError</code> into a generic failure, so mid-session recovery now actually
+            fires.</li>
           <li><strong>Attributes / events interim guard.</strong> <em>Resolved.</em> Both primitives are now wired
             (9b / 9c) and generate working facades; the loader validates their per-transport subscribe wiring. No silent
             accept-and-ignore, and a shape-valid manifest builds.</li>

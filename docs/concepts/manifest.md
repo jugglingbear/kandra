@@ -51,6 +51,7 @@ commands:
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
+    retries: 2   # safe to re-send on a transient link drop
 
 attributes:
   # Named device *state* (read / write / subscribe), as opposed to a one-shot
@@ -87,6 +88,12 @@ to; [events](event.md) are stateless emissions you subscribe to. All three are p
 in the referenced handler classes. (The per-transport `http:` / `ble:` subscribe wiring for the attribute and event is
 elided above; see the [Attribute](attribute.md) and [Event](event.md) pages for the full blocks.) Any operation may also
 declare `capabilities: [tag, ...]` to gate it behind [device capabilities](capabilities.md).
+
+A command may declare `idempotent: true` when re-sending it is harmless (the device treats a repeat as a no-op). That
+unlocks `retries: N` — after a *transient* transport failure (a dropped link or a timeout) the runtime re-sends the
+command up to `N` more times before giving up. Non-idempotent commands are never auto-retried, so `retries: N` requires
+`idempotent: true` (the loader rejects the pair otherwise). A stale-credential failure is *not* retried here — it
+surfaces as [`IdentityStaleError`](lifecycle.md) for the client's re-enrollment path instead.
 
 The `vendoring` block tunes the import-closure walker. Each `extra_include` / `exclude` entry is a path relative to a
 `source_root` and may be a single **file**, a whole **directory**, or a **glob** — never a dotted class name.
