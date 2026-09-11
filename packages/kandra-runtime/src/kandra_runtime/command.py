@@ -23,13 +23,16 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic
+from typing import TYPE_CHECKING, Any, Generic, cast
 
 from kandra_runtime.codec import RequestT, ResponseT, WireReqT, WireRespT
 from kandra_runtime.errors import CodecError, TransportError, TransportTimeoutError
 from kandra_runtime.result import Classification, ResponseInterpreter, Result
+from kandra_runtime.transport import Subscribable
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from kandra_runtime.codec import Codec
     from kandra_runtime.transport import Transport
 
@@ -122,6 +125,56 @@ def dispatch_sync(
     responsible for opening and closing the transport.
     """
     return asyncio.run(dispatch(command, transport, request))
+
+
+async def dispatch_subscribe(
+    command: Command[RequestT, ResponseT, WireReqT, WireRespT],
+    transport: Transport[WireReqT, WireRespT],
+    request: RequestT,
+) -> AsyncIterator[Result[ResponseT]]:
+    """Subscribe over a transport and yield a :class:`Result` per pushed update.
+
+    Reuses the command's codec + interpreter: ``codec.encode(request)`` builds
+    the subscription envelope, then each device-pushed wire response is
+    classified and (when :attr:`Classification.ACCEPTED`) decoded, yielding one
+    ``Result[ResponseT]`` per event until the returned iterator is closed.
+
+    The transport must implement :class:`~kandra_runtime.transport.Subscribable`
+    (native push — BLE Notify, HTTP SSE). The opt-in polling fallback is a
+    higher-level wrapper (repeated :func:`dispatch`), never this primitive. A
+    mid-stream transport failure ends the stream with a final
+    ``TRANSPORT_FAILURE`` result rather than raising.
+
+    Raises:
+        TransportError: the wired transport does not support subscription.
+    """
+    if not isinstance(transport, Subscribable):
+        raise TransportError(f"transport {type(transport).__name__} does not support subscribe()")
+    subscribable = cast("Subscribable[WireReqT, WireRespT]", transport)
+    envelope = command.codec.encode(request)
+    try:
+        async for wire in subscribable.subscribe(envelope):
+            yield _classify_and_decode(command, wire)
+    except TransportError as exc:
+        yield Result(
+            classification=Classification.TRANSPORT_FAILURE,
+            reason=str(exc) or type(exc).__name__,
+        )
+
+
+def _classify_and_decode(
+    command: Command[RequestT, ResponseT, WireReqT, WireRespT],
+    wire: WireRespT,
+) -> Result[ResponseT]:
+    """Classify + (when accepted) decode a single wire response into a Result."""
+    verdict = command.interpreter.classify(wire)
+    if verdict.classification is not Classification.ACCEPTED:
+        return Result(classification=verdict.classification, reason=verdict.reason, extra=verdict.extra)
+    try:
+        payload = command.codec.decode(wire)
+    except CodecError as exc:
+        return Result(classification=Classification.ANOMALOUS, reason=str(exc), extra=verdict.extra)
+    return Result(classification=Classification.ACCEPTED, data=payload, extra=verdict.extra)
 
 
 async def _request_with_timeout(

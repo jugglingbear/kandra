@@ -19,7 +19,7 @@ from kandra_runtime import (
     default_http_interpreter,
     dispatch,
 )
-from kandra_runtime.errors import TransportError
+from kandra_runtime.errors import TransportError, TransportTimeoutError
 
 # ---------------------------------------------------------------------------
 # Fixtures: a tiny aiohttp echo / sink server.
@@ -200,3 +200,14 @@ async def test_timeout_yields_transport_failure_result(transport: HttpTransport)
     assert result is not None
     assert result.classification is Classification.TRANSPORT_FAILURE
     assert "timed out" in result.reason
+
+
+async def test_transport_level_timeout_raises(server: TestServer) -> None:
+    """A short transport-level ClientTimeout on a hanging endpoint raises TransportTimeoutError."""
+    t = HttpTransport(str(server.make_url("/")), timeout=0.2)
+    await t.open()
+    try:
+        with pytest.raises(TransportTimeoutError, match="timed out"):
+            await t.request(HttpRequest(method="POST", path="/hang", body=b"{}"))
+    finally:
+        await t.close()

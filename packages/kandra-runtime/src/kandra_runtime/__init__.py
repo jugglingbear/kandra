@@ -3,8 +3,9 @@
 from kandra_runtime.ble import BleChannelCodec, BleRequest
 from kandra_runtime.ble_scanner import BleScanner
 from kandra_runtime.ble_transport import BleTransport
-from kandra_runtime.codec import Codec
-from kandra_runtime.command import Command, dispatch, dispatch_sync
+from kandra_runtime.capabilities import Capabilities, CapabilityProbe, StaticCapabilityProbe
+from kandra_runtime.codec import Codec, NoArgs
+from kandra_runtime.command import Command, dispatch, dispatch_subscribe, dispatch_sync
 from kandra_runtime.enrollment import (
     BleEnrollment,
     Enrollment,
@@ -12,6 +13,7 @@ from kandra_runtime.enrollment import (
     HttpEnrollment,
 )
 from kandra_runtime.errors import (
+    CapabilityUnavailableError,
     CodecError,
     KandraError,
     TransportError,
@@ -55,7 +57,7 @@ from kandra_runtime.scanner import (
     accept_all,
     snapshot_scan,
 )
-from kandra_runtime.transport import Transport, open_transport
+from kandra_runtime.transport import Subscribable, Transport, open_transport
 
 __all__ = [
     "AlwaysAcceptedResponseInterpreter",
@@ -66,6 +68,9 @@ __all__ = [
     "BleScanner",
     "BleTransport",
     "Candidate",
+    "Capabilities",
+    "CapabilityProbe",
+    "CapabilityUnavailableError",
     "Classification",
     "ClassificationVerdict",
     "ResponseInterpreter",
@@ -90,9 +95,12 @@ __all__ = [
     "KandraError",
     "LoopbackTransport",
     "Matcher",
+    "NoArgs",
     "PlatformDirsJsonStore",
     "Result",
     "Scanner",
+    "StaticCapabilityProbe",
+    "Subscribable",
     "Transport",
     "TransportError",
     "TransportNotOpenError",
@@ -102,6 +110,7 @@ __all__ = [
     "always_accepted_interpreter",
     "default_http_interpreter",
     "dispatch",
+    "dispatch_subscribe",
     "dispatch_sync",
     "format_failure",
     "open_transport",

@@ -33,10 +33,10 @@ class Transport(Protocol[_WireReqT_contra, _WireRespT_co]):
     """A bidirectional channel to a device, typed on its wire envelope.
 
     Implementations must be safe to `open()` and `close()` more than once.
-    `request()` is the only required I/O primitive today; streaming and
-    notification primitives (``subscribe()``, ``stream()``) are deferred
-    until the features that consume them (see kandra.md section 8 and
-    Q6 in the section-10 decision log).
+    `request()` is the only required I/O primitive. Subscription (device
+    push) lives in the separate :class:`Subscribable` protocol so a transport
+    only advertises it when it can honour it; byte-stream downloads
+    (``stream()``) remain deferred until a consumer lands.
     """
 
     async def open(self) -> None:
@@ -54,6 +54,30 @@ class Transport(Protocol[_WireReqT_contra, _WireRespT_co]):
 
     async def request(self, envelope: _WireReqT_contra) -> _WireRespT_co:
         """Send a request envelope and return the response envelope."""
+        ...
+
+
+@runtime_checkable
+class Subscribable(Protocol[_WireReqT_contra, _WireRespT_co]):
+    """A transport that can stream device-pushed responses for a subscription.
+
+    Consumed by attribute-`subscribe` and events (kandra.md section 3.4.1 / 7).
+    This is **native push only** — BLE Notify, HTTP SSE, etc. The explicit
+    opt-in HTTP *polling* fallback is a higher-level wrapper (repeated
+    ``request()`` on a timer), never a transport primitive, so polling never
+    turns on by surprise.
+
+    Not every transport is subscribable; attribute / event dispatch checks for
+    this protocol and raises a clear error when a wired transport lacks it.
+    """
+
+    def subscribe(self, envelope: _WireReqT_contra) -> AsyncIterator[_WireRespT_co]:
+        """Open a subscription; yield wire responses until the iterator is closed.
+
+        Closing the returned async iterator (breaking the ``async for`` or
+        calling ``aclose()``) must tear down the underlying subscription
+        (unsubscribe / close the stream).
+        """
         ...
 
 

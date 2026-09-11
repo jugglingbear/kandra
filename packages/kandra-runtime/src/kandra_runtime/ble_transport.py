@@ -25,7 +25,7 @@ from kandra_runtime.ble import BleRequest
 from kandra_runtime.errors import TransportError, TransportNotOpenError, TransportTimeoutError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import AsyncIterator, Callable, Mapping
 
 
 # ---------------------------------------------------------------------------
@@ -106,9 +106,7 @@ class BleTransport:
             raise ValueError("BleTransport requires at least one channel")
         for name, pair in channels.items():
             if not isinstance(pair, tuple) or len(pair) != 2:
-                raise ValueError(
-                    f"channel {name!r}: value must be (write_uuid, notify_uuid) tuple"
-                )
+                raise ValueError(f"channel {name!r}: value must be (write_uuid, notify_uuid) tuple")
             write_uuid, notify_uuid = pair
             if not write_uuid or not notify_uuid:
                 raise ValueError(f"channel {name!r}: both UUIDs must be non-empty")
@@ -145,10 +143,7 @@ class BleTransport:
         from kandra_runtime.identity import BleIdentity
 
         if not isinstance(identity, BleIdentity):
-            raise TypeError(
-                f"BleTransport.from_identity expected BleIdentity, "
-                f"got {type(identity).__name__}"
-            )
+            raise TypeError(f"BleTransport.from_identity expected BleIdentity, " f"got {type(identity).__name__}")
         return cls(
             identity.address,
             channels=channels,
@@ -178,9 +173,7 @@ class BleTransport:
             except Exception as exc:
                 # Roll back: stop any notifies we already started, then disconnect.
                 await self._cleanup_after_failed_open(client, started=name)
-                raise TransportError(
-                    f"BLE start_notify({notify_uuid!r}) on channel {name!r} failed: {exc}"
-                ) from exc
+                raise TransportError(f"BLE start_notify({notify_uuid!r}) on channel {name!r} failed: {exc}") from exc
         self._client = client
 
     async def close(self) -> None:
@@ -216,8 +209,7 @@ class BleTransport:
         pair = self._channels.get(envelope.channel)
         if pair is None:
             raise TransportError(
-                f"BLE channel {envelope.channel!r} not declared on transport "
-                f"(known: {sorted(self._channels)!r})"
+                f"BLE channel {envelope.channel!r} not declared on transport " f"(known: {sorted(self._channels)!r})"
             )
         write_uuid, _notify_uuid = pair
         queue = self._queues[envelope.channel]
@@ -231,19 +223,42 @@ class BleTransport:
             try:
                 await self._client.write_gatt_char(write_uuid, envelope.payload, response=False)
             except Exception as exc:
-                raise TransportError(
-                    f"BLE write_gatt_char({write_uuid!r}) failed: {exc}"
-                ) from exc
+                raise TransportError(f"BLE write_gatt_char({write_uuid!r}) failed: {exc}") from exc
             # Per-call timeout is enforced by the dispatcher (Command.timeout);
             # here we just block until the notification arrives or the task
             # is cancelled.
             return await queue.get()
 
+    def subscribe(self, envelope: BleRequest) -> AsyncIterator[bytes]:
+        """Yield notifications from ``envelope.channel`` until the iterator closes.
+
+        The channel's notify characteristic is already subscribed in
+        :meth:`open`; this drains that channel's notification queue as packets
+        arrive. Use a channel for *either* request/response *or* subscribe, not
+        both — they share one queue.
+
+        Raises:
+            TransportNotOpenError: if called before :meth:`open`.
+            TransportError: on an unknown channel name.
+        """
+
+        async def _stream() -> AsyncIterator[bytes]:
+            if self._client is None or not self._client.is_connected:
+                raise TransportNotOpenError("BleTransport.subscribe() called before open()")
+            if envelope.channel not in self._channels:
+                raise TransportError(
+                    f"BLE channel {envelope.channel!r} not declared on transport "
+                    f"(known: {sorted(self._channels)!r})"
+                )
+            queue = self._queues[envelope.channel]
+            while True:
+                yield await queue.get()
+
+        return _stream()
+
     # -- internals --------------------------------------------------------
 
-    def _make_notify_callback(
-        self, channel_name: str
-    ) -> Callable[[int, bytearray], None]:
+    def _make_notify_callback(self, channel_name: str) -> Callable[[int, bytearray], None]:
         queue = self._queues[channel_name]
 
         def _on_notify(_sender: int, data: bytearray) -> None:
@@ -251,9 +266,7 @@ class BleTransport:
 
         return _on_notify
 
-    async def _cleanup_after_failed_open(
-        self, client: _BleakLike, *, started: str
-    ) -> None:
+    async def _cleanup_after_failed_open(self, client: _BleakLike, *, started: str) -> None:
         for name, (_write_uuid, notify_uuid) in self._channels.items():
             if name == started:
                 break

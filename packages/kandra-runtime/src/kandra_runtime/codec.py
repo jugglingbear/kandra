@@ -20,12 +20,24 @@ section 11.5 and the per-family modules (``kandra_runtime.http``, etc.).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
 RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
 WireReqT = TypeVar("WireReqT")
 WireRespT = TypeVar("WireRespT")
+
+
+@dataclass(frozen=True)
+class NoArgs:
+    """Empty request marker for operations that take no input.
+
+    Generated attribute ``read()`` / ``subscribe()`` methods dispatch with a
+    :class:`NoArgs` instance so they can reuse the same command/codec pipeline
+    as everything else — a codec ``encode(NoArgs())`` produces an empty body /
+    query.
+    """
 
 _RequestT_contra = TypeVar("_RequestT_contra", contravariant=True)
 _ResponseT_co = TypeVar("_ResponseT_co", covariant=True)

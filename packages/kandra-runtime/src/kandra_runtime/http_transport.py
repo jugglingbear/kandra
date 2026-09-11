@@ -25,7 +25,7 @@ from kandra_runtime.errors import TransportError, TransportNotOpenError, Transpo
 from kandra_runtime.http import HttpRequest, HttpResponse
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import AsyncIterator, Mapping
 
 
 class HttpTransport:
@@ -89,10 +89,7 @@ class HttpTransport:
         from kandra_runtime.identity import HttpIdentity
 
         if not isinstance(identity, HttpIdentity):
-            raise TypeError(
-                f"HttpTransport.from_identity expected HttpIdentity, "
-                f"got {type(identity).__name__}"
-            )
+            raise TypeError(f"HttpTransport.from_identity expected HttpIdentity, " f"got {type(identity).__name__}")
         headers: dict[str, str] = {}
         if identity.auth_token is not None:
             headers["Authorization"] = f"Bearer {identity.auth_token}"
@@ -111,9 +108,7 @@ class HttpTransport:
         if self._session is not None:
             return
         connector = aiohttp.TCPConnector(ssl=self._verify_ssl)
-        client_timeout = (
-            aiohttp.ClientTimeout(total=self._timeout) if self._timeout else aiohttp.ClientTimeout()
-        )
+        client_timeout = aiohttp.ClientTimeout(total=self._timeout) if self._timeout else aiohttp.ClientTimeout()
         self._session = aiohttp.ClientSession(connector=connector, timeout=client_timeout)
 
     async def close(self) -> None:
@@ -169,3 +164,65 @@ class HttpTransport:
             raise TransportTimeoutError(f"HTTP {envelope.method} {url} timed out") from exc
         except aiohttp.ClientError as exc:
             raise TransportError(f"HTTP {envelope.method} {url} failed: {exc}") from exc
+
+    def subscribe(self, envelope: HttpRequest) -> AsyncIterator[HttpResponse]:
+        """Open a Server-Sent Events stream and yield one response per event.
+
+        The request is issued with ``Accept: text/event-stream``; each SSE
+        event's concatenated ``data:`` payload becomes an
+        :class:`HttpResponse` body (status + headers copied from the streaming
+        response) for the codec to decode. Closing the returned iterator closes
+        the underlying connection.
+
+        This is **push only** (native SSE). The opt-in polling fallback lives one
+        layer up (repeated :meth:`request`), never here.
+
+        Raises:
+            TransportNotOpenError: if called before :meth:`open`.
+            TransportTimeoutError: on aiohttp / asyncio timeout.
+            TransportError: on a non-2xx status or connection failure.
+        """
+
+        async def _stream() -> AsyncIterator[HttpResponse]:
+            if self._session is None or self._session.closed:
+                raise TransportNotOpenError("HttpTransport.subscribe() called before open()")
+            url = urljoin(self._base_url, envelope.path.lstrip("/"))
+            headers = {"Accept": "text/event-stream", **self._default_headers, **envelope.headers}
+            try:
+                async with self._session.request(
+                    envelope.method,
+                    url,
+                    params=envelope.query or None,
+                    headers=headers,
+                ) as resp:
+                    if resp.status >= 400:
+                        raise TransportError(f"HTTP SSE {url} returned {resp.status}")
+                    response_headers = {k: v for k, v in resp.headers.items()}
+                    async for payload in _iter_sse_events(resp.content):
+                        yield HttpResponse(status=resp.status, headers=response_headers, body=payload)
+            except TimeoutError as exc:
+                raise TransportTimeoutError(f"HTTP SSE {url} timed out") from exc
+            except aiohttp.ClientError as exc:
+                raise TransportError(f"HTTP SSE {url} failed: {exc}") from exc
+
+        return _stream()
+
+
+async def _iter_sse_events(content: aiohttp.StreamReader) -> AsyncIterator[bytes]:
+    """Yield each SSE event's concatenated ``data:`` payload as bytes.
+
+    Follows the Server-Sent Events line grammar: ``data:`` lines accumulate
+    (joined by newlines), a blank line dispatches the event, and ``:`` comments
+    / other fields (``event:`` / ``id:`` / ``retry:``) are ignored.
+    """
+    data_lines: list[str] = []
+    async for raw in content:
+        line = raw.decode("utf-8").rstrip("\r\n")
+        if line == "":
+            if data_lines:
+                yield "\n".join(data_lines).encode("utf-8")
+                data_lines = []
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip(" "))
+    if data_lines:  # flush a trailing event with no final blank line
+        yield "\n".join(data_lines).encode("utf-8")

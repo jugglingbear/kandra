@@ -14,10 +14,10 @@ from __future__ import annotations
 import inspect
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from kandra_runtime.errors import TransportNotOpenError
+from kandra_runtime.errors import TransportError, TransportNotOpenError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncIterator, Awaitable, Callable
 
 WireReqT = TypeVar("WireReqT")
 WireRespT = TypeVar("WireRespT")
@@ -28,14 +28,22 @@ class LoopbackTransport(Generic[WireReqT, WireRespT]):
 
     Useful for unit tests, runtime self-checks, and as the smallest
     possible reference implementation of the `Transport` protocol.
+
+    Pass ``subscribe_handler`` to also satisfy the
+    :class:`~kandra_runtime.transport.Subscribable` protocol: it maps a request
+    envelope to an ``AsyncIterator`` of wire responses (a scripted device push
+    stream), which the attribute / event layers consume.
     """
 
     def __init__(
         self,
         handler: Callable[[WireReqT], WireRespT | Awaitable[WireRespT]],
+        *,
+        subscribe_handler: Callable[[WireReqT], AsyncIterator[WireRespT]] | None = None,
     ) -> None:
         """Build a loopback transport bound to a request handler."""
         self._handler = handler
+        self._subscribe_handler = subscribe_handler
         self._open = False
 
     async def open(self) -> None:
@@ -63,3 +71,23 @@ class LoopbackTransport(Generic[WireReqT, WireRespT]):
         if inspect.isawaitable(result):
             return await result
         return result
+
+    def subscribe(self, envelope: WireReqT) -> AsyncIterator[WireRespT]:
+        """Yield the scripted subscribe stream for `envelope` until it is closed.
+
+        Raises:
+            TransportError: constructed without a ``subscribe_handler``.
+            TransportNotOpenError: called before :meth:`open` (raised when
+                iteration begins).
+        """
+        handler = self._subscribe_handler
+        if handler is None:
+            raise TransportError("LoopbackTransport was constructed without a subscribe_handler")
+
+        async def _stream() -> AsyncIterator[WireRespT]:
+            if not self._open:
+                raise TransportNotOpenError("LoopbackTransport is not open")
+            async for item in handler(envelope):
+                yield item
+
+        return _stream()
