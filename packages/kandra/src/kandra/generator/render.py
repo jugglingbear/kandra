@@ -727,12 +727,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Awaitable, Callable, Collection, Iterator, Mapping
 from contextlib import contextmanager
 from types import TracebackType
 from typing import Any
 
-from kandra_runtime import Command, Result, Transport, dispatch, format_failure
+from kandra_runtime import Command, IdentityStaleError, Result, Transport, dispatch, format_failure
 {connect_section.imports}
 {facade_section.imports}
 {capability_section.imports}
@@ -783,6 +783,10 @@ class {device_class}:
         ``fail_test`` entry point.
         """
         self._suppress_hook = False
+        self._mid_session_refresh: Callable[[], Awaitable[None]] | None = None
+        """Async recovery hook installed by :meth:`connect` when
+        ``refresh_mid_session=True``: re-enrolls + rebuilds transports in place
+        after a mid-session :class:`IdentityStaleError`. ``None`` disables it."""
 {capability_section.init_line}{namespace_assigns_block}
 
 {connect_section.client_methods}
@@ -856,10 +860,24 @@ class {device_class}:
         *,
         via: TransportId | None,
     ) -> Result[Any] | None:
-        """Internal: resolve the transport, run the command, fire the hook if armed."""
+        """Internal: resolve the transport, run the command, fire the hook if armed.
+
+        If a mid-session refresh hook is installed (``connect(...,
+        refresh_mid_session=True)``) and the transport raises
+        :class:`IdentityStaleError`, the hook re-enrolls + rebuilds transports
+        in place and the command is retried exactly once.
+        """
 {capability_section.dispatch_gate}        chosen = self._resolve_transport(command_id, via)
         command = COMMANDS[command_id][chosen]
-        result = await dispatch(command, self._transports[chosen], request)
+        try:
+            result = await dispatch(command, self._transports[chosen], request)
+        except IdentityStaleError:
+            if self._mid_session_refresh is None:
+                raise
+            await self._mid_session_refresh()
+            chosen = self._resolve_transport(command_id, via)
+            command = COMMANDS[command_id][chosen]
+            result = await dispatch(command, self._transports[chosen], request)
         self._fire_hook(result)
         return result
 {facade_section.client_methods}
@@ -1122,7 +1140,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     if has_http:
         runtime_extra_imports.append("HttpTransport")
     runtime_extra_imports.extend(
-        ["Identity", "IdentityStaleError", "IdentityStore", "PlatformDirsJsonStore"]
+        ["Identity", "IdentityStore", "PlatformDirsJsonStore"]
     )
     if discoverable_families:
         runtime_extra_imports.extend(
@@ -1136,8 +1154,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     if discoverable_families:
         scanner_imports = ", ".join(f"scan_{fam}" for fam in discoverable_families)
         imports_block += f"\nfrom .scanners import {scanner_imports}"
-    # Stdlib used by connect()'s on_stale recovery + the last_validated stamp.
-    imports_block += "\nfrom collections.abc import Awaitable, Callable\nfrom datetime import UTC, datetime"
+    # datetime powers connect()'s last_validated stamp; Awaitable/Callable come from client.py's core imports.
+    imports_block += "\nfrom datetime import UTC, datetime"
     imports = imports_block
 
     # Per-BLE-transport channel maps + factory entries.
@@ -1197,7 +1215,43 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     with contextlib.suppress(Exception):
         store.save(identity.model_copy(update={"last_validated": datetime.now(UTC)}))'''
 
-    module_level = "\n\n".join([*module_lines, factories_block, identity_helper, mark_validated_helper])
+    mid_session_helper = '''def _make_mid_session_refresh(
+    client: "Any",
+    cls: "Any",
+    store: "IdentityStore",
+    saved_name: str,
+    on_stale: "Callable[[str], Awaitable[Identity]]",
+    filter_ids: "set[TransportId] | None",
+) -> "Callable[[], Awaitable[None]]":
+    """Build the mid-session recovery hook ``connect`` installs on a client.
+
+    The returned coroutine re-enrolls via ``on_stale``, opens a fresh transport
+    set, swaps it into the live ``client``, closes the superseded transports,
+    and re-stamps ``last_validated``. A second :class:`IdentityStaleError` from
+    the reopen propagates to the awaiting command (a single retry only).
+    """
+    async def _refresh() -> None:
+        identity = await on_stale(saved_name)
+        rebuilt = await cls._open_transports(identity, filter_ids)
+        superseded = dict(client._owned_transports)
+        client._transports = dict(rebuilt)
+        client._owned_transports = rebuilt
+        for transport in superseded.values():
+            with contextlib.suppress(Exception):
+                await transport.close()
+        _mark_validated(store, identity)
+
+    return _refresh'''
+
+    module_level = "\n\n".join(
+        [
+            *module_lines,
+            factories_block,
+            identity_helper,
+            mark_validated_helper,
+            mid_session_helper,
+        ]
+    )
 
     client_methods = '''    @classmethod
     async def _open_transports(
@@ -1232,6 +1286,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         store: "IdentityStore | None" = None,
         transports: "Collection[TransportId] | None" = None,
         on_stale: "Callable[[str], Awaitable[Identity]] | None" = None,
+        refresh_mid_session: bool = False,
     ) -> "Any":
         """Build and open a client from a previously enrolled identity.
 
@@ -1259,6 +1314,14 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             (e.g. a stale BLE bond), it is invoked to re-establish
             credentials (typically ``re_enroll``) and the connect is retried
             once. When ``None`` (default), the stale error propagates.
+        refresh_mid_session:
+            When ``True``, also install ``on_stale`` as a *mid-session*
+            recovery hook: if a later command's :func:`dispatch` raises
+            :class:`IdentityStaleError` (e.g. an HTTP token expiring after
+            connect), the client re-enrolls, rebuilds its transports in
+            place, and retries that command exactly once. Off by default so a
+            connectivity/auth test harness observes the raw
+            :class:`IdentityStaleError`. Requires ``on_stale``.
 
         Raises
         ------
@@ -1268,15 +1331,20 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             Credentials were rejected at ``open()`` and no ``on_stale``
             recovery callback was supplied (or recovery failed again).
         ValueError:
-            The saved identity supplied no usable transport (e.g. it
-            stores only HTTP credentials but ``transports={TransportId.BLE}``
-            was requested).
+            ``refresh_mid_session=True`` was passed without ``on_stale``, or
+            the saved identity supplied no usable transport (e.g. it stores
+            only HTTP credentials but ``transports={TransportId.BLE}`` was
+            requested).
         TransportError:
             A transport's ``open()`` call failed; all transports opened
             so far in this call are closed before re-raising.
         """
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
+        if refresh_mid_session and on_stale is None:
+            raise ValueError(
+                "connect: refresh_mid_session=True requires an on_stale callback"
+            )
         identity = store.load(saved_name)
         filter_ids: "set[TransportId] | None" = (
             None if transports is None else set(transports)
@@ -1299,6 +1367,10 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         _mark_validated(store, identity)
         client = cls(transports=built)
         client._owned_transports = built
+        if refresh_mid_session and on_stale is not None:
+            client._mid_session_refresh = _make_mid_session_refresh(
+                client, cls, store, saved_name, on_stale, filter_ids
+            )
         return client
 
     @classmethod

@@ -247,3 +247,151 @@ async def test_connect_on_stale_wired_to_re_enroll(
         assert store.load("bear").address == "NEW:ADDR"
     finally:
         await client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# connect(refresh_mid_session=...) — mid-session auto-refresh
+# ---------------------------------------------------------------------------
+
+
+def _ble_command_id(client_mod: Any) -> str:
+    """A registry command id that supports the BLE transport."""
+    from pneumatic_bear_poker_sdk.transports import TransportId
+
+    return next(cid for cid, per in client_mod.COMMANDS.items() if TransportId.BLE in per)
+
+
+async def test_mid_session_refresh_recovers_and_retries(
+    patched: tuple[Any, dict[str, bool]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """refresh_mid_session=True: a stale dispatch re-enrolls, rebuilds transports, and retries once."""
+    from kandra_runtime import BleIdentity, IdentityStaleError
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
+
+    client_mod, _control = patched
+    store = _make_store(tmp_path)
+    store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
+
+    recovered: list[str] = []
+
+    async def on_stale(name: str) -> Any:
+        recovered.append(name)
+        return store.load(name)
+
+    client = await PneumaticBearPokerClient.connect(
+        "bear", store=store, on_stale=on_stale, refresh_mid_session=True
+    )
+    try:
+        before = client._transports[TransportId.BLE]
+        calls = {"n": 0}
+
+        async def fake_dispatch(_command: Any, _transport: Any, _request: Any) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise IdentityStaleError("token expired mid-session")
+            return None
+
+        monkeypatch.setattr(client_mod, "dispatch", fake_dispatch)
+
+        await client._dispatch(_ble_command_id(client_mod), object(), via=None)
+
+        assert calls["n"] == 2  # dispatched, went stale, retried once
+        assert recovered == ["bear"]  # on_stale ran exactly once
+        after = client._transports[TransportId.BLE]
+        assert after is not before  # transports rebuilt in place
+        assert before.closed is True  # superseded transport closed
+        assert after.opened is True  # replacement transport opened
+    finally:
+        await client.aclose()
+
+
+async def test_mid_session_off_by_default_propagates(
+    patched: tuple[Any, dict[str, bool]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """on_stale governs connect only: without refresh_mid_session a stale dispatch propagates raw."""
+    from kandra_runtime import BleIdentity, IdentityStaleError
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+
+    client_mod, _control = patched
+    store = _make_store(tmp_path)
+    store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
+
+    recovered: list[str] = []
+
+    async def on_stale(name: str) -> Any:
+        recovered.append(name)
+        return store.load(name)
+
+    # on_stale supplied (connect-time recovery) but refresh_mid_session left False.
+    client = await PneumaticBearPokerClient.connect("bear", store=store, on_stale=on_stale)
+    try:
+
+        async def fake_dispatch(_command: Any, _transport: Any, _request: Any) -> None:
+            raise IdentityStaleError("token expired mid-session")
+
+        monkeypatch.setattr(client_mod, "dispatch", fake_dispatch)
+
+        with pytest.raises(IdentityStaleError):
+            await client._dispatch(_ble_command_id(client_mod), object(), via=None)
+        assert recovered == []  # mid-session recovery never fired
+    finally:
+        await client.aclose()
+
+
+async def test_refresh_mid_session_requires_on_stale(
+    patched: tuple[Any, dict[str, bool]],
+    tmp_path: Path,
+) -> None:
+    """refresh_mid_session=True without an on_stale callback is a configuration error."""
+    from kandra_runtime import BleIdentity
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+
+    _client_mod, _control = patched
+    store = _make_store(tmp_path)
+    store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
+
+    with pytest.raises(ValueError, match="requires an on_stale"):
+        await PneumaticBearPokerClient.connect("bear", store=store, refresh_mid_session=True)
+
+
+async def test_mid_session_retries_exactly_once(
+    patched: tuple[Any, dict[str, bool]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A still-stale retry propagates: the client refreshes once, never loops."""
+    from kandra_runtime import BleIdentity, IdentityStaleError
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+
+    client_mod, _control = patched
+    store = _make_store(tmp_path)
+    store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
+
+    recovered: list[str] = []
+
+    async def on_stale(name: str) -> Any:
+        recovered.append(name)
+        return store.load(name)
+
+    client = await PneumaticBearPokerClient.connect(
+        "bear", store=store, on_stale=on_stale, refresh_mid_session=True
+    )
+    try:
+        calls = {"n": 0}
+
+        async def fake_dispatch(_command: Any, _transport: Any, _request: Any) -> None:
+            calls["n"] += 1
+            raise IdentityStaleError("still stale after refresh")
+
+        monkeypatch.setattr(client_mod, "dispatch", fake_dispatch)
+
+        with pytest.raises(IdentityStaleError):
+            await client._dispatch(_ble_command_id(client_mod), object(), via=None)
+        assert calls["n"] == 2  # original + one retry, then give up
+        assert recovered == ["bear"]  # refreshed exactly once
+    finally:
+        await client.aclose()
