@@ -54,6 +54,13 @@ def test_build_verification_accepts_the_reference_sdk(tmp_path: Path) -> None:
     assert result.package_path.is_dir()
 
 
+def test_registry_emits_idempotent_and_retries(sdk_on_path: Path) -> None:
+    """``idempotent`` / ``retries`` manifest fields flow into the generated Command(...) entries."""
+    registry_src = (sdk_on_path / "registry.py").read_text(encoding="utf-8")
+    assert "idempotent=True" in registry_src  # e.g. safety.emergency_retract
+    assert "retries=2" in registry_src
+
+
 def test_build_verification_rejects_a_syntax_error(tmp_path: Path) -> None:
     """A syntactically broken generated module fails the gate instead of shipping."""
     from kandra.generator.build import _verify_package

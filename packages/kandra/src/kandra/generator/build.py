@@ -545,6 +545,8 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
                 http_wires=http_wires,
                 ble_wires=ble_wires,
                 capabilities=tuple(cmd.capabilities),
+                idempotent=cmd.idempotent,
+                retries=cmd.retries,
             )
         )
     return specs, frozenset(entry_modules)

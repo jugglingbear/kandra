@@ -96,6 +96,8 @@ class CommandSpec:
     http_wires: dict[str, HttpCommandWire] = field(default_factory=dict)
     ble_wires: dict[str, BleCommandWire] = field(default_factory=dict)
     capabilities: tuple[str, ...] = ()  # capability tags gating this op (empty = ungated)
+    idempotent: bool = False  # command is safe to auto-resend after a transient failure
+    retries: int = 0  # extra transient-failure attempts (honored only when idempotent)
 
 
 @dataclass(frozen=True)
@@ -257,6 +259,13 @@ COMMANDS: dict[str, dict[TransportId, Command[Any, Any, Any, Any]]] = {{
 def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
     """Render one ``TransportId.X: Command(...)`` line for the registry."""
     indent = "        "
+    behavior_kwargs: list[str] = []
+    if c.idempotent:
+        behavior_kwargs.append("idempotent=True")
+    if c.retries:
+        behavior_kwargs.append(f"retries={c.retries}")
+    behavior = "".join(f"{kw}, " for kw in behavior_kwargs)
+    behavior_trailing = "".join(f", {kw}" for kw in behavior_kwargs)
     if t.family == "http":
         wire = c.http_wires[t.transport_id]
         timeout = wire.timeout if wire.timeout is not None else c.timeout
@@ -272,7 +281,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f'{indent}    id="{c.command_id}",\n'
             f"{indent}    codec=HttpJsonCodec({codec_args}),\n"
             f"{indent}    interpreter=default_http_interpreter,\n"
-            f"{indent}    {timeout_arg}expects_response={expects},\n"
+            f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
         )
     if t.family == "ble":
@@ -292,7 +301,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f"{indent}        payload_codec={payload_codec},\n"
             f"{indent}    ),\n"
             f"{indent}    interpreter=always_accepted_interpreter,\n"
-            f"{indent}    {timeout_arg}expects_response={expects},\n"
+            f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
         )
     # Loopback / unknown family: use the user-supplied codec from the manifest
@@ -304,7 +313,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         f"{indent}TransportId.{t.enum_member}: Command(\n"
         f'{indent}    id="{c.command_id}",\n'
         f"{indent}    codec={t.codec_alias}({c.request_alias}, {c.response_alias}),\n"
-        f"{indent}    interpreter=always_accepted_interpreter{timeout_arg},\n"
+        f"{indent}    interpreter=always_accepted_interpreter{timeout_arg}{behavior_trailing},\n"
         f"{indent}),"
     )
 

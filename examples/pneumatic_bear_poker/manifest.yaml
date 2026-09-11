@@ -54,6 +54,7 @@ commands:
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
+    retries: 2   # safety-critical: re-send on a transient link drop (retracting twice is a no-op)
     http:
       http:
         method: POST
