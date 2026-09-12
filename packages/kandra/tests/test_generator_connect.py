@@ -1,6 +1,6 @@
 """Tests for the generated ``connect()`` / ``list_saved()`` machinery (Todo 8).
 
-Builds the example SDK, swaps the generated module's ``BleTransport`` and
+Builds the ble_widget fixture SDK, swaps the generated module's ``BleTransport`` and
 ``HttpTransport`` symbols for in-memory fakes, pre-populates an identity
 store, and exercises the lifecycle.
 """
@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from kandra.generator import build_sdk
 
-EXAMPLE_DIR = Path(__file__).resolve().parents[3] / "examples" / "pneumatic_bear_poker"
+EXAMPLE_DIR = Path(__file__).resolve().parent / "fixtures" / "ble_widget"
 EXAMPLE_MANIFEST = EXAMPLE_DIR / "manifest.yaml"
 EXAMPLE_SRC = EXAMPLE_DIR / "src"
 
@@ -61,7 +61,7 @@ def patched_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Any]:
     """Yield the generated client module with BLE/HTTP transport factories faked."""
-    import pneumatic_bear_poker_sdk.client as client_mod
+    import ble_widget_sdk.client as client_mod
 
     built: list[_FakeTransport] = []
 
@@ -83,7 +83,7 @@ def patched_client(
     monkeypatch.setattr(client_mod, "HttpTransport", _FakeHttpTransport)
 
     # Re-evaluate _TRANSPORT_FACTORIES so its lambdas pick up the patched symbols.
-    from pneumatic_bear_poker_sdk.transports import TransportId
+    from ble_widget_sdk.transports import TransportId
 
     monkeypatch.setattr(
         client_mod,
@@ -107,7 +107,7 @@ def patched_client(
 def _make_store(tmp_path: Path) -> Any:
     from kandra_runtime import PlatformDirsJsonStore
 
-    return PlatformDirsJsonStore(app_name="pneumatic_bear_poker_sdk", directory=tmp_path / "store")
+    return PlatformDirsJsonStore(app_name="ble_widget_sdk", directory=tmp_path / "store")
 
 
 async def test_connect_activates_both_families_from_composite_identity(
@@ -115,8 +115,8 @@ async def test_connect_activates_both_families_from_composite_identity(
     tmp_path: Path,
 ) -> None:
     """A CompositeIdentity supplies BLE+HTTP → both transports open."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity, CompositeIdentity, HttpIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     store = _make_store(tmp_path)
     store.save(
@@ -131,7 +131,7 @@ async def test_connect_activates_both_families_from_composite_identity(
         )
     )
 
-    client = await PneumaticBearPokerClient.connect("bear-1", store=store)
+    client = await BleWidgetClient.connect("bear-1", store=store)
     try:
         assert set(client._transports.keys()) == {TransportId.BLE, TransportId.HTTP}
         assert set(client._owned_transports.keys()) == {TransportId.BLE, TransportId.HTTP}
@@ -149,13 +149,13 @@ async def test_connect_with_ble_only_identity_skips_http(
     tmp_path: Path,
 ) -> None:
     """A plain BleIdentity activates only the BLE transport."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     store = _make_store(tmp_path)
     store.save(BleIdentity(saved_name="bear-2", address="11:22:33:44:55:66", advertised_name="Bear"))
 
-    client = await PneumaticBearPokerClient.connect("bear-2", store=store)
+    client = await BleWidgetClient.connect("bear-2", store=store)
     try:
         assert set(client._transports.keys()) == {TransportId.BLE}
     finally:
@@ -167,8 +167,8 @@ async def test_connect_transports_filter_narrows_activation(
     tmp_path: Path,
 ) -> None:
     """``transports={BLE}`` skips HTTP even when the identity has both."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity, CompositeIdentity, HttpIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     store = _make_store(tmp_path)
     store.save(
@@ -183,7 +183,7 @@ async def test_connect_transports_filter_narrows_activation(
         )
     )
 
-    client = await PneumaticBearPokerClient.connect(
+    client = await BleWidgetClient.connect(
         "bear-3", store=store, transports={TransportId.BLE}
     )
     try:
@@ -197,14 +197,14 @@ async def test_connect_raises_when_identity_has_no_matching_family(
     tmp_path: Path,
 ) -> None:
     """Filtering down to a family the identity lacks raises ValueError."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import HttpIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     store = _make_store(tmp_path)
     store.save(HttpIdentity(saved_name="bear-4", base_url="http://10.0.0.1:8080"))
 
     with pytest.raises(ValueError, match="no transports"):
-        await PneumaticBearPokerClient.connect(
+        await BleWidgetClient.connect(
             "bear-4", store=store, transports={TransportId.BLE}
         )
 
@@ -214,13 +214,13 @@ async def test_connect_propagates_identity_not_found(
     tmp_path: Path,
 ) -> None:
     """An unknown saved_name surfaces IdentityNotFoundError from the store."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import IdentityNotFoundError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
 
     with pytest.raises(IdentityNotFoundError):
-        await PneumaticBearPokerClient.connect("missing", store=store)
+        await BleWidgetClient.connect("missing", store=store)
 
 
 def test_list_saved_returns_saved_names(
@@ -228,14 +228,14 @@ def test_list_saved_returns_saved_names(
     tmp_path: Path,
 ) -> None:
     """``list_saved`` returns the friendly names the store knows about."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
     store.save(BleIdentity(saved_name="alpha", address="AA:BB:CC:DD:EE:01", advertised_name="A"))
     store.save(BleIdentity(saved_name="beta", address="AA:BB:CC:DD:EE:02", advertised_name="B"))
 
-    assert sorted(PneumaticBearPokerClient.list_saved(store=store)) == ["alpha", "beta"]
+    assert sorted(BleWidgetClient.list_saved(store=store)) == ["alpha", "beta"]
 
 
 async def test_async_context_manager_closes_owned_transports(
@@ -243,13 +243,13 @@ async def test_async_context_manager_closes_owned_transports(
     tmp_path: Path,
 ) -> None:
     """``async with connect(...) as client:`` closes transports on exit."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
     store.save(BleIdentity(saved_name="bear-5", address="AA:BB:CC:DD:EE:FF", advertised_name="Bear"))
 
-    async with await PneumaticBearPokerClient.connect("bear-5", store=store) as client:
+    async with await BleWidgetClient.connect("bear-5", store=store) as client:
         assert client._owned_transports
     for t in patched_client._built_transports_for_tests:
         assert t.closed is True
@@ -259,12 +259,12 @@ async def test_constructor_supplied_transports_are_not_closed(
     patched_client: Any,
 ) -> None:
     """Transports passed to ``__init__`` belong to the caller; ``aclose`` must not close them."""
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
+    from ble_widget_sdk import BleWidgetClient, TransportId
 
     user_owned = _FakeTransport("ble", identity=None)
     await user_owned.open()
 
-    client = PneumaticBearPokerClient(transports={TransportId.BLE: user_owned})
+    client = BleWidgetClient(transports={TransportId.BLE: user_owned})
     await client.aclose()
 
     assert user_owned.closed is False
@@ -299,8 +299,8 @@ async def test_discover_and_connect_uses_saved_identity_when_present(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Fast path: a saved identity short-circuits the scan + enroll dance."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
     store.save(
@@ -321,7 +321,7 @@ async def test_discover_and_connect_uses_saved_identity_when_present(
     monkeypatch.setattr(patched_client, "scan_http", fake_scan_http)
 
     enroll = _FakeEnrollment(identity=None)
-    client = await PneumaticBearPokerClient.discover_and_connect(
+    client = await BleWidgetClient.discover_and_connect(
         "kitchen", enrollment={"ble": enroll}, store=store
     )
     try:
@@ -337,8 +337,8 @@ async def test_discover_and_connect_scans_enrolls_and_saves_on_first_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """First run: scan both families, enroll each, persist a CompositeIdentity, connect."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity, HttpIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     store = _make_store(tmp_path)
 
@@ -359,7 +359,7 @@ async def test_discover_and_connect_scans_enrolls_and_saves_on_first_run(
     )
     http_ident = HttpIdentity(saved_name="kitchen", base_url="http://10.0.0.1:8080")
 
-    client = await PneumaticBearPokerClient.discover_and_connect(
+    client = await BleWidgetClient.discover_and_connect(
         "kitchen",
         enrollment={"ble": _FakeEnrollment(ble_ident), "http": _FakeEnrollment(http_ident)},
         store=store,
@@ -382,8 +382,8 @@ async def test_discover_and_connect_single_family_unwraps_to_plain_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When only one family enrolls, the saved record is the bare sub-identity (not Composite)."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
 
@@ -395,7 +395,7 @@ async def test_discover_and_connect_single_family_unwraps_to_plain_identity(
     ble_ident = BleIdentity(
         saved_name="ble-only", address="AA:BB:CC:DD:EE:FF", advertised_name="X"
     )
-    client = await PneumaticBearPokerClient.discover_and_connect(
+    client = await BleWidgetClient.discover_and_connect(
         "ble-only", enrollment={"ble": _FakeEnrollment(ble_ident)}, store=store
     )
     try:
@@ -412,8 +412,8 @@ async def test_discover_and_connect_raises_when_no_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Empty scan results -> EnrollmentError."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity, EnrollmentError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     store = _make_store(tmp_path)
 
@@ -424,7 +424,7 @@ async def test_discover_and_connect_raises_when_no_candidates(
 
     ble_ident = BleIdentity(saved_name="x", address="A", advertised_name="x")
     with pytest.raises(EnrollmentError, match="no BLE candidates"):
-        await PneumaticBearPokerClient.discover_and_connect(
+        await BleWidgetClient.discover_and_connect(
             "x", enrollment={"ble": _FakeEnrollment(ble_ident)}, store=store
         )
 
@@ -434,10 +434,21 @@ async def test_discover_and_connect_rejects_single_enrollment_for_multi_family(
     tmp_path: Path,
 ) -> None:
     """Single-Enrollment shortcut is ambiguous for a multi-family device."""
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+    from ble_widget_sdk import BleWidgetClient
 
     store = _make_store(tmp_path)
     with pytest.raises(ValueError, match="multiple discoverable"):
-        await PneumaticBearPokerClient.discover_and_connect(
+        await BleWidgetClient.discover_and_connect(
             "x", enrollment=_FakeEnrollment(identity=None), store=store
         )
+
+
+async def test_via_rejects_unwired_transport(sdk_on_path: Path) -> None:
+    """``via=`` a transport the client wasn't constructed with raises ValueError."""
+    from ble_widget.handlers import PingRequest
+    from ble_widget_sdk import BleWidgetClient, TransportId
+
+    # widget.ping supports BLE, but only HTTP is wired into this client.
+    client = BleWidgetClient(transports={TransportId.HTTP: _FakeTransport("http", None)})
+    with pytest.raises(ValueError, match="not wired"):
+        await client.widget.ping(PingRequest(value=1), via=TransportId.BLE)

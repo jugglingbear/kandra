@@ -1,6 +1,6 @@
 """Tests for the generated credential-lifecycle machinery (on_stale recovery + re_enroll).
 
-Builds the example SDK, swaps its ``BleTransport`` / ``HttpTransport`` for fakes
+Builds the ble_widget fixture SDK, swaps its ``BleTransport`` / ``HttpTransport`` for fakes
 whose ``open()`` can be made to raise :class:`IdentityStaleError`, and exercises
 ``connect(on_stale=...)`` recovery, ``re_enroll``, and the ``last_validated`` stamp.
 """
@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from kandra.generator import build_sdk
 
-EXAMPLE_DIR = Path(__file__).resolve().parents[3] / "examples" / "pneumatic_bear_poker"
+EXAMPLE_DIR = Path(__file__).resolve().parent / "fixtures" / "ble_widget"
 EXAMPLE_MANIFEST = EXAMPLE_DIR / "manifest.yaml"
 EXAMPLE_SRC = EXAMPLE_DIR / "src"
 
@@ -62,8 +62,8 @@ class _FakeTransport:
 @pytest.fixture
 def patched(sdk_on_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[Any, dict[str, bool]]]:
     """Yield (client_module, control) with transport factories faked; ``control`` toggles staleness."""
-    import pneumatic_bear_poker_sdk.client as client_mod
-    from pneumatic_bear_poker_sdk.transports import TransportId
+    import ble_widget_sdk.client as client_mod
+    from ble_widget_sdk.transports import TransportId
 
     control: dict[str, bool] = {}
     built: list[_FakeTransport] = []
@@ -93,7 +93,7 @@ def patched(sdk_on_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tupl
 def _make_store(tmp_path: Path) -> Any:
     from kandra_runtime import PlatformDirsJsonStore
 
-    return PlatformDirsJsonStore(app_name="pneumatic_bear_poker_sdk", directory=tmp_path / "store")
+    return PlatformDirsJsonStore(app_name="ble_widget_sdk", directory=tmp_path / "store")
 
 
 class _FakeEnrollment:
@@ -122,8 +122,8 @@ async def test_connect_on_stale_recovers_and_retries(
     tmp_path: Path,
 ) -> None:
     """A stale bond at open() invokes on_stale, then the connect retries and succeeds."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     client_mod, control = patched
     store = _make_store(tmp_path)
@@ -137,7 +137,7 @@ async def test_connect_on_stale_recovers_and_retries(
         control["stale_ble"] = False  # clear so the retry opens cleanly
         return store.load(name)
 
-    client = await PneumaticBearPokerClient.connect("bear", store=store, on_stale=on_stale)
+    client = await BleWidgetClient.connect("bear", store=store, on_stale=on_stale)
     try:
         assert recovered == ["bear"]
         assert set(client._transports.keys()) == {TransportId.BLE}
@@ -152,8 +152,8 @@ async def test_connect_without_on_stale_propagates(
     tmp_path: Path,
 ) -> None:
     """Without an on_stale callback, IdentityStaleError from open() propagates."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity, IdentityStaleError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     _client_mod, control = patched
     store = _make_store(tmp_path)
@@ -161,7 +161,7 @@ async def test_connect_without_on_stale_propagates(
     control["stale_ble"] = True
 
     with pytest.raises(IdentityStaleError):
-        await PneumaticBearPokerClient.connect("bear", store=store)
+        await BleWidgetClient.connect("bear", store=store)
 
 
 async def test_connect_stamps_last_validated(
@@ -169,15 +169,15 @@ async def test_connect_stamps_last_validated(
     tmp_path: Path,
 ) -> None:
     """A successful connect stamps ``last_validated`` on the persisted identity."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     _client_mod, _control = patched
     store = _make_store(tmp_path)
     store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
     assert store.load("bear").last_validated is None
 
-    client = await PneumaticBearPokerClient.connect("bear", store=store)
+    client = await BleWidgetClient.connect("bear", store=store)
     try:
         assert store.load("bear").last_validated is not None
     finally:
@@ -195,8 +195,8 @@ async def test_re_enroll_rescans_and_overwrites(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """re_enroll re-discovers the device, re-enrolls, and atomically replaces the record."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     client_mod, _control = patched
     store = _make_store(tmp_path)
@@ -208,7 +208,7 @@ async def test_re_enroll_rescans_and_overwrites(
     monkeypatch.setattr(client_mod, "scan_ble", fake_scan_ble)
     enroll = _FakeEnrollment(BleIdentity(saved_name="bear", address="NEW:ADDR"))
 
-    fresh = await PneumaticBearPokerClient.re_enroll("bear", enrollment={"ble": enroll}, store=store)
+    fresh = await BleWidgetClient.re_enroll("bear", enrollment={"ble": enroll}, store=store)
 
     assert enroll.calls == ["bear"]
     assert isinstance(fresh, BleIdentity)
@@ -223,8 +223,8 @@ async def test_connect_on_stale_wired_to_re_enroll(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """End-to-end: a stale bond recovers by wiring on_stale to re_enroll."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     client_mod, control = patched
     store = _make_store(tmp_path)
@@ -239,9 +239,9 @@ async def test_connect_on_stale_wired_to_re_enroll(
 
     async def on_stale(name: str) -> Any:
         control["stale_ble"] = False
-        return await PneumaticBearPokerClient.re_enroll(name, enrollment={"ble": enroll}, store=store)
+        return await BleWidgetClient.re_enroll(name, enrollment={"ble": enroll}, store=store)
 
-    client = await PneumaticBearPokerClient.connect("bear", store=store, on_stale=on_stale)
+    client = await BleWidgetClient.connect("bear", store=store, on_stale=on_stale)
     try:
         assert set(client._transports.keys()) == {TransportId.BLE}
         assert store.load("bear").address == "NEW:ADDR"
@@ -256,7 +256,7 @@ async def test_connect_on_stale_wired_to_re_enroll(
 
 def _ble_command_id(client_mod: Any) -> str:
     """A registry command id that supports the BLE transport."""
-    from pneumatic_bear_poker_sdk.transports import TransportId
+    from ble_widget_sdk.transports import TransportId
 
     return next(cid for cid, per in client_mod.COMMANDS.items() if TransportId.BLE in per)
 
@@ -267,8 +267,8 @@ async def test_mid_session_refresh_recovers_and_retries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """refresh_mid_session=True: a stale dispatch re-enrolls, rebuilds transports, and retries once."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
     from kandra_runtime import BleIdentity, IdentityStaleError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
 
     client_mod, _control = patched
     store = _make_store(tmp_path)
@@ -280,7 +280,7 @@ async def test_mid_session_refresh_recovers_and_retries(
         recovered.append(name)
         return store.load(name)
 
-    client = await PneumaticBearPokerClient.connect(
+    client = await BleWidgetClient.connect(
         "bear", store=store, on_stale=on_stale, refresh_mid_session=True
     )
     try:
@@ -313,8 +313,8 @@ async def test_mid_session_off_by_default_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """on_stale governs connect only: without refresh_mid_session a stale dispatch propagates raw."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity, IdentityStaleError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     client_mod, _control = patched
     store = _make_store(tmp_path)
@@ -327,7 +327,7 @@ async def test_mid_session_off_by_default_propagates(
         return store.load(name)
 
     # on_stale supplied (connect-time recovery) but refresh_mid_session left False.
-    client = await PneumaticBearPokerClient.connect("bear", store=store, on_stale=on_stale)
+    client = await BleWidgetClient.connect("bear", store=store, on_stale=on_stale)
     try:
 
         async def fake_dispatch(_command: Any, _transport: Any, _request: Any) -> None:
@@ -347,15 +347,15 @@ async def test_refresh_mid_session_requires_on_stale(
     tmp_path: Path,
 ) -> None:
     """refresh_mid_session=True without an on_stale callback is a configuration error."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     _client_mod, _control = patched
     store = _make_store(tmp_path)
     store.save(BleIdentity(saved_name="bear", address="AA:BB:CC:DD:EE:FF"))
 
     with pytest.raises(ValueError, match="requires an on_stale"):
-        await PneumaticBearPokerClient.connect("bear", store=store, refresh_mid_session=True)
+        await BleWidgetClient.connect("bear", store=store, refresh_mid_session=True)
 
 
 async def test_mid_session_retries_exactly_once(
@@ -364,8 +364,8 @@ async def test_mid_session_retries_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A still-stale retry propagates: the client refreshes once, never loops."""
+    from ble_widget_sdk import BleWidgetClient
     from kandra_runtime import BleIdentity, IdentityStaleError
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
 
     client_mod, _control = patched
     store = _make_store(tmp_path)
@@ -377,7 +377,7 @@ async def test_mid_session_retries_exactly_once(
         recovered.append(name)
         return store.load(name)
 
-    client = await PneumaticBearPokerClient.connect(
+    client = await BleWidgetClient.connect(
         "bear", store=store, on_stale=on_stale, refresh_mid_session=True
     )
     try:

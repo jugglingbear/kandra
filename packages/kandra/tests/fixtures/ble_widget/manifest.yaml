@@ -1,0 +1,64 @@
+# BLE + HTTP test-fixture device.
+#
+# NOT an example users see -- this lives under tests/fixtures purely to give the
+# generator a *buildable* multi-transport device for connect / identity / credential
+# lifecycle coverage (composite identity, BLE channels, discovery, mid-session recovery).
+# The shipped examples/ devices stay single-transport for clarity; BLE codegen is
+# exercised here instead.
+
+schema_version: 1
+
+device:
+  id: ble_widget
+  display_name: BLE Widget (test fixture)
+  audience: [internal]
+
+source_roots:
+  - src
+
+transports:
+  - id: ble
+    family: ble
+    adapter: ble_widget.transports:BleAdapter
+    codec: ble_widget.codecs:FrameCodec
+    capabilities: { mtu: 244, notifications: true }
+    channels:
+      command:
+        write:  "b5f90001-aa8d-11e3-9046-0002a5d5c51b"
+        notify: "b5f90002-aa8d-11e3-9046-0002a5d5c51b"
+
+  - id: http
+    family: http
+    adapter: ble_widget.transports:HttpAdapter
+    codec: ble_widget.codecs:JsonCodec
+    config: { base_url: "http://127.0.0.1:8080" }
+
+commands:
+  - id: widget.ping
+    handler: ble_widget.handlers:Ping
+    transports: [ble, http]
+    audience: [internal]
+    timeout: 5.0
+    idempotent: true
+    http:
+      http:
+        method: POST
+        path: /v1/ping
+        body_codec: json
+        response_codec: json
+        expects_response: true
+    ble:
+      ble:
+        channel: command
+        expects_response: true
+
+discovery:
+  ble:
+    name_prefix: "Widget-"
+    service_uuids:
+      - "b5f90000-aa8d-11e3-9046-0002a5d5c51b"
+  http:
+    base_urls:
+      - "http://127.0.0.1:8080"
+    probe_path: "/v1/ping"
+    server_header_prefix: "Widget"
