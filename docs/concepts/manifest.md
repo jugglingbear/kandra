@@ -8,7 +8,7 @@ audience) pair, so N devices × M audiences = N × M shipped SDKs from a single 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
 fictional device whose sole job is to poke bears (pneumatically). It has commands (`poker.deploy`,
 `safety.emergency_retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
-[event](event.md) (`alerts.bear_stirred`), exposed over BLE and HTTP to two audiences: the internal team and the
+[event](event.md) (`alerts.bear_stirred`), exposed over HTTP to two audiences: the internal team and the
 `partner_woodland` partner.
 
 A minimal manifest looks like this (see the full
@@ -28,10 +28,6 @@ source_roots:
   - src
 
 transports:
-  - id: ble
-    adapter: devices.pneumatic_bear_poker.transports.ble:BleakAdapter
-    codec: common.codecs.tlv:LengthPrefixedTLV
-    capabilities: { mtu: 244, notifications: true }
   - id: http
     adapter: common.transports.http:HttpxAdapter
     codec: common.codecs.json:JsonCodec
@@ -40,14 +36,14 @@ transports:
 commands:
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 5.0
     idempotent: false
 
   - id: safety.emergency_retract
     handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
@@ -58,7 +54,7 @@ attributes:
   # command. Emitted as `client.settings.poke_intensity.read()/.write(v)/.subscribe()`.
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
-    transports: [http, ble]
+    transports: [http]
     operations: [read, write, subscribe]
     audience: [internal, partner_woodland]
 
@@ -67,7 +63,7 @@ events:
   # `client.alerts.bear_stirred.subscribe()` (async-only).
   - id: alerts.bear_stirred
     handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
 
 vendoring:

@@ -50,12 +50,10 @@ uses, minus the read/write ops:
 events:
   - id: alerts.bear_stirred
     handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     http:
       http: { mode: sse, path: /v1/alerts/bear_stirred/events }
-    ble:
-      ble: { channel: query }
 ```
 
 Delivery mode is identical to an [attribute subscribe](attribute.md#subscribe-delivery-modes):
