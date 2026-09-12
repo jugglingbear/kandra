@@ -2,8 +2,8 @@
 
 Demonstrates the full lifecycle a real user would follow:
 
-1. **Discover** a device with ``scan_ble()`` (manifest's discovery block →
-   generated :func:`scan_ble`).
+1. **Discover** a device with ``scan_http()`` (manifest's discovery block →
+   generated :func:`scan_http`).
 2. **Enroll** it: pick a candidate, build an identity record.
 3. **Save** the identity in a :class:`PlatformDirsJsonStore`.
 4. **Reconnect** later via :meth:`Client.connect(saved_name=...)`.
@@ -12,9 +12,9 @@ Demonstrates the full lifecycle a real user would follow:
 Hardware is faked at the lowest reasonable seam so the test exercises the
 generated package's *integration*, not just per-module units:
 
-- ``scanners.BleScanner`` is monkey-patched to a class that yields a single
+- ``scanners.HttpScanner`` is monkey-patched to a class that yields a single
   fake candidate via the same ``Scanner`` protocol the real adapter uses.
-- ``client.BleTransport`` / ``client.HttpTransport`` are monkey-patched so
+- ``client.HttpTransport`` is monkey-patched so
   ``from_identity`` returns an in-process transport that drives the
   command pipeline end-to-end (request/response round-trip through codec
   + interpreter + result envelope).
@@ -56,8 +56,11 @@ def sdk_on_path(tmp_path: Path) -> Iterator[Path]:
                 del sys.modules[name]
 
 
-class _FakeBleScanner:
-    """Stand-in for ``kandra_runtime.BleScanner`` that yields one candidate."""
+class _FakeHttpScanner:
+    """Stand-in for ``kandra_runtime.HttpScanner`` that yields one candidate."""
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        """Absorb the manifest-derived base_urls / probe_path constructor args."""
 
     async def scan(
         self,
@@ -66,13 +69,9 @@ class _FakeBleScanner:
         timeout: float | None = None,
     ) -> AsyncIterator[Candidate]:
         candidate = Candidate(
-            transport="ble",
-            address="AA:BB:CC:DD:EE:FF",
-            advertised_name="BearPoker-1234",
-            metadata={
-                "service_uuids": ("b5f90000-aa8d-11e3-9046-0002a5d5c51b",),
-                "manufacturer_data": {},
-            },
+            transport="http",
+            address="http://192.168.1.1:8080",
+            advertised_name="PneumaticBearPoker/2.4.0",
         )
         if matcher is None or matcher(candidate):
             yield candidate
@@ -135,16 +134,16 @@ async def test_full_lifecycle_discover_enroll_save_reconnect_dispatch(
     from pneumatic_bear_poker_sdk import (
         PneumaticBearPokerClient,
         TransportId,
-        scan_ble,
+        scan_http,
     )
 
     # ---- (1) DISCOVER ------------------------------------------------------
-    monkeypatch.setattr(scanners_mod, "BleScanner", _FakeBleScanner)
-    candidates = await scan_ble(timeout=1.0)
+    monkeypatch.setattr(scanners_mod, "HttpScanner", _FakeHttpScanner)
+    candidates = await scan_http(timeout=1.0)
     assert len(candidates) == 1
     candidate = candidates[0]
-    assert candidate.address == "AA:BB:CC:DD:EE:FF"
-    assert candidate.advertised_name == "BearPoker-1234"
+    assert candidate.address == "http://192.168.1.1:8080"
+    assert candidate.advertised_name == "PneumaticBearPoker/2.4.0"
 
     # ---- (2) ENROLL: synthesize a composite identity from the candidate ----
     # In a real flow this would run BleEnrollment + HttpEnrollment adapters;

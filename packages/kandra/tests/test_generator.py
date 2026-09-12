@@ -174,23 +174,3 @@ async def test_ignore_failures_suppresses_hook_but_not_result(sdk_on_path: Path)
     assert result is not None
     assert result.classification is Classification.REJECTED
     assert captured == []  # hook suppressed
-
-
-async def test_via_kwarg_rejects_unwired_transport(sdk_on_path: Path) -> None:
-    """`via=` must reject transports that the client wasn't constructed with."""
-    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
-    from kandra_runtime import LoopbackTransport, open_transport
-    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
-
-    def noop(_req: HttpRequest) -> HttpResponse:  # pragma: no cover - never invoked
-        return HttpResponse(status=200, body=b"{}")
-
-    transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(noop)
-    async with open_transport(transport) as t:
-        client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
-        # This command only wires the HTTP transport, so the command registry
-        # doesn't list the BLE transport; via=BLE therefore fails the "does not
-        # support" check before the "not wired" check is reached. Either error
-        # is a valid rejection of the unsupported transport.
-        with pytest.raises(ValueError, match="does not support|not wired"):
-            await client.poker.deploy(DeployRequest(pressure_psi=1), via=TransportId.BLE)

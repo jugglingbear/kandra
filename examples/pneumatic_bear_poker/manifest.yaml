@@ -15,14 +15,6 @@ source_roots:
   - src
 
 transports:
-  - id: ble
-    adapter: devices.pneumatic_bear_poker.transports.ble:BleakAdapter
-    codec: common.codecs.tlv:LengthPrefixedTLV
-    family: ble
-    capabilities: { mtu: 244, notifications: true }
-    channels:
-      command: { write: "b5f90001-aa8d-11e3-9046-0002a5d5c51b", notify: "b5f90002-aa8d-11e3-9046-0002a5d5c51b" }
-      query:   { write: "b5f90003-aa8d-11e3-9046-0002a5d5c51b", notify: "b5f90004-aa8d-11e3-9046-0002a5d5c51b" }
   - id: http
     adapter: common.transports.http:HttpxAdapter
     codec: common.codecs.json:JsonCodec
@@ -32,7 +24,7 @@ transports:
 commands:
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 5.0
     idempotent: false
@@ -43,14 +35,10 @@ commands:
         body_codec: json
         response_codec: json
         expects_response: true
-    ble:
-      ble:
-        channel: command
-        expects_response: true
 
   - id: safety.emergency_retract
     handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
@@ -62,14 +50,10 @@ commands:
         body_codec: json
         response_codec: json
         expects_response: true
-    ble:
-      ble:
-        channel: command
-        expects_response: true
 
   - id: power.on
     handler: devices.pneumatic_bear_poker.handlers.power:PowerOn
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 10.0
     idempotent: true
@@ -80,14 +64,10 @@ commands:
         body_codec: json
         response_codec: json
         expects_response: true
-    ble:
-      ble:
-        channel: command
-        expects_response: true
 
   - id: power.off
     handler: devices.pneumatic_bear_poker.handlers.power:PowerOff
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     timeout: 10.0
     idempotent: true
@@ -97,13 +77,8 @@ commands:
         path: /v1/power/off
         body_codec: json
         response_codec: json
-        expects_response: true
-    ble:
-      ble:
-        channel: command
-        # Fire-and-forget on the wireless link: once the device cuts its
-        # own power rail the BLE notify channel goes down anyway, so we
-        # don't wait for an ACK we'll never see.
+        # Fire-and-forget: cutting its own power rail drops the HTTP reply
+        # mid-flight, so we don't wait for an ACK we'll never see.
         expects_response: false
 
   - id: logs.download
@@ -136,7 +111,7 @@ commands:
 attributes:
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
-    transports: [http, ble]
+    transports: [http]
     operations: [read, write, subscribe]
     audience: [internal, partner_woodland]
     http:
@@ -147,10 +122,6 @@ attributes:
         # Native server-sent-events stream (no polling). `mode: poll` would
         # require an explicit `interval` — polling is never a silent default.
         subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
-    ble:
-      ble:
-        # One BLE channel carries read (write+notify), write, and notify-stream.
-        channel: query
 
 # Events are stateless device emissions (subscribe-only), distinct from an
 # attribute subscribe (which streams changes of a stored value). The generator
@@ -158,12 +129,10 @@ attributes:
 events:
   - id: alerts.bear_stirred
     handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [http, ble]
+    transports: [http]
     audience: [internal, partner_woodland]
     http:
       http: { mode: sse, path: /v1/alerts/bear_stirred/events }
-    ble:
-      ble: { channel: query }
 
 vendoring:
   # extra_include takes a file, a whole directory, or a glob (relative to a
@@ -175,19 +144,10 @@ vendoring:
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 
 # Discovery criteria the generator bakes into `scanners.py` so callers
-# can run `await scan_ble(timeout=5)` / `await scan_http(timeout=5)`
-# without supplying their own matcher. Per-family blocks are optional;
-# at least one must be present, and each declared family must match a
-# transport listed above (cross-validated by the manifest loader).
+# can run `await scan_http(timeout=5)` without supplying their own matcher.
+# At least one per-family block must be present, and each declared family
+# must match a transport listed above (cross-validated by the manifest loader).
 discovery:
-  ble:
-    # Advertising name prefix observed on real devices in the wild.
-    name_prefix: "BearPoker-"
-    # The "Pneumatic Bear Poker Control Service" GATT service UUID
-    # the firmware advertises; same 128-bit base as the characteristic
-    # UUIDs declared in transports.ble.channels above.
-    service_uuids:
-      - "b5f90000-aa8d-11e3-9046-0002a5d5c51b"
   http:
     # Probe these hosts in parallel; the first one whose
     # `/.well-known/pneumatic-bear-poker` returns 200 wins.

@@ -13,7 +13,7 @@ EXAMPLE_MANIFEST = Path(__file__).resolve().parents[3] / "examples" / "pneumatic
 def test_example_manifest_loads() -> None:
     manifest = load_manifest(EXAMPLE_MANIFEST)
     assert manifest.device.id == "pneumatic_bear_poker"
-    assert {t.id for t in manifest.transports} == {"ble", "http"}
+    assert {t.id for t in manifest.transports} == {"http"}
     assert {c.id for c in manifest.commands} == {
         "poker.deploy",
         "safety.emergency_retract",

@@ -46,7 +46,8 @@ def test_internal_profile_vendors_full_tree(tmp_path: Path) -> None:
     internal = result.package_path / "_internal"
     assert (internal / "__init__.py").is_file()
     assert (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "poker.py").is_file()
-    assert (internal / "common" / "codecs" / "tlv.py").is_file()
+    # Force-included (extra_include) module the static walker can't see is vendored.
+    assert (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "super_important.py").is_file()
     # Assets copied verbatim.
     assert (internal / "devices" / "pneumatic_bear_poker" / "assets" / "poke_profiles.json").is_file()
 

@@ -14,9 +14,10 @@ Each phase is one line of code in the generated SDK. The narrative
 comments are the point: this file doubles as the user-facing reference
 for "what does kandra actually buy me?"
 
-**Expects real hardware to be in range.** The integration test
-``tests/test_example_end_to_end.py`` exercises the same flow with
-in-process fakes so CI does not need a physical Pneumatic Bear Poker.
+**Expects a Pneumatic Bear Poker reachable over HTTP** -- point it at the
+Flask firmware simulator under ``examples/pneumatic_bear_poker/firmware_sim``
+for a local demo. The integration test ``tests/test_example_end_to_end.py``
+exercises the same flow with in-process fakes so CI needs no device.
 """
 
 from __future__ import annotations
@@ -25,13 +26,11 @@ import asyncio
 
 from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
 from kandra_runtime import (
-    BleEnrollment,
     HttpEnrollment,
     PlatformDirsJsonStore,
 )
 from pneumatic_bear_poker_sdk import (
     PneumaticBearPokerClient,
-    scan_ble,
     scan_http,
 )
 
@@ -41,15 +40,8 @@ SAVED_NAME = "kitchen-bear"
 async def first_run() -> None:
     """Discover + enroll + save -- runs once per device."""
     # ---- (1) DISCOVER ------------------------------------------------------
-    # Manifest's `discovery.ble` block (name_prefix + service_uuids) was
-    # baked into the generated `default_ble_matcher`, so callers do not
-    # need to know any UUIDs.
-    ble_candidates = await scan_ble(timeout=5.0)
-    if not ble_candidates:
-        raise SystemExit("no Pneumatic Bear Poker advertising in BLE range")
-    ble_candidate = ble_candidates[0]
-    print(f"found BLE: {ble_candidate.advertised_name} @ {ble_candidate.address}")
-
+    # Manifest's `discovery.http` block (base_urls + probe_path) was baked
+    # into the generated `default_http_matcher`, so callers don't supply one.
     http_candidates = await scan_http(timeout=5.0)
     if not http_candidates:
         raise SystemExit("no Pneumatic Bear Poker reachable over HTTP")
@@ -57,10 +49,9 @@ async def first_run() -> None:
     print(f"found HTTP: {http_candidate.address}")
 
     # ---- (2) ENROLL --------------------------------------------------------
-    # `BleEnrollment` triggers OS-level bonding; `HttpEnrollment` POSTs
-    # a login form and captures the bearer token. Both return rich
-    # identity records the SDK can later replay with zero user input.
-    ble_identity = await BleEnrollment().enroll(ble_candidate, saved_name=SAVED_NAME)
+    # `HttpEnrollment` POSTs a login form and captures the bearer token,
+    # returning a rich identity record the SDK can later replay with zero
+    # user input.
     http_identity = await HttpEnrollment(
         login_path="/v1/auth/login",
     ).enroll(http_candidate, saved_name=SAVED_NAME)
@@ -70,9 +61,8 @@ async def first_run() -> None:
     # config dir (`~/Library/Application Support/pneumatic_bear_poker_sdk/`
     # on macOS, `~/.config/...` on Linux).
     store = PlatformDirsJsonStore(app_name="pneumatic_bear_poker_sdk")
-    store.save(ble_identity)
     store.save(http_identity)
-    print(f"enrolled {SAVED_NAME!r}; saved identities to {store}")
+    print(f"enrolled {SAVED_NAME!r}; saved identity to {store}")
 
 
 async def subsequent_run() -> None:
