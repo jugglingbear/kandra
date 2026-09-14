@@ -62,6 +62,36 @@ async with open_transport(transport) as t:
 For [`CompositeIdentity`](identity.md#compositeidentity-when-one-device-needs-more-than-one-transport), the generator
 picks each sub-identity by key and wires up the matching transport.
 
+## Custom Transports via the Manifest
+
+Each `transports:` entry in the [manifest](manifest.md) may set an optional `adapter:` field that chooses which
+`Transport` implementation the generated client constructs:
+
+- **Omit `adapter:`** — the generated client uses the runtime default for the family: `HttpTransport` for HTTP,
+  `BleTransport` for BLE. This is the common case.
+- **`adapter: package.module:Class`** — the generator imports that class and the client calls
+  `Class.from_identity(identity)` (BLE also passes `channels=`) instead of the runtime transport. Use this to sign
+  requests, swap the HTTP client, add bespoke framing, talk to a simulator, etc.
+
+The only contract a custom adapter must satisfy is the same `from_identity()` constructor every built-in transport
+exposes, so the simplest custom adapter is a thin subclass of the runtime transport:
+
+```python
+from kandra_runtime import HttpTransport
+
+
+class SigningHttpTransport(HttpTransport):
+    """Runtime HTTP transport plus a request-signing hook."""
+
+    async def request(self, envelope):  # type: ignore[override]
+        signed = _sign(envelope)
+        return await super().request(signed)
+```
+
+Point the manifest at it (`adapter: mydevice.transports:SigningHttpTransport`) and the generated client wires that class
+into its transport factory; nothing else changes. Because the class is vendored like any other referenced module, the
+shipped SDK stays self-contained.
+
 ## Single-Request Lifecycle
 
 ```{mermaid}
@@ -133,6 +163,6 @@ transports wire it up as follows:
   - Replays a scripted `subscribe_handler` — deterministic push for unit tests.
 ```
 
-Bulk **byte downloads** (`stream()`) remain deferred until a feature consumes them — see `kandra.md` §8 for the roadmap
-and §11.5 Q6 for the rationale.
+Bulk **byte downloads** (`stream()`) remain deferred until a feature consumes them — see the
+[Design Review](../design-review.md) for the rationale.
 
