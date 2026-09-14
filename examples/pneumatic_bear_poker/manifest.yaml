@@ -16,7 +16,6 @@ source_roots:
 
 transports:
   - id: http
-    adapter: common.transports.http:HttpxAdapter
     codec: common.codecs.json:JsonCodec
     family: http
     config: { base_url: "http://192.168.1.1:8080" }

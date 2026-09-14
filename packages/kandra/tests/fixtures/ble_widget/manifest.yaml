@@ -19,7 +19,6 @@ source_roots:
 transports:
   - id: ble
     family: ble
-    adapter: ble_widget.transports:BleAdapter
     codec: ble_widget.codecs:FrameCodec
     capabilities: { mtu: 244, notifications: true }
     channels:
@@ -29,7 +28,6 @@ transports:
 
   - id: http
     family: http
-    adapter: ble_widget.transports:HttpAdapter
     codec: ble_widget.codecs:JsonCodec
     config: { base_url: "http://127.0.0.1:8080" }
 
