@@ -1,0 +1,34 @@
+# Test fixture: an HTTP device that wires a *custom* transport adapter, to exercise
+# the manifest `adapter:` field. The adapter is a thin subclass of the runtime
+# HttpTransport; the generated client opens the transport with
+# `CustomHttpTransport.from_identity(...)` instead of the runtime default.
+
+schema_version: 1
+
+device:
+  id: custom_adapter
+  display_name: Custom Adapter Device (test fixture)
+  audience: [internal]
+
+source_roots:
+  - src
+
+transports:
+  - id: http
+    family: http
+    adapter: custom_adapter.device:CustomHttpTransport
+    codec: custom_adapter.device:JsonCodec
+    config: { base_url: "http://127.0.0.1:8080" }
+
+commands:
+  - id: widget.ping
+    handler: custom_adapter.device:Ping
+    transports: [http]
+    audience: [internal]
+    http:
+      http:
+        method: POST
+        path: /v1/ping
+        body_codec: json
+        response_codec: json
+        expects_response: true

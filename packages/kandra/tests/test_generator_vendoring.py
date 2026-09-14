@@ -213,7 +213,7 @@ def _make_mini_project(
         "schema_version: 1\n"
         "device:\n  id: mini\n  display_name: Mini\n  audience: [internal, partner]\n"
         "source_roots: [src]\n"
-        "transports:\n  - id: http\n    adapter: k.a:A\n    codec: k.c:C\n    family: http\n"
+        "transports:\n  - id: http\n    codec: k.c:C\n    family: http\n"
         "commands:\n"
         "  - id: ping.check\n"
         "    handler: dev.handlers.ping:Ping\n"

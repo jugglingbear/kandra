@@ -38,7 +38,7 @@ def _project(
         "schema_version: 1\n"
         "device:\n  id: mini\n  display_name: Mini\n  audience: [internal, partner]\n"
         f"source_roots: {source_roots}\n"
-        "transports:\n  - id: http\n    adapter: k.a:A\n    codec: k.c:C\n    family: http\n"
+        "transports:\n  - id: http\n    codec: k.c:C\n    family: http\n"
         "commands:\n"
         f"  - id: {command_id}\n    handler: {handler_ref}\n    transports: [http]\n"
         "    audience: [internal, partner]\n"
@@ -210,7 +210,7 @@ def test_loopback_transport_build_emits_user_codec_and_no_connect(tmp_path: Path
         "schema_version: 1\n"
         "device:\n  id: loopdev\n  display_name: Loop\n  audience: [internal]\n"
         "source_roots: [src]\n"
-        "transports:\n  - id: loop\n    adapter: x.y:Z\n    codec: dev.codec:LoopCodec\n    family: loopback\n"
+        "transports:\n  - id: loop\n    codec: dev.codec:LoopCodec\n    family: loopback\n"
         "commands:\n"
         "  - id: ping.check\n    handler: dev.handlers.ping:Ping\n    transports: [loop]\n"
         "    audience: [internal]\n",

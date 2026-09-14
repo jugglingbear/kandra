@@ -129,7 +129,6 @@ _HTTP_ATTR_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        adapter: __PKG__.attr:LevelSetting
         codec: __PKG__.attr:LevelSetting
         family: http
     attributes:
@@ -204,7 +203,6 @@ _MIXED_ATTR_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        adapter: __PKG__.attr:LevelSetting
         codec: __PKG__.attr:LevelSetting
         family: http
     attributes:
@@ -370,11 +368,9 @@ _BLE_ATTR_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        adapter: __PKG__.attr:LevelSetting
         codec: __PKG__.attr:LevelSetting
         family: http
       - id: ble
-        adapter: __PKG__.attr:StubBleCodec
         codec: __PKG__.attr:StubBleCodec
         family: ble
         channels:

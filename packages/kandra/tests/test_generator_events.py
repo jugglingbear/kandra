@@ -129,7 +129,6 @@ _HTTP_EVENT_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        adapter: __PKG__.ev:Ping
         codec: __PKG__.ev:Ping
         family: http
     events:
@@ -243,11 +242,9 @@ _MIXED_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        adapter: __PKG__.ev:Ping
         codec: __PKG__.ev:Ping
         family: http
       - id: ble
-        adapter: __PKG__.ev:StubBleCodec
         codec: __PKG__.ev:StubBleCodec
         family: ble
         channels:
