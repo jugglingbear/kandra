@@ -191,6 +191,28 @@
             consumers who want to render their own.</li>
         </ul>
       </div>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M99</span> &mdash; Strip roadmap breadcrumbs</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">Milestone numbers (<code>M0</code>&ndash;<code>M12</code>, &ldquo;slice 9a&rdquo;, &hellip;) are
+          an internal planning artifact. They have leaked into source docstrings, test names, and example comments,
+          where they mean nothing to an SDK consumer and drift as the roadmap evolves. Shipped code should read as
+          timeless. <strong>Do this last</strong> &mdash; once the roadmap stops using milestone numbers as living
+          labels (i.e. after M11 / M12 resolve).</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>Remove <code>M&lt;n&gt;</code> / &ldquo;slice 9x&rdquo; references from runtime and generator source
+            docstrings and comments.</li>
+          <li>Scrub milestone breadcrumbs from test docstrings (e.g. &ldquo;M7 finale&rdquo;, &ldquo;M9 slice
+            9a&rdquo;, &ldquo;M8 pipeline&rdquo;) and example manifest comments (&ldquo;during M0&rdquo;).</li>
+          <li>Keep milestone numbers <strong>only</strong> where they are deliberate history: this roadmap and
+            <code>docs/design-review.md</code>.</li>
+        </ul>
+      </div>
     </section>
 
     <section class="tier">
@@ -210,6 +232,42 @@
           <li><strong>Attributes / events interim guard.</strong> <em>Resolved.</em> Both primitives are now wired
             (9b / 9c) and generate working facades; the loader validates their per-transport subscribe wiring. No silent
             accept-and-ignore, and a shape-valid manifest builds.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
+          <h3>Deferred capabilities</h3>
+        </header>
+        <ul class="scope">
+          <li><strong><code>stream()</code> &mdash; bulk byte downloads.</strong> <em>Deferred.</em> The
+            <code>Transport</code> protocol reserves a <code>stream()</code> method for long byte transfers (HTTP
+            downloads, BLE bulk transfer), but it is intentionally kept off the shipped protocol until a real feature
+            consumes it &mdash; some transports (e.g. BLE for large payloads) may never stream, for product-quality
+            reasons.</li>
+          <li><strong>Structured logging.</strong> <em>Deferred decision.</em> The runtime uses stdlib
+            <code>logging</code> with namespaced loggers (<code>kandra.transport.ble</code>,
+            <code>kandra.command.&lt;id&gt;</code>). Revisit whether a richer structured logger earns its non-standard
+            dependency before the runtime grows many call sites.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="tier">
+      <h2>Non-goals (deliberately out of scope)</h2>
+
+      <div class="card">
+        <header>
+          <h3>Things Kandra will not do</h3>
+        </header>
+        <ul class="scope">
+          <li>No web UI or GUI editor for manifests &mdash; CLI plus editor JSON Schema only.</li>
+          <li>No runtime YAML loading in the generated SDK. Once generated, the client package is pure Python;
+            manifests are an authoring-time concept.</li>
+          <li>No plugin marketplace, DSL, or expression language inside YAML &mdash; if logic is needed, it goes in a
+            Python handler.</li>
+          <li>No multi-process / RPC server mode &mdash; the SDK is a library, not a daemon.</li>
+          <li>No auto-generation of device firmware stubs.</li>
         </ul>
       </div>
     </section>

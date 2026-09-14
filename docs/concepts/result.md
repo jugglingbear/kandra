@@ -122,4 +122,4 @@ Three reasons:
    failed" deserve different recovery logic. A single exception
    hierarchy forces awkward `isinstance` chains.
 
-The model is Kandra's own result envelope — see `kandra.md` §8 and §11.5 for the design history.
+The model is Kandra's own result envelope — see the [Design Review](../design-review.md) for the design history.

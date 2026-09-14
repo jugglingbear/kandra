@@ -23,6 +23,5 @@ poetry.lock
 .idea/
 *.swp
 
-kandra.md
 temp/
 sandbox.py

@@ -47,6 +47,7 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 :maxdepth: 1
 
 motivation
+design-review
 ```
 
 ```{toctree}

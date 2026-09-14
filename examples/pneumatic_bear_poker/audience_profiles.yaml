@@ -1,4 +1,4 @@
-# Audience policy for the Pneumatic Bear Poker example (kandra.md section 8.2).
+# Audience policy for the Pneumatic Bear Poker example (see docs/concepts/audiences.md).
 #
 # Two layers cooperate to keep a generated SDK IP-isolated:
 #   1. This file — the repo-level policy. It declares build *profiles* and a
