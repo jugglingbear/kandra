@@ -1,8 +1,4 @@
-"""HTTP transport-family envelope types, codec base, and default interpreter.
-
-See kandra.md sections 11.1 (envelope shape), 11.5 (Result[T] /
-classification).
-"""
+"""HTTP transport-family envelope types, codec base, and default interpreter."""
 
 from __future__ import annotations
 
@@ -50,8 +46,7 @@ class HttpJsonCodec(Generic[RequestT, ResponseT]):
     """JSON body codec for HTTP commands with dataclass-shaped payloads.
 
     Fixes ``WireReqT`` / ``WireRespT`` to ``HttpRequest`` /
-    ``HttpResponse`` so users only ever write two type parameters --
-    see kandra.md section 11.5 (Q1 decision).
+    ``HttpResponse`` so users only ever write two type parameters.
 
     The codec is constructed with the wire-format metadata that the
     *generator* reads off the manifest's ``http:`` block, plus the

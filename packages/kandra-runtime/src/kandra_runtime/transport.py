@@ -61,7 +61,7 @@ class Transport(Protocol[_WireReqT_contra, _WireRespT_co]):
 class Subscribable(Protocol[_WireReqT_contra, _WireRespT_co]):
     """A transport that can stream device-pushed responses for a subscription.
 
-    Consumed by attribute-`subscribe` and events (kandra.md section 3.4.1 / 7).
+    Consumed by attribute-`subscribe` and events.
     This is **native push only** — BLE Notify, HTTP SSE, etc. The explicit
     opt-in HTTP *polling* fallback is a higher-level wrapper (repeated
     ``request()`` on a timer), never a transport primitive, so polling never

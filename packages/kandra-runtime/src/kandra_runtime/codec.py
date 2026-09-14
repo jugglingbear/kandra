@@ -14,8 +14,8 @@ The four type parameters are:
 End users rarely write this raw four-param signature. They subclass a
 **family-paired** base shipped with each built-in transport -- for
 example ``HttpJsonCodec[Req, Resp]`` (``WireReqT`` / ``WireRespT``
-already fixed to ``HttpRequest`` / ``HttpResponse``). See kandra.md
-section 11.5 and the per-family modules (``kandra_runtime.http``, etc.).
+already fixed to ``HttpRequest`` / ``HttpResponse``). See the per-family
+modules (``kandra_runtime.http``, etc.).
 """
 
 from __future__ import annotations

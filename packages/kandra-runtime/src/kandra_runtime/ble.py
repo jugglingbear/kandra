@@ -5,8 +5,8 @@ envelope carries a *channel name* (resolved by the transport to a
 (write_uuid, notify_uuid) pair) plus the raw payload bytes that the
 user-supplied payload codec produced.
 
-See kandra.md section 11.9 (one BleTransport per device connection,
-named channels declared on the transport, channel selected per command).
+One ``BleTransport`` owns one physical device connection; named channels are
+declared on the transport and selected per command.
 """
 
 from __future__ import annotations

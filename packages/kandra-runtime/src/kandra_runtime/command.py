@@ -10,7 +10,7 @@ When ``expects_response=False`` the command is fire-and-forget: dispatch
 sends the request, swallows a `TransportTimeoutError`, skips classify
 and decode entirely, and returns ``None``. This is how
 firmware-tear-down commands (factory reset, wireless reset) are
-modelled. See kandra.md sections 11.3 / 11.5.
+modelled.
 
 The runtime exposes both async (`dispatch`) and sync (`dispatch_sync`)
 entry points. Transport lifecycle (`open` / `close`) is the caller's

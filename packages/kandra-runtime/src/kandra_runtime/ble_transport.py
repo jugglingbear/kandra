@@ -11,8 +11,6 @@ user's payload codec, *or* of a future framing wrapper layer. Channels
 are not concurrent-safe at the transport level; each channel has an
 internal lock so two ``request()`` calls on the same channel will
 serialize, but interleaved use is still considered the caller's bug.
-
-See kandra.md section 11.9.
 """
 
 from __future__ import annotations

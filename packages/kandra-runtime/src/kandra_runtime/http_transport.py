@@ -9,8 +9,6 @@ Deployment configuration (base URL, default headers, TLS verify) is
 *runtime-only* and lives on the transport constructor -- the manifest
 deliberately does not bake in URLs because the same SDK runs against
 many deployments.
-
-See kandra.md section 8.
 """
 
 from __future__ import annotations

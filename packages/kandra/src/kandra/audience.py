@@ -1,7 +1,7 @@
 """Audience profiles: repo-level IP-isolation policy + per-file resolution.
 
-See kandra.md section 8.2. Two layers cooperate to decide which source files
-may appear in a generated SDK:
+Two layers cooperate to decide which source files may appear in a generated
+SDK:
 
 1. ``audience_profiles.yaml`` — the repo-level policy. Declares the build
    *profiles* (each with an ``include_audience`` set and a ``deny_substrings``
@@ -193,7 +193,7 @@ def parse_audience_header(source_text: str) -> list[str] | None:
 def resolve_file_audience(rel_path: str, source_text: str, profiles: AudienceProfiles) -> frozenset[str]:
     """Compute the effective audience of one file: YAML grant narrowed by its header.
 
-    Resolution rules (kandra.md section 8.2):
+    Resolution rules:
 
     ======================  ===============================  ======================
     YAML grant              Header                           Effective audience

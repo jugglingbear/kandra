@@ -6,8 +6,6 @@ fields. Per-protocol classification rules (e.g. a vendor's status enum, BLE
 TLV error codes) live in user code via the pluggable
 :class:`ResponseInterpreter` protocol — the runtime ships only the generic
 five-state taxonomy and a default HTTP interpreter keyed off status codes.
-
-See kandra.md section 8 and section 11.5.
 """
 
 from __future__ import annotations
