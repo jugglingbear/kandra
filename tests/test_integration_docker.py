@@ -269,3 +269,37 @@ async def test_cmd_logs_download_returns_requested_window(client: Any) -> None:
     assert result.data is not None
     assert len(result.data.lines) == 3, f"expected 3 lines, got {result.data.lines!r}"
     assert result.data.next_sequence == len(result.data.lines)
+
+
+# ---------------------------------------------------------------------------
+# Attribute + event dispatch tests.
+# ---------------------------------------------------------------------------
+
+
+async def test_attr_poke_intensity_read_write(client: Any) -> None:
+    """GET/PUT /v1/settings/poke_intensity round-trips the attribute value."""
+    from devices.pneumatic_bear_poker.handlers.settings import PokeIntensity
+
+    read = await client.settings.poke_intensity.read()
+    assert read is not None and read.accepted
+
+    wrote = await client.settings.poke_intensity.write(PokeIntensity(level=9))
+    assert wrote is not None and wrote.accepted
+    assert wrote.data == PokeIntensity(level=9)
+
+    reread = await client.settings.poke_intensity.read()
+    assert reread.data == PokeIntensity(level=9)
+
+
+async def test_attr_poke_intensity_subscribe_streams_updates(client: Any) -> None:
+    """SSE /v1/settings/poke_intensity/events yields a finite stream of decoded values."""
+    results = [r async for r in client.settings.poke_intensity.subscribe()]
+    assert len(results) == 3
+    assert all(r.accepted and r.data is not None for r in results)
+
+
+async def test_event_bear_stirred_subscribe_streams_emissions(client: Any) -> None:
+    """SSE /v1/alerts/bear_stirred/events yields the device's stirred emissions."""
+    results = [r async for r in client.alerts.bear_stirred.subscribe()]
+    assert all(r.accepted and r.data is not None for r in results)
+    assert [r.data.magnitude for r in results] == [17, 42, 99]
