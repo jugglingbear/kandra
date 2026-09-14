@@ -93,8 +93,8 @@ class TransportAuth(_ManifestModel):
 class BleChannelSpec(_ManifestModel):
     """One named (write, notify) characteristic pair on a BLE transport.
 
-    See kandra.md section 11.9. Channels live on the *transport*; commands
-    select one via ``ble.<transport_id>.channel``.
+    Channels live on the *transport*; commands select one via
+    ``ble.<transport_id>.channel``.
     """
 
     write: str = Field(min_length=1)
@@ -113,7 +113,7 @@ class Transport(_ManifestModel):
     """
 
     id: IdentifierStr
-    adapter: str
+    adapter: str | None = None
     codec: str
     family: Literal["loopback", "http", "ble"] | None = None
     capabilities: dict[str, Any] = Field(default_factory=dict)
@@ -123,7 +123,9 @@ class Transport(_ManifestModel):
 
     @field_validator("adapter", "codec")
     @classmethod
-    def _check_paths(cls, value: str) -> str:
+    def _check_paths(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         return _validate_dotted_path(value)
 
     @model_validator(mode="after")
@@ -142,11 +144,7 @@ class Transport(_ManifestModel):
 
 
 class HttpCommandSpec(_ManifestModel):
-    """Per-(command, http-transport) wire-format and behavior block.
-
-    See kandra.md section 11.1 (envelope shape) and 11.3
-    (``expects_response``).
-    """
+    """Per-(command, http-transport) wire-format and behavior block."""
 
     method: Literal["GET", "POST", "PUT", "DELETE"]
     path: str = Field(min_length=1)
@@ -161,7 +159,7 @@ class BleCommandSpec(_ManifestModel):
     """Per-(command, ble-transport) channel routing and behavior block.
 
     ``channel`` must name a channel declared on the BLE transport's
-    ``channels:`` map. See kandra.md section 11.9.
+    ``channels:`` map.
     """
 
     channel: IdentifierStr
@@ -230,7 +228,7 @@ class HttpAttributeOp(_ManifestModel):
 
     Verbs are explicit, never assumed: a non-REST device that *writes* via
     ``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with
-    ``query_from_request: true``, exactly like a command (kandra.md 11.1).
+    ``query_from_request: true``, exactly like a command.
     """
 
     method: Literal["GET", "POST", "PUT", "DELETE"] = "GET"
@@ -362,9 +360,8 @@ _UUID_RE = re.compile(
 class BleDiscoverySpec(_ManifestModel):
     """Match criteria for a BLE advertisement (all fields optional, AND'd).
 
-    See kandra.md section 8. Generated SDK emits a
-    ``default_ble_matcher(candidate)`` that returns ``True`` only when
-    every present criterion matches the advertisement.
+    The generated SDK emits a ``default_ble_matcher(candidate)`` that returns
+    ``True`` only when every present criterion matches the advertisement.
     """
 
     name_prefix: str | None = Field(default=None, min_length=1)

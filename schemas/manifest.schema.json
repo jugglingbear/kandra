@@ -118,7 +118,7 @@
     },
     "BleChannelSpec": {
       "additionalProperties": false,
-      "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nSee kandra.md section 11.9. Channels live on the *transport*; commands\nselect one via ``ble.<transport_id>.channel``.",
+      "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nChannels live on the *transport*; commands select one via\n``ble.<transport_id>.channel``.",
       "properties": {
         "notify": {
           "minLength": 1,
@@ -140,7 +140,7 @@
     },
     "BleCommandSpec": {
       "additionalProperties": false,
-      "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's\n``channels:`` map. See kandra.md section 11.9.",
+      "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's\n``channels:`` map.",
       "properties": {
         "channel": {
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
@@ -174,7 +174,7 @@
     },
     "BleDiscoverySpec": {
       "additionalProperties": false,
-      "description": "Match criteria for a BLE advertisement (all fields optional, AND'd).\n\nSee kandra.md section 8. Generated SDK emits a\n``default_ble_matcher(candidate)`` that returns ``True`` only when\nevery present criterion matches the advertisement.",
+      "description": "Match criteria for a BLE advertisement (all fields optional, AND'd).\n\nThe generated SDK emits a ``default_ble_matcher(candidate)`` that returns\n``True`` only when every present criterion matches the advertisement.",
       "properties": {
         "manufacturer_id": {
           "anyOf": [
@@ -509,7 +509,7 @@
     },
     "HttpAttributeOp": {
       "additionalProperties": false,
-      "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via\n``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with\n``query_from_request: true``, exactly like a command (kandra.md 11.1).",
+      "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via\n``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with\n``query_from_request: true``, exactly like a command.",
       "properties": {
         "body_codec": {
           "default": "json",
@@ -664,7 +664,7 @@
     },
     "HttpCommandSpec": {
       "additionalProperties": false,
-      "description": "Per-(command, http-transport) wire-format and behavior block.\n\nSee kandra.md section 11.1 (envelope shape) and 11.3\n(``expects_response``).",
+      "description": "Per-(command, http-transport) wire-format and behavior block.",
       "properties": {
         "body_codec": {
           "default": "json",
@@ -824,8 +824,16 @@
       "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\nThe optional ``family`` field tags the transport for cross-validation:\nwhen set, commands riding this transport must supply the matching\nper-transport block (``http:`` for ``family=http``, ``ble:`` for\n``family=ble``). Loopback / unknown / null transports impose no such\nrequirement (this preserves the lightweight test-fixture style used\nin unit tests).",
       "properties": {
         "adapter": {
-          "title": "Adapter",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter"
         },
         "auth": {
           "anyOf": [
@@ -886,7 +894,6 @@
       },
       "required": [
         "id",
-        "adapter",
         "codec"
       ],
       "title": "Transport",
