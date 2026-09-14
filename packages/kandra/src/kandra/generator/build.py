@@ -296,8 +296,12 @@ def _transport_codec_entry_modules(manifest: Manifest, used_transport_ids: set[s
     """
     modules: set[str] = set()
     for t in manifest.transports:
-        if t.id in used_transport_ids and t.family != "http":
+        if t.id not in used_transport_ids:
+            continue
+        if t.family != "http":
             modules.add(t.codec.split(":")[0])
+        if t.adapter is not None:
+            modules.add(t.adapter.split(":")[0])
     return frozenset(modules)
 
 
@@ -448,6 +452,13 @@ def _kandra_version() -> str:
 def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
     specs: list[TransportSpec] = []
     for t in manifest.transports:
+        adapter_import: str | None = None
+        adapter_alias: str | None = None
+        if t.adapter is not None:
+            a_module, a_class = t.adapter.split(":")
+            _import_attr(a_module, a_class, what=f"transport {t.id!r} adapter")
+            adapter_alias = f"_Adapter_{_sanitize(t.id)}"
+            adapter_import = f"from {a_module} import {a_class} as {adapter_alias}"
         module_path, class_name = t.codec.split(":")
         # For HTTP we use built-in HttpJsonCodec from kandra_runtime
         # (parameterized per-command from the http: blocks); the
@@ -464,6 +475,8 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                     family=t.family,
                     codec_import=None,
                     codec_alias=None,
+                    adapter_import=adapter_import,
+                    adapter_alias=adapter_alias,
                 )
             )
             continue
@@ -482,6 +495,8 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                 codec_import=f"from {module_path} import {class_name} as {alias}",
                 codec_alias=alias,
                 channels=channels,
+                adapter_import=adapter_import,
+                adapter_alias=adapter_alias,
             )
         )
     return specs

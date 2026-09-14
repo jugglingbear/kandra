@@ -30,6 +30,10 @@ class TransportSpec:
     # Empty for non-BLE families. Used by generated client.connect() to wire
     # `BleTransport.from_identity(identity, channels=...)`.
     channels: tuple[tuple[str, str, str], ...] = ()
+    # Optional custom transport adapter (dotted path). When None, connect() opens
+    # this transport with the runtime default (HttpTransport / BleTransport).
+    adapter_import: str | None = None
+    adapter_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1143,10 +1147,14 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         if has_http and discovery.http is not None:
             discoverable_families.append("http")
 
+    # Runtime transports are imported only for families whose transports use the
+    # default (adapter omitted); a custom adapter is imported + used instead.
+    needs_ble_runtime = any(t.family == "ble" and t.adapter_alias is None for t in transports)
+    needs_http_runtime = any(t.family == "http" and t.adapter_alias is None for t in transports)
     runtime_extra_imports: list[str] = ["BleIdentity", "CompositeIdentity", "HttpIdentity"]
-    if has_ble:
+    if needs_ble_runtime:
         runtime_extra_imports.append("BleTransport")
-    if has_http:
+    if needs_http_runtime:
         runtime_extra_imports.append("HttpTransport")
     runtime_extra_imports.extend(
         ["Identity", "IdentityStore", "PlatformDirsJsonStore"]
@@ -1165,12 +1173,14 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         imports_block += f"\nfrom .scanners import {scanner_imports}"
     # datetime powers connect()'s last_validated stamp; Awaitable/Callable come from client.py's core imports.
     imports_block += "\nfrom datetime import UTC, datetime"
-    imports = imports_block
 
     # Per-BLE-transport channel maps + factory entries.
     module_lines: list[str] = [f'_DEFAULT_APP_NAME = "{device_id}_sdk"']
     factory_entries: list[str] = []
+    adapter_imports: list[str] = []
     for t in transports:
+        if t.adapter_import is not None:
+            adapter_imports.append(t.adapter_import)
         if t.family == "ble":
             chan_var = f"_BLE_CHANNELS_{_sanitize(t.transport_id)}"
             chan_items = ",\n".join(
@@ -1181,14 +1191,18 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             )
             factory_entries.append(
                 f'    (TransportId.{t.enum_member}, "ble", '
-                f"lambda ident: BleTransport.from_identity(ident, channels={chan_var})),"
+                f"lambda ident: {t.adapter_alias or 'BleTransport'}.from_identity(ident, channels={chan_var})),"
             )
         elif t.family == "http":
             factory_entries.append(
                 f'    (TransportId.{t.enum_member}, "http", '
-                "lambda ident: HttpTransport.from_identity(ident)),"
+                f"lambda ident: {t.adapter_alias or 'HttpTransport'}.from_identity(ident)),"
             )
         # Loopback / unknown families: no from_identity available; skip.
+
+    if adapter_imports:
+        imports_block += "\n" + "\n".join(adapter_imports)
+    imports = imports_block
 
     factories_block = (
         "_TRANSPORT_FACTORIES: tuple[\n"
