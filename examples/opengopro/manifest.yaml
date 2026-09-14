@@ -12,7 +12,7 @@
 schema_version: 1
 
 device:
-  id: gopro
+  id: opengopro
   display_name: GoPro Camera
   # Open GoPro v2.0 firmware floor (HERO 9 Black and newer).
   firmware_min: "2.0.0"
@@ -27,8 +27,7 @@ transports:
   # handles set-shutter, power, etc.; the query channel pair (not used here) handles get-state / register-for-updates.
   - id: ble
     family: ble
-    adapter: gopro_sdk.transports.ble:BleakAdapter
-    codec: gopro_sdk.codecs.gopro_tlv:GoProTlv
+    codec: opengopro_sdk.codecs.gopro_tlv:GoProTlv
     capabilities: { mtu: 244, notifications: true }
     channels:
       command:
@@ -40,13 +39,12 @@ transports:
   # "is this a GoPro?" check used by the official Open GoPro tutorials.
   - id: http
     family: http
-    adapter: gopro_sdk.transports.http:HttpxAdapter
-    codec: gopro_sdk.codecs.gopro_json:GoProJson
+    codec: opengopro_sdk.codecs.gopro_json:GoProJson
     config: { base_url: "http://10.5.5.9:8080" }
 
 commands:
   - id: shutter.start
-    handler: gopro_sdk.handlers.shutter:Start
+    handler: opengopro_sdk.handlers.shutter:Start
     transports: [ble, http]
     audience: [internal]
     timeout: 5.0
@@ -64,7 +62,7 @@ commands:
         expects_response: true
 
   - id: shutter.stop
-    handler: gopro_sdk.handlers.shutter:Stop
+    handler: opengopro_sdk.handlers.shutter:Stop
     transports: [ble, http]
     audience: [internal]
     timeout: 5.0
