@@ -1,7 +1,8 @@
-# Example manifest for the fictional Pneumatic Bear Poker.
-# A device that pokes bears, pneumatically. This file exists to exercise
-# the loader and JSON Schema during M0; it does NOT (yet) reference any
-# real Python handlers.
+# Example manifest for the fictional Pneumatic Bear Poker -- a device that pokes
+# bears, pneumatically. This is Kandra's reference example: it wires real
+# handler/codec classes (under src/) over HTTP and drives the full lifecycle in
+# lifecycle_demo.py against the firmware_sim/. See the Getting Started guide in
+# the docs for a step-by-step walkthrough.
 
 schema_version: 1
 

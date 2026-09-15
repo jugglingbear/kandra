@@ -46,6 +46,7 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 :caption: Overview
 :maxdepth: 1
 
+getting-started
 motivation
 design-review
 ```
