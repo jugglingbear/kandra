@@ -2,9 +2,10 @@
   "$defs": {
     "Attribute": {
       "additionalProperties": false,
-      "description": "Named device-state primitive: read / write / subscribe.\n\nThe shape is accepted so authors and editors can work with it, but the\nruntime rejects manifests that declare attributes until support lands\n(see :func:`_check_reserved_primitives`).",
+      "description": "Named device-state primitive: read / write / subscribe.\n\nEmitted as ``client.<namespace>.<name>.read() / .write(v) / .subscribe()``.",
       "properties": {
         "audience": {
+          "description": "Audiences allowed to use this attribute (a subset of the device audience).",
           "items": {
             "pattern": "^[a-z][a-z0-9_-]*$",
             "type": "string"
@@ -14,6 +15,7 @@
           "type": "array"
         },
         "ble": {
+          "description": "Per-ble-transport wiring, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/BleAttributeSpec"
@@ -23,6 +25,7 @@
           "type": "object"
         },
         "capabilities": {
+          "description": "Capability tags gating this attribute.",
           "items": {
             "type": "string"
           },
@@ -38,9 +41,11 @@
               "type": "null"
             }
           ],
+          "description": "Dotted path (``module:Class``) to the handler declaring the attribute's value type.",
           "title": "Handler"
         },
         "http": {
+          "description": "Per-http-transport wiring, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/HttpAttributeSpec"
@@ -50,11 +55,13 @@
           "type": "object"
         },
         "id": {
+          "description": "``namespace.name`` id; maps to ``client.<namespace>.<name>`` (read / write / subscribe).",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
         },
         "operations": {
+          "description": "Which of read / write / subscribe this attribute supports.",
           "items": {
             "enum": [
               "read",
@@ -68,6 +75,7 @@
           "type": "array"
         },
         "transports": {
+          "description": "Transport ids this attribute may ride.",
           "items": {
             "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
             "type": "string"
@@ -92,6 +100,7 @@
       "description": "Per-(attribute, ble-transport) wiring: one channel carries read/write/notify.",
       "properties": {
         "channel": {
+          "description": "BLE channel carrying this attribute's read/write/notify.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Channel",
           "type": "string"
@@ -107,6 +116,7 @@
             }
           ],
           "default": null,
+          "description": "Operation timeout (seconds).",
           "title": "Timeout"
         }
       },
@@ -121,11 +131,13 @@
       "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nChannels live on the *transport*; commands select one via\n``ble.<transport_id>.channel``.",
       "properties": {
         "notify": {
+          "description": "UUID of the notify characteristic.",
           "minLength": 1,
           "title": "Notify",
           "type": "string"
         },
         "write": {
+          "description": "UUID of the write characteristic.",
           "minLength": 1,
           "title": "Write",
           "type": "string"
@@ -143,12 +155,14 @@
       "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's\n``channels:`` map.",
       "properties": {
         "channel": {
+          "description": "Name of the BLE channel (declared on the transport's ``channels:``) this command rides.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Channel",
           "type": "string"
         },
         "expects_response": {
           "default": true,
+          "description": "When false, fire-and-forget: a timeout is swallowed.",
           "title": "Expects Response",
           "type": "boolean"
         },
@@ -163,6 +177,7 @@
             }
           ],
           "default": null,
+          "description": "Per-transport timeout override (seconds); falls back to the command-level ``timeout``.",
           "title": "Timeout"
         }
       },
@@ -188,6 +203,7 @@
             }
           ],
           "default": null,
+          "description": "Match this Bluetooth SIG company identifier (0..0xFFFF).",
           "title": "Manufacturer Id"
         },
         "name_prefix": {
@@ -201,9 +217,11 @@
             }
           ],
           "default": null,
+          "description": "Match advertisements whose local name starts with this prefix.",
           "title": "Name Prefix"
         },
         "service_uuids": {
+          "description": "Match advertisements exposing all of these service UUIDs (canonical 8-4-4-4-12 form).",
           "items": {
             "type": "string"
           },
@@ -219,6 +237,7 @@
       "description": "Per-(event, ble-transport) subscribe wiring: one channel's notify stream.",
       "properties": {
         "channel": {
+          "description": "BLE channel whose notify stream carries this event.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Channel",
           "type": "string"
@@ -234,6 +253,7 @@
             }
           ],
           "default": null,
+          "description": "Operation timeout (seconds).",
           "title": "Timeout"
         }
       },
@@ -248,6 +268,7 @@
       "description": "One request/response operation against the device.",
       "properties": {
         "audience": {
+          "description": "Audiences allowed to call this command (a subset of the device audience).",
           "items": {
             "pattern": "^[a-z][a-z0-9_-]*$",
             "type": "string"
@@ -257,6 +278,7 @@
           "type": "array"
         },
         "ble": {
+          "description": "Per-ble-transport wire blocks, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/BleCommandSpec"
@@ -266,6 +288,7 @@
           "type": "object"
         },
         "capabilities": {
+          "description": "Capability tags gating this command; the client refuses it on devices that lack them.",
           "items": {
             "type": "string"
           },
@@ -281,9 +304,11 @@
               "type": "null"
             }
           ],
+          "description": "Dotted path (``module:Class``) to the handler declaring the request/response types.",
           "title": "Handler"
         },
         "http": {
+          "description": "Per-http-transport wire blocks, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/HttpCommandSpec"
@@ -293,12 +318,14 @@
           "type": "object"
         },
         "id": {
+          "description": "``namespace.method`` id; maps to ``client.<namespace>.<method>()``.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
         },
         "idempotent": {
           "default": false,
+          "description": "True when re-sending is harmless; required to enable ``retries``.",
           "title": "Idempotent",
           "type": "boolean"
         },
@@ -315,16 +342,19 @@
             }
           ],
           "default": null,
+          "description": "Reserved: protocol opcode (not yet wired).",
           "title": "Opcode"
         },
         "retries": {
           "default": 0,
+          "description": "Auto-retry budget after a transient transport failure. Requires ``idempotent: true``.",
           "minimum": 0,
           "title": "Retries",
           "type": "integer"
         },
         "session_required": {
           "default": false,
+          "description": "Reserved: require the transport's ``auth`` handshake before this command (not yet wired).",
           "title": "Session Required",
           "type": "boolean"
         },
@@ -339,9 +369,11 @@
             }
           ],
           "default": null,
+          "description": "Default timeout (seconds) for this command across transports.",
           "title": "Timeout"
         },
         "transports": {
+          "description": "Transport ids this command may ride; each must be defined under ``transports:``.",
           "items": {
             "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
             "type": "string"
@@ -365,6 +397,7 @@
       "description": "Metadata for the target device.",
       "properties": {
         "audience": {
+          "description": "Audiences this device is built for; every operation's audience must be a subset of this.",
           "items": {
             "pattern": "^[a-z][a-z0-9_-]*$",
             "type": "string"
@@ -374,6 +407,7 @@
           "type": "array"
         },
         "display_name": {
+          "description": "Human-friendly device name.",
           "minLength": 1,
           "title": "Display Name",
           "type": "string"
@@ -388,9 +422,11 @@
             }
           ],
           "default": null,
+          "description": "Minimum firmware version this SDK targets (informational; not yet enforced).",
           "title": "Firmware Min"
         },
         "id": {
+          "description": "Stable snake_case device id; becomes the generated SDK package name (``<id>_sdk``).",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
@@ -417,7 +453,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "BLE advertisement match criteria."
         },
         "http": {
           "anyOf": [
@@ -428,7 +465,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "HTTP probe-list configuration."
         }
       },
       "title": "DiscoverySpec",
@@ -439,6 +477,7 @@
       "description": "Stateless device emission primitive: a subscribe-only stream.\n\nDistinct from an attribute subscribe (which streams changes of a named,\nread/writable *value*): an event has no stored state \u2014 it is a\nfire-and-forget emission (e.g. \"button pressed\", \"recording started\"). The\nhandler declares a single ``payload`` type; the generated facade exposes\n``client.<namespace>.<event>.subscribe()`` (async-only).",
       "properties": {
         "audience": {
+          "description": "Audiences allowed to subscribe (a subset of the device audience).",
           "items": {
             "pattern": "^[a-z][a-z0-9_-]*$",
             "type": "string"
@@ -448,6 +487,7 @@
           "type": "array"
         },
         "ble": {
+          "description": "Per-ble-transport subscribe wiring, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/BleEventSpec"
@@ -457,6 +497,7 @@
           "type": "object"
         },
         "capabilities": {
+          "description": "Capability tags gating this event.",
           "items": {
             "type": "string"
           },
@@ -472,9 +513,11 @@
               "type": "null"
             }
           ],
+          "description": "Dotted path (``module:Class``) to the handler declaring the event's payload type.",
           "title": "Handler"
         },
         "http": {
+          "description": "Per-http-transport subscribe wiring, keyed by transport id.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/HttpEventSpec"
@@ -484,11 +527,13 @@
           "type": "object"
         },
         "id": {
+          "description": "``namespace.name`` id; maps to ``client.<namespace>.<name>.subscribe()``.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
         },
         "transports": {
+          "description": "Transport ids this event may ride.",
           "items": {
             "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
             "type": "string"
@@ -513,6 +558,7 @@
       "properties": {
         "body_codec": {
           "default": "json",
+          "description": "How the request body is encoded (``none`` = no body). Currently informational.",
           "enum": [
             "json",
             "none"
@@ -522,6 +568,7 @@
         },
         "method": {
           "default": "GET",
+          "description": "HTTP verb for this attribute operation.",
           "enum": [
             "GET",
             "POST",
@@ -532,17 +579,20 @@
           "type": "string"
         },
         "path": {
+          "description": "Request path.",
           "minLength": 1,
           "title": "Path",
           "type": "string"
         },
         "query_from_request": {
           "default": false,
+          "description": "When true, request fields go on the query string instead of the JSON body.",
           "title": "Query From Request",
           "type": "boolean"
         },
         "response_codec": {
           "default": "json",
+          "description": "How the response body is decoded (``none`` = don't decode). Currently informational.",
           "enum": [
             "json",
             "none"
@@ -561,6 +611,7 @@
             }
           ],
           "default": null,
+          "description": "Operation timeout (seconds).",
           "title": "Timeout"
         }
       },
@@ -583,7 +634,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "HTTP read op wiring."
         },
         "subscribe": {
           "anyOf": [
@@ -594,7 +646,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "HTTP subscribe wiring."
         },
         "write": {
           "anyOf": [
@@ -605,7 +658,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "HTTP write op wiring."
         }
       },
       "title": "HttpAttributeSpec",
@@ -626,10 +680,12 @@
             }
           ],
           "default": null,
+          "description": "Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``.",
           "title": "Interval"
         },
         "mode": {
           "default": "sse",
+          "description": "``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval).",
           "enum": [
             "sse",
             "poll"
@@ -638,6 +694,7 @@
           "type": "string"
         },
         "path": {
+          "description": "Subscribe path.",
           "minLength": 1,
           "title": "Path",
           "type": "string"
@@ -653,6 +710,7 @@
             }
           ],
           "default": null,
+          "description": "Per-request timeout (seconds).",
           "title": "Timeout"
         }
       },
@@ -668,6 +726,7 @@
       "properties": {
         "body_codec": {
           "default": "json",
+          "description": "How the request body is encoded (``none`` = no body). Currently informational.",
           "enum": [
             "json",
             "none"
@@ -677,10 +736,12 @@
         },
         "expects_response": {
           "default": true,
+          "description": "When false, fire-and-forget: a timeout is swallowed and no response is decoded.",
           "title": "Expects Response",
           "type": "boolean"
         },
         "method": {
+          "description": "HTTP verb for this command.",
           "enum": [
             "GET",
             "POST",
@@ -691,17 +752,20 @@
           "type": "string"
         },
         "path": {
+          "description": "Request path (e.g. ``/v1/poker/deploy``).",
           "minLength": 1,
           "title": "Path",
           "type": "string"
         },
         "query_from_request": {
           "default": false,
+          "description": "When true, request fields go on the query string instead of the JSON body.",
           "title": "Query From Request",
           "type": "boolean"
         },
         "response_codec": {
           "default": "json",
+          "description": "How the response body is decoded (``none`` = don't decode). Currently informational.",
           "enum": [
             "json",
             "none"
@@ -720,6 +784,7 @@
             }
           ],
           "default": null,
+          "description": "Per-transport timeout override (seconds); falls back to the command-level ``timeout``.",
           "title": "Timeout"
         }
       },
@@ -735,6 +800,7 @@
       "description": "Probe-list configuration for HTTP discovery.\n\nUnlike BLE, HTTP discovery has nothing to listen for \u2014 the scanner\nmust be told which URLs to probe. ``base_urls`` is therefore\nrequired whenever this sub-block is present.",
       "properties": {
         "base_urls": {
+          "description": "URLs to probe in parallel; the first whose ``probe_path`` returns 200 wins.",
           "items": {
             "type": "string"
           },
@@ -744,6 +810,7 @@
         },
         "probe_path": {
           "default": "/",
+          "description": "Path probed to confirm a device (e.g. ``/.well-known/...``).",
           "minLength": 1,
           "title": "Probe Path",
           "type": "string"
@@ -759,6 +826,7 @@
             }
           ],
           "default": null,
+          "description": "Optional: require the probe response's ``Server`` header to start with this.",
           "title": "Server Header Prefix"
         }
       },
@@ -783,10 +851,12 @@
             }
           ],
           "default": null,
+          "description": "Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``.",
           "title": "Interval"
         },
         "mode": {
           "default": "sse",
+          "description": "``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval).",
           "enum": [
             "sse",
             "poll"
@@ -795,6 +865,7 @@
           "type": "string"
         },
         "path": {
+          "description": "Subscribe path.",
           "minLength": 1,
           "title": "Path",
           "type": "string"
@@ -810,6 +881,7 @@
             }
           ],
           "default": null,
+          "description": "Per-request timeout (seconds).",
           "title": "Timeout"
         }
       },
@@ -821,7 +893,7 @@
     },
     "Transport": {
       "additionalProperties": false,
-      "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\nThe optional ``family`` field tags the transport for cross-validation:\nwhen set, commands riding this transport must supply the matching\nper-transport block (``http:`` for ``family=http``, ``ble:`` for\n``family=ble``). Loopback / unknown / null transports impose no such\nrequirement (this preserves the lightweight test-fixture style used\nin unit tests).",
+      "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\n``codec`` is required for every family except HTTP: HTTP commands are\nJSON-encoded by the runtime ``HttpJsonCodec``, so an HTTP transport may omit\n``codec`` entirely.\n\nThe optional ``family`` field tags the transport for cross-validation:\nwhen set, commands riding this transport must supply the matching\nper-transport block (``http:`` for ``family=http``, ``ble:`` for\n``family=ble``). Loopback / unknown / null transports impose no such\nrequirement (this preserves the lightweight test-fixture style used\nin unit tests).",
       "properties": {
         "adapter": {
           "anyOf": [
@@ -833,6 +905,7 @@
             }
           ],
           "default": null,
+          "description": "Dotted path to a custom transport class; omit for the runtime default (HttpTransport / BleTransport).",
           "title": "Adapter"
         },
         "auth": {
@@ -844,14 +917,11 @@
               "type": "null"
             }
           ],
-          "default": null
-        },
-        "capabilities": {
-          "additionalProperties": true,
-          "title": "Capabilities",
-          "type": "object"
+          "default": null,
+          "description": "Reserved: handshake recipe for ``session_required`` commands on this transport (not yet wired)."
         },
         "channels": {
+          "description": "BLE only: named (write, notify) characteristic pairs; commands pick one via ``ble.<id>.channel``.",
           "patternProperties": {
             "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$": {
               "$ref": "#/$defs/BleChannelSpec"
@@ -861,11 +931,21 @@
           "type": "object"
         },
         "codec": {
-          "title": "Codec",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec).",
+          "title": "Codec"
         },
         "config": {
           "additionalProperties": true,
+          "description": "Free-form runtime config (currently informational; base URL etc. are supplied at runtime).",
           "title": "Config",
           "type": "object"
         },
@@ -884,17 +964,18 @@
             }
           ],
           "default": null,
+          "description": "Transport family; drives cross-validation and which per-command block (``http:`` / ``ble:``) is required.",
           "title": "Family"
         },
         "id": {
+          "description": "Transport id; referenced by ``command.transports`` and the per-command ``http:`` / ``ble:`` blocks.",
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
         }
       },
       "required": [
-        "id",
-        "codec"
+        "id"
       ],
       "title": "Transport",
       "type": "object"
@@ -904,6 +985,7 @@
       "description": "Optional per-transport handshake recipe for session-required commands.",
       "properties": {
         "handler": {
+          "description": "Dotted path (``module:Class``) to the handshake handler run before ``session_required`` commands.",
           "title": "Handler",
           "type": "string"
         }
@@ -919,6 +1001,7 @@
       "description": "Explicit overrides for the import-closure walker.\n\nThe walker auto-discovers most files; these knobs handle edge cases\n(dynamic imports, intentionally vendored extras, exclusions).",
       "properties": {
         "exclude": {
+          "description": "Files / dirs / globs to drop from the vendored SDK.",
           "items": {
             "type": "string"
           },
@@ -926,6 +1009,7 @@
           "type": "array"
         },
         "extra_include": {
+          "description": "Files / dirs / globs (relative to a source root) to force-vendor beyond the import-closure walk.",
           "items": {
             "type": "string"
           },
@@ -941,6 +1025,7 @@
   "description": "Top-level manifest: one device, its transports, and its operations.",
   "properties": {
     "attributes": {
+      "description": "Named device state (read / write / subscribe).",
       "items": {
         "$ref": "#/$defs/Attribute"
       },
@@ -948,6 +1033,7 @@
       "type": "array"
     },
     "commands": {
+      "description": "One-shot request/response operations.",
       "items": {
         "$ref": "#/$defs/Command"
       },
@@ -955,7 +1041,8 @@
       "type": "array"
     },
     "device": {
-      "$ref": "#/$defs/Device"
+      "$ref": "#/$defs/Device",
+      "description": "Target device metadata."
     },
     "discovery": {
       "anyOf": [
@@ -966,9 +1053,11 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "Optional discovery configuration (drives the generated ``scanners.py``)."
     },
     "events": {
+      "description": "Stateless subscribe-only emissions.",
       "items": {
         "$ref": "#/$defs/Event"
       },
@@ -976,10 +1065,12 @@
       "type": "array"
     },
     "schema_version": {
+      "description": "Manifest schema version (currently 1).",
       "title": "Schema Version",
       "type": "integer"
     },
     "source_roots": {
+      "description": "Directories the generator may import handlers / codecs from.",
       "items": {
         "type": "string"
       },
@@ -988,6 +1079,7 @@
       "type": "array"
     },
     "transports": {
+      "description": "Wire transports this device exposes.",
       "items": {
         "$ref": "#/$defs/Transport"
       },
@@ -996,7 +1088,8 @@
       "type": "array"
     },
     "vendoring": {
-      "$ref": "#/$defs/Vendoring"
+      "$ref": "#/$defs/Vendoring",
+      "description": "Import-closure overrides for ``--profile`` (vendoring) builds."
     }
   },
   "required": [

@@ -57,6 +57,7 @@ class _ManifestModel(BaseModel):
         extra="forbid",  # surface typos in YAML loudly
         frozen=True,
         str_strip_whitespace=True,
+        use_attribute_docstrings=True,  # field docstrings become schema + autodoc descriptions
     )
 
 
@@ -69,9 +70,13 @@ class Device(_ManifestModel):
     """Metadata for the target device."""
 
     id: IdentifierStr
+    """Stable snake_case device id; becomes the generated SDK package name (``<id>_sdk``)."""
     display_name: str = Field(min_length=1)
+    """Human-friendly device name."""
     firmware_min: str | None = None
+    """Minimum firmware version this SDK targets (informational; not yet enforced)."""
     audience: list[AudienceTag] = Field(min_length=1)
+    """Audiences this device is built for; every operation's audience must be a subset of this."""
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +88,7 @@ class TransportAuth(_ManifestModel):
     """Optional per-transport handshake recipe for session-required commands."""
 
     handler: str
+    """Dotted path (``module:Class``) to the handshake handler run before ``session_required`` commands."""
 
     @field_validator("handler")
     @classmethod
@@ -98,11 +104,17 @@ class BleChannelSpec(_ManifestModel):
     """
 
     write: str = Field(min_length=1)
+    """UUID of the write characteristic."""
     notify: str = Field(min_length=1)
+    """UUID of the notify characteristic."""
 
 
 class Transport(_ManifestModel):
     """A wire transport (BLE / HTTP / serial / etc.) plus its codec.
+
+    ``codec`` is required for every family except HTTP: HTTP commands are
+    JSON-encoded by the runtime ``HttpJsonCodec``, so an HTTP transport may omit
+    ``codec`` entirely.
 
     The optional ``family`` field tags the transport for cross-validation:
     when set, commands riding this transport must supply the matching
@@ -113,13 +125,19 @@ class Transport(_ManifestModel):
     """
 
     id: IdentifierStr
+    """Transport id; referenced by ``command.transports`` and the per-command ``http:`` / ``ble:`` blocks."""
     adapter: str | None = None
-    codec: str
+    """Dotted path to a custom transport class; omit for the runtime default (HttpTransport / BleTransport)."""
+    codec: str | None = None
+    """Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec)."""
     family: Literal["loopback", "http", "ble"] | None = None
-    capabilities: dict[str, Any] = Field(default_factory=dict)
+    """Transport family; drives cross-validation and which per-command block (``http:`` / ``ble:``) is required."""
     config: dict[str, Any] = Field(default_factory=dict)
+    """Free-form runtime config (currently informational; base URL etc. are supplied at runtime)."""
     channels: dict[IdentifierStr, BleChannelSpec] = Field(default_factory=dict)
+    """BLE only: named (write, notify) characteristic pairs; commands pick one via ``ble.<id>.channel``."""
     auth: TransportAuth | None = None
+    """Reserved: handshake recipe for ``session_required`` commands on this transport (not yet wired)."""
 
     @field_validator("adapter", "codec")
     @classmethod
@@ -135,6 +153,11 @@ class Transport(_ManifestModel):
                 f"transport {self.id!r} declares channels but family is "
                 f"{self.family!r}; channels are only valid when family='ble'"
             )
+        if self.codec is None and self.family != "http":
+            raise ValueError(
+                f"transport {self.id!r}: 'codec' is required for family={self.family!r} "
+                "(only HTTP transports may omit it and use the built-in HttpJsonCodec)"
+            )
         return self
 
 
@@ -147,12 +170,19 @@ class HttpCommandSpec(_ManifestModel):
     """Per-(command, http-transport) wire-format and behavior block."""
 
     method: Literal["GET", "POST", "PUT", "DELETE"]
+    """HTTP verb for this command."""
     path: str = Field(min_length=1)
+    """Request path (e.g. ``/v1/poker/deploy``)."""
     body_codec: Literal["json", "none"] = "json"
+    """How the request body is encoded (``none`` = no body). Currently informational."""
     response_codec: Literal["json", "none"] = "json"
+    """How the response body is decoded (``none`` = don't decode). Currently informational."""
     query_from_request: bool = False
+    """When true, request fields go on the query string instead of the JSON body."""
     expects_response: bool = True
+    """When false, fire-and-forget: a timeout is swallowed and no response is decoded."""
     timeout: float | None = Field(default=None, gt=0)
+    """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
 
 
 class BleCommandSpec(_ManifestModel):
@@ -163,8 +193,11 @@ class BleCommandSpec(_ManifestModel):
     """
 
     channel: IdentifierStr
+    """Name of the BLE channel (declared on the transport's ``channels:``) this command rides."""
     expects_response: bool = True
+    """When false, fire-and-forget: a timeout is swallowed."""
     timeout: float | None = Field(default=None, gt=0)
+    """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
 
 
 # ---------------------------------------------------------------------------
@@ -176,20 +209,32 @@ class Command(_ManifestModel):
     """One request/response operation against the device."""
 
     id: IdentifierStr
+    """``namespace.method`` id; maps to ``client.<namespace>.<method>()``."""
     # Required field that *may* be explicitly null to select the default handler.
     handler: str | None
+    """Dotted path (``module:Class``) to the handler declaring the request/response types."""
     transports: list[IdentifierStr] = Field(min_length=1)
+    """Transport ids this command may ride; each must be defined under ``transports:``."""
     audience: list[AudienceTag] = Field(min_length=1)
+    """Audiences allowed to call this command (a subset of the device audience)."""
     opcode: int | str | None = None
+    """Reserved: protocol opcode (not yet wired)."""
     capabilities: list[str] = Field(default_factory=list)
+    """Capability tags gating this command; the client refuses it on devices that lack them."""
     idempotent: bool = False
+    """True when re-sending is harmless; required to enable ``retries``."""
     timeout: float | None = Field(default=None, gt=0)
+    """Default timeout (seconds) for this command across transports."""
     retries: int = Field(default=0, ge=0)
+    """Auto-retry budget after a transient transport failure. Requires ``idempotent: true``."""
     session_required: bool = False
+    """Reserved: require the transport's ``auth`` handshake before this command (not yet wired)."""
     # Per-transport behavior blocks. Keys are transport ids that
     # must appear in `transports` above and belong to the matching family.
     http: dict[IdentifierStr, HttpCommandSpec] = Field(default_factory=dict)
+    """Per-http-transport wire blocks, keyed by transport id."""
     ble: dict[IdentifierStr, BleCommandSpec] = Field(default_factory=dict)
+    """Per-ble-transport wire blocks, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -232,11 +277,17 @@ class HttpAttributeOp(_ManifestModel):
     """
 
     method: Literal["GET", "POST", "PUT", "DELETE"] = "GET"
+    """HTTP verb for this attribute operation."""
     path: str = Field(min_length=1)
+    """Request path."""
     body_codec: Literal["json", "none"] = "json"
+    """How the request body is encoded (``none`` = no body). Currently informational."""
     response_codec: Literal["json", "none"] = "json"
+    """How the response body is decoded (``none`` = don't decode). Currently informational."""
     query_from_request: bool = False
+    """When true, request fields go on the query string instead of the JSON body."""
     timeout: float | None = Field(default=None, gt=0)
+    """Operation timeout (seconds)."""
 
 
 class HttpAttributeSubscribe(_ManifestModel):
@@ -247,9 +298,13 @@ class HttpAttributeSubscribe(_ManifestModel):
     """
 
     mode: Literal["sse", "poll"] = "sse"
+    """``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval)."""
     path: str = Field(min_length=1)
+    """Subscribe path."""
     interval: float | None = Field(default=None, gt=0)
+    """Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``."""
     timeout: float | None = Field(default=None, gt=0)
+    """Per-request timeout (seconds)."""
 
     @model_validator(mode="after")
     def _check_interval(self) -> HttpAttributeSubscribe:
@@ -261,15 +316,20 @@ class HttpAttributeSpec(_ManifestModel):
     """Per-(attribute, http-transport) wiring: the ops this attribute supports here."""
 
     read: HttpAttributeOp | None = None
+    """HTTP read op wiring."""
     write: HttpAttributeOp | None = None
+    """HTTP write op wiring."""
     subscribe: HttpAttributeSubscribe | None = None
+    """HTTP subscribe wiring."""
 
 
 class BleAttributeSpec(_ManifestModel):
     """Per-(attribute, ble-transport) wiring: one channel carries read/write/notify."""
 
     channel: IdentifierStr
+    """BLE channel carrying this attribute's read/write/notify."""
     timeout: float | None = Field(default=None, gt=0)
+    """Operation timeout (seconds)."""
 
 
 class HttpEventSpec(_ManifestModel):
@@ -282,9 +342,13 @@ class HttpEventSpec(_ManifestModel):
     """
 
     mode: Literal["sse", "poll"] = "sse"
+    """``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval)."""
     path: str = Field(min_length=1)
+    """Subscribe path."""
     interval: float | None = Field(default=None, gt=0)
+    """Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``."""
     timeout: float | None = Field(default=None, gt=0)
+    """Per-request timeout (seconds)."""
 
     @model_validator(mode="after")
     def _check_interval(self) -> HttpEventSpec:
@@ -296,25 +360,33 @@ class BleEventSpec(_ManifestModel):
     """Per-(event, ble-transport) subscribe wiring: one channel's notify stream."""
 
     channel: IdentifierStr
+    """BLE channel whose notify stream carries this event."""
     timeout: float | None = Field(default=None, gt=0)
+    """Operation timeout (seconds)."""
 
 
 class Attribute(_ManifestModel):
     """Named device-state primitive: read / write / subscribe.
 
-    The shape is accepted so authors and editors can work with it, but the
-    runtime rejects manifests that declare attributes until support lands
-    (see :func:`_check_reserved_primitives`).
+    Emitted as ``client.<namespace>.<name>.read() / .write(v) / .subscribe()``.
     """
 
     id: IdentifierStr
+    """``namespace.name`` id; maps to ``client.<namespace>.<name>`` (read / write / subscribe)."""
     handler: str | None
+    """Dotted path (``module:Class``) to the handler declaring the attribute's value type."""
     transports: list[IdentifierStr] = Field(min_length=1)
+    """Transport ids this attribute may ride."""
     operations: list[Literal["read", "write", "subscribe"]] = Field(min_length=1)
+    """Which of read / write / subscribe this attribute supports."""
     audience: list[AudienceTag] = Field(min_length=1)
+    """Audiences allowed to use this attribute (a subset of the device audience)."""
     capabilities: list[str] = Field(default_factory=list)
+    """Capability tags gating this attribute."""
     http: dict[IdentifierStr, HttpAttributeSpec] = Field(default_factory=dict)
+    """Per-http-transport wiring, keyed by transport id."""
     ble: dict[IdentifierStr, BleAttributeSpec] = Field(default_factory=dict)
+    """Per-ble-transport wiring, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -333,12 +405,19 @@ class Event(_ManifestModel):
     """
 
     id: IdentifierStr
+    """``namespace.name`` id; maps to ``client.<namespace>.<name>.subscribe()``."""
     handler: str | None
+    """Dotted path (``module:Class``) to the handler declaring the event's payload type."""
     transports: list[IdentifierStr] = Field(min_length=1)
+    """Transport ids this event may ride."""
     audience: list[AudienceTag] = Field(min_length=1)
+    """Audiences allowed to subscribe (a subset of the device audience)."""
     capabilities: list[str] = Field(default_factory=list)
+    """Capability tags gating this event."""
     http: dict[IdentifierStr, HttpEventSpec] = Field(default_factory=dict)
+    """Per-http-transport subscribe wiring, keyed by transport id."""
     ble: dict[IdentifierStr, BleEventSpec] = Field(default_factory=dict)
+    """Per-ble-transport subscribe wiring, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -365,9 +444,12 @@ class BleDiscoverySpec(_ManifestModel):
     """
 
     name_prefix: str | None = Field(default=None, min_length=1)
+    """Match advertisements whose local name starts with this prefix."""
     service_uuids: list[str] = Field(default_factory=list)
+    """Match advertisements exposing all of these service UUIDs (canonical 8-4-4-4-12 form)."""
     # Bluetooth SIG company identifier (0..0xFFFF).
     manufacturer_id: int | None = Field(default=None, ge=0, le=0xFFFF)
+    """Match this Bluetooth SIG company identifier (0..0xFFFF)."""
 
     @field_validator("service_uuids")
     @classmethod
@@ -390,8 +472,11 @@ class HttpDiscoverySpec(_ManifestModel):
     """
 
     base_urls: list[str] = Field(min_length=1)
+    """URLs to probe in parallel; the first whose ``probe_path`` returns 200 wins."""
     probe_path: str = Field(default="/", min_length=1)
+    """Path probed to confirm a device (e.g. ``/.well-known/...``)."""
     server_header_prefix: str | None = Field(default=None, min_length=1)
+    """Optional: require the probe response's ``Server`` header to start with this."""
 
     @field_validator("base_urls")
     @classmethod
@@ -413,7 +498,9 @@ class DiscoverySpec(_ManifestModel):
     """
 
     ble: BleDiscoverySpec | None = None
+    """BLE advertisement match criteria."""
     http: HttpDiscoverySpec | None = None
+    """HTTP probe-list configuration."""
 
     @model_validator(mode="after")
     def _check_not_empty(self) -> DiscoverySpec:
@@ -437,7 +524,9 @@ class Vendoring(_ManifestModel):
     """
 
     extra_include: list[str] = Field(default_factory=list)
+    """Files / dirs / globs (relative to a source root) to force-vendor beyond the import-closure walk."""
     exclude: list[str] = Field(default_factory=list)
+    """Files / dirs / globs to drop from the vendored SDK."""
 
 
 # ---------------------------------------------------------------------------
@@ -452,14 +541,23 @@ class Manifest(_ManifestModel):
     """Top-level manifest: one device, its transports, and its operations."""
 
     schema_version: int
+    """Manifest schema version (currently 1)."""
     device: Device
+    """Target device metadata."""
     source_roots: list[str] = Field(min_length=1)
+    """Directories the generator may import handlers / codecs from."""
     transports: list[Transport] = Field(min_length=1)
+    """Wire transports this device exposes."""
     discovery: DiscoverySpec | None = None
+    """Optional discovery configuration (drives the generated ``scanners.py``)."""
     commands: list[Command] = Field(default_factory=list)
+    """One-shot request/response operations."""
     attributes: list[Attribute] = Field(default_factory=list)
+    """Named device state (read / write / subscribe)."""
     events: list[Event] = Field(default_factory=list)
+    """Stateless subscribe-only emissions."""
     vendoring: Vendoring = Field(default_factory=Vendoring)
+    """Import-closure overrides for ``--profile`` (vendoring) builds."""
 
     @field_validator("schema_version")
     @classmethod

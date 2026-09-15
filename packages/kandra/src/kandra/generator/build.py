@@ -298,7 +298,7 @@ def _transport_codec_entry_modules(manifest: Manifest, used_transport_ids: set[s
     for t in manifest.transports:
         if t.id not in used_transport_ids:
             continue
-        if t.family != "http":
+        if t.family != "http" and t.codec is not None:
             modules.add(t.codec.split(":")[0])
         if t.adapter is not None:
             modules.add(t.adapter.split(":")[0])
@@ -459,14 +459,11 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
             _import_attr(a_module, a_class, what=f"transport {t.id!r} adapter")
             adapter_alias = f"_Adapter_{_sanitize(t.id)}"
             adapter_import = f"from {a_module} import {a_class} as {adapter_alias}"
-        module_path, class_name = t.codec.split(":")
-        # For HTTP we use built-in HttpJsonCodec from kandra_runtime
-        # (parameterized per-command from the http: blocks); the
-        # manifest's transport.codec is parsed for round-trip
-        # consistency but not imported. For BLE we import the user's
-        # payload codec and wrap it per-command with BleChannelCodec.
-        # For loopback / unknown family we import the user's codec
-        # and wire it positionally with (request_type, response_type).
+        # HTTP uses the built-in HttpJsonCodec from kandra_runtime (parameterized
+        # per-command from the http: blocks), so the manifest's transport.codec
+        # is optional and ignored here. BLE imports the user's payload codec and
+        # wraps it per-command with BleChannelCodec; loopback / unknown family
+        # import the user's codec and wire it positionally as (request, response).
         if t.family == "http":
             specs.append(
                 TransportSpec(
@@ -480,6 +477,9 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                 )
             )
             continue
+        # Non-HTTP families require a codec (enforced by Transport validation).
+        assert t.codec is not None
+        module_path, class_name = t.codec.split(":")
         _import_attr(module_path, class_name, what=f"transport {t.id!r} codec")
         alias = f"_Codec_{_sanitize(t.id)}"
         channels: tuple[tuple[str, str, str], ...] = ()
