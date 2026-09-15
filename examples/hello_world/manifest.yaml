@@ -1,0 +1,43 @@
+# The smallest possible Kandra device: one HTTP command, one handler.
+#
+# Build it into a typed Python SDK with:
+#
+#     kandra build examples/hello_world/manifest.yaml
+#
+# The generated client then exposes a single typed method:
+#
+#     await client.greeting.hello(HelloRequest(message="hello"))  -> HelloResponse(reply="world")
+#
+# For a full build -> run walkthrough (against a local sim), see the
+# Getting Started guide in the docs; it uses the larger bear poker example.
+
+schema_version: 1
+
+device:
+  id: hello_world
+  display_name: Hello World
+  audience: [public]
+
+# Directories the generator may import handlers/codecs from.
+source_roots:
+  - src
+
+transports:
+  - id: http
+    family: http
+    # No `codec` needed: HTTP commands are JSON-encoded by the runtime's built-in
+    # HttpJsonCodec. You only write your own codec for a custom wire format (e.g.
+    # a BLE TLV codec) -- see the pneumatic_bear_poker example.
+    config: { base_url: "http://localhost:8080" }
+
+commands:
+  # Emitted as `client.greeting.hello(...)`. The `<namespace>.<method>` id maps
+  # straight onto the generated client's attribute + method names.
+  - id: greeting.hello
+    handler: hello.greeter:Hello
+    transports: [http]
+    audience: [public]
+    http:
+      http:
+        method: PUT
+        path: /hello
