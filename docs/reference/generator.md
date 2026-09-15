@@ -5,10 +5,8 @@ integration.
 
 ## Manifest Model
 
-```{eval-rst}
-.. automodule:: kandra.manifest
-   :members:
-```
+The manifest's pydantic models -- every field, type, and validator -- are documented on the
+[Manifest Reference](manifest.md) page.
 
 ## Loader
 

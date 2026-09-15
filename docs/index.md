@@ -74,6 +74,7 @@ concepts/audiences
 :caption: Reference
 :maxdepth: 1
 
+reference/manifest
 reference/runtime
 reference/generator
 ```
