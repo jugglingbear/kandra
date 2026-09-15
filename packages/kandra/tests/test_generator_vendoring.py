@@ -288,7 +288,6 @@ def test_audit_reports_included_and_pruned() -> None:
     by_path = {row.rel_path: row for row in report.files}
     assert by_path["src/devices/pneumatic_bear_poker/handlers/poker.py"].included is True
     assert by_path["src/devices/pneumatic_bear_poker/handlers/super_secret.py"].included is False
-    assert by_path["src/common/codecs/json.py"].included is False
 
 
 def test_audit_detects_stale_path(tmp_path: Path) -> None:

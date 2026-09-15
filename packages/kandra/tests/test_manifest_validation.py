@@ -29,6 +29,26 @@ def test_transport_auth_handler_is_validated() -> None:
     assert manifest.transports[0].auth.handler == "auth.mod:Login"
 
 
+def test_http_transport_may_omit_codec() -> None:
+    # HTTP uses the runtime HttpJsonCodec, so `codec` is optional for HTTP.
+    manifest = _load(
+        "transports:\n  - {id: http, family: http}\n"
+        "commands:\n"
+        "  - id: x.y\n    handler: a.b:H\n    transports: [http]\n    audience: [internal]\n"
+        "    http:\n      http: {method: PUT, path: /}\n"
+    )
+    assert manifest.transports[0].codec is None
+
+
+def test_non_http_transport_requires_codec() -> None:
+    with pytest.raises(LoaderError, match="'codec' is required"):
+        _load(
+            "transports:\n  - {id: loop, family: loopback}\n"
+            "commands:\n"
+            "  - id: x.y\n    handler: a.b:H\n    transports: [loop]\n    audience: [internal]\n"
+        )
+
+
 def test_wellformed_attribute_loads_and_validates() -> None:
     # A fully-wired attribute now loads (validation runs); the generator refuses
     # separately until attribute codegen lands.

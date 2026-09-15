@@ -83,7 +83,7 @@ def test_cli_audit_lists_files(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "audit profile=partner_woodland" in out
     assert "+ src/devices/pneumatic_bear_poker/handlers/poker.py" in out
-    assert "- src/common/codecs/json.py" in out
+    assert "- src/devices/pneumatic_bear_poker/handlers/super_secret.py" in out
 
 
 def test_cli_audit_unknown_profile_exit_code(tmp_path: Path) -> None:
