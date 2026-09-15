@@ -14,15 +14,18 @@ Each phase is one line of code in the generated SDK. The narrative
 comments are the point: this file doubles as the user-facing reference
 for "what does kandra actually buy me?"
 
-**Expects a Pneumatic Bear Poker reachable over HTTP** -- point it at the
-Flask firmware simulator under ``examples/pneumatic_bear_poker/firmware_sim``
-for a local demo. The integration test ``tests/test_example_end_to_end.py``
-exercises the same flow with in-process fakes so CI needs no device.
+**Expects a Pneumatic Bear Poker reachable over HTTP.** By default it looks
+for one at ``http://localhost:8080`` -- start the Flask firmware simulator
+under ``examples/pneumatic_bear_poker/firmware_sim`` and this runs out of the
+box. Point at real hardware by setting ``BEAR_POKER_URL``. The integration
+test ``tests/test_example_end_to_end.py`` exercises the same flow with
+in-process fakes so CI needs no device.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 
 from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
 from kandra_runtime import (
@@ -36,15 +39,20 @@ from pneumatic_bear_poker_sdk import (
 
 SAVED_NAME = "kitchen-bear"
 
+# Where to look for the device. Defaults to the local firmware sim; override for
+# real hardware, e.g. BEAR_POKER_URL=http://192.168.1.1:8080.
+BEAR_POKER_URL = os.environ.get("BEAR_POKER_URL", "http://localhost:8080")
+
 
 async def first_run() -> None:
     """Discover + enroll + save -- runs once per device."""
     # ---- (1) DISCOVER ------------------------------------------------------
-    # Manifest's `discovery.http` block (base_urls + probe_path) was baked
-    # into the generated `default_http_matcher`, so callers don't supply one.
-    http_candidates = await scan_http(timeout=5.0)
+    # `scan_http` uses the manifest's baked-in probe_path + matcher; we pass
+    # `base_urls` to aim it at our sim (or real hardware) rather than the
+    # manifest's default addresses.
+    http_candidates = await scan_http(timeout=5.0, base_urls=[BEAR_POKER_URL])
     if not http_candidates:
-        raise SystemExit("no Pneumatic Bear Poker reachable over HTTP")
+        raise SystemExit(f"no Pneumatic Bear Poker reachable at {BEAR_POKER_URL}")
     http_candidate = http_candidates[0]
     print(f"found HTTP: {http_candidate.address}")
 

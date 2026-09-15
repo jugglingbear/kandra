@@ -127,8 +127,17 @@ def _json_body() -> dict[str, Any]:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
-    from waitress import serve
+    app = create_app()
+    try:
+        from waitress import serve
+    except ImportError:
+        # A plain `make install` venv has Flask but not waitress; its built-in
+        # server is fine for a local sim. Override Werkzeug's Server header so
+        # discovery (which matches on `server_header_prefix`) recognizes it.
+        from werkzeug.serving import WSGIRequestHandler
 
-    # `ident=` controls the `Server` HTTP header. Discovery matches on
-    # `discovery.http.server_header_prefix` from the manifest.
-    serve(create_app(), host="0.0.0.0", port=port, ident=SERVER_HEADER)  # firmware sim
+        WSGIRequestHandler.server_version = SERVER_HEADER
+        WSGIRequestHandler.sys_version = ""
+        app.run(host="127.0.0.1", port=port)
+    else:
+        serve(app, host="0.0.0.0", port=port, ident=SERVER_HEADER)  # firmware sim
