@@ -1,7 +1,7 @@
 # Example manifest for the fictional Pneumatic Bear Poker -- a device that pokes
 # bears, pneumatically. This is Kandra's reference example: it wires real
 # handler/codec classes (under src/) over HTTP and drives the full lifecycle in
-# lifecycle_demo.py against the firmware_sim/. See the Getting Started guide in
+# demo.py against the firmware_sim/. See the Getting Started guide in
 # the docs for a step-by-step walkthrough.
 
 schema_version: 1
@@ -17,7 +17,6 @@ source_roots:
 
 transports:
   - id: http
-    codec: common.codecs.json:JsonCodec
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
 

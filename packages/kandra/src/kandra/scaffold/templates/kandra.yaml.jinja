@@ -22,7 +22,6 @@ transports:
   {%- if t.family == "http" %}
     config: { base_url: "{{ t.base_url or 'http://192.168.1.1:8080' }}" }
   {%- elif t.family == "ble" %}
-    capabilities: { mtu: 244, notifications: true }
     channels:
       command: { write: "{{ t.service_uuid }}", notify: "{{ t.service_uuid }}" }
   {%- endif %}

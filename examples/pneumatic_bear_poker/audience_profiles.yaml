@@ -31,9 +31,6 @@ profiles:
 # partner_woodland tag, or the build fails loud (a command it can call would
 # otherwise import a file it may not have).
 files:
-  src/common/__init__.py: [internal, partner_woodland]
-  src/common/codecs/__init__.py: [internal, partner_woodland]
-  src/common/codecs/tlv.py: [internal, partner_woodland]
   src/devices/__init__.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/__init__.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/__init__.py: [internal, partner_woodland]
