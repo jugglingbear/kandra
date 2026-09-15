@@ -26,17 +26,17 @@ Kandra generates:
 ## Quickstart
 
 ```python
-from kandra_runtime import HttpEnrollment
-from my_device_sdk import MyDeviceClient
-from my_device.handlers.poker import DeployRequest
+from kandra_runtime import HttpEnrollment  # Ships with Kandra
+from my_device_sdk import MyDeviceClient  # From your generated SDK
+from my_device.handlers.some_group import SomeRequest  # From your handler code
 
 async with await MyDeviceClient.discover_and_connect(
     saved_name="kitchen",
     enrollment=HttpEnrollment(login_path="/v1/auth/login"),
 ) as client:
-    result = await client.poker.deploy(DeployRequest(pressure_psi=42))
+    result = await client.some_group.some_command(SomeRequest(...))
     if result.accepted:
-        print(result.data.delivered_psi)
+        print(result.data)
 ```
 
 First run scans, enrolls, and saves an `Identity`; every later run short-circuits to a plain `connect()`. See
