@@ -34,10 +34,10 @@ Full documentation — concepts, architecture and sequence diagrams, API referen
 ## Quick start
 
 > Kandra is pre-alpha. Today you can author and validate a manifest and run
-> `kandra build` to generate a working, typed SDK — client, transports,
-> discovery, and enrollment. The audience-pruning and vendoring layer that
-> splits one manifest into per-audience packages is still on the way — see
-> [Roadmap](#roadmap).
+> `kandra build` to generate a working, typed SDK — client, transports (HTTP +
+> BLE), discovery, enrollment, attributes, and events — plus
+> `kandra build --profile <audience>` to emit a pruned, vendored, IP-isolated
+> package per audience.
 
 ```bash
 git clone <this-repo> your_project
@@ -57,6 +57,23 @@ Emitting the manifest JSON Schema (for editor autocomplete):
 
 ```bash
 poetry run kandra schema > manifest.schema.json
+```
+
+Using a generated client — one call scans, enrolls, saves the identity, and connects (later runs reconnect from the
+saved identity):
+
+```python
+from kandra_runtime import HttpEnrollment
+from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
+
+async with await PneumaticBearPokerClient.discover_and_connect(
+    saved_name="bench",
+    enrollment=HttpEnrollment(login_path="/v1/auth/login"),
+) as client:
+    result = await client.poker.deploy(DeployRequest(pressure_psi=42))
+    if result.accepted:
+        print(result.data.delivered_psi)
 ```
 
 A runnable end-to-end example lives in
@@ -98,9 +115,9 @@ All code must pass `make qa` (ruff clean, mypy strict clean, 100% of tests passi
 | Typed `Result[T]` envelope with `ACCEPTED` / `REJECTED` / `DEVICE_FAULT` / `TRANSPORT_FAILURE` / `ANOMALOUS` classification, pluggable `ResponseInterpreter`, `on_non_accepted` hook, `ignore_failures()` context manager | ✅ Available |
 | Built-in BLE transport with named channels (`BleTransport` + per-command `ble.channel`) | ✅ Available |
 | Discovery, enrollment, identity persistence (`Scanner` / `Enrollment` / `IdentityStore` + `connect()` / `discover_and_connect()`) | ✅ Available |
-| Audience pruning, leakage scan, vendoring (`internal` vs `partner-*` artifacts from one manifest) | ⏸️ Planned |
-| Capability negotiation + `Attribute` (read / write / subscribe) + `Event` primitives | ⏸️ Planned |
-| Credential lifecycle — re-enrollment / rotation (`IdentityStaleError`, `re_enroll()`) | ⏸️ Planned |
+| Audience pruning, leakage scan, vendoring (`internal` vs `partner-*` artifacts from one manifest) | ✅ Available |
+| Capability negotiation + `Attribute` (read / write / subscribe) + `Event` primitives | ✅ Available |
+| Credential lifecycle — re-enrollment / rotation (`IdentityStaleError`, `re_enroll()`) | ✅ Available |
 
 ---
 
