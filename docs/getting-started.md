@@ -52,6 +52,12 @@ poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
 
 It serves on `http://localhost:8080`. Leave it running.
 
+```{note}
+**Port 8080 already in use?** Plenty of tools (VS Code among them) squat on 8080. Start the sim on another port with
+`PORT=8081 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app`, then pass the demo the matching
+`BEAR_POKER_URL=http://localhost:8081` in step 4. The two must agree -- discovery probes exactly the URL you give it.
+```
+
 ## 4. Run the lifecycle demo
 
 In a **second** terminal, run the demo. It needs the generated SDK (`dist/`) and the example's handler source
@@ -59,7 +65,7 @@ In a **second** terminal, run the demo. It needs the generated SDK (`dist/`) and
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/lifecycle_demo.py
+  poetry run python examples/pneumatic_bear_poker/demo.py
 ```
 
 You should see:
@@ -75,7 +81,7 @@ That last line is the round trip: your Python `DeployRequest(pressure_psi=42)` w
 
 ## What just happened
 
-[`lifecycle_demo.py`](https://github.com/jugglingbear/kandra/blob/main/examples/pneumatic_bear_poker/lifecycle_demo.py)
+[`demo.py`](https://github.com/jugglingbear/kandra/blob/main/examples/pneumatic_bear_poker/demo.py)
 walks the phases every real caller follows — each is a single line in the generated SDK:
 
 1. **Discover** — `scan_http()` probes the device's `/.well-known/...` endpoint and matches on the manifest's
@@ -100,7 +106,7 @@ The demo defaults to the local sim. To drive a real device, set its base URL:
 ```bash
 BEAR_POKER_URL=http://192.168.1.50:8080 \
   PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/lifecycle_demo.py
+  poetry run python examples/pneumatic_bear_poker/demo.py
 ```
 
 ## Run the simulator in Docker
