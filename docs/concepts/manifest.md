@@ -29,9 +29,9 @@ source_roots:
 
 transports:
   - id: http
-    codec: common.codecs.json:JsonCodec
     config: { base_url: "http://192.168.1.1:8080" }
-    # adapter:  <-- optional; omit to use the runtime HttpTransport / BleTransport.
+    # HTTP needs no codec (built-in JSON) and no adapter (runtime HttpTransport) --
+    # both are optional here. BLE / serial transports do declare a codec.
 
 commands:
   - id: poker.deploy
@@ -79,10 +79,11 @@ vendoring:
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
 
-Each entry under `transports:` names a wire channel. `codec:` (required) is the dotted path to the user-types ↔
-wire-envelope [codec](codec.md). `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it**
-to use the runtime default for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own
-`package.module:Class` to plug in a custom transport — see
+Each entry under `transports:` names a wire channel. `codec:` is the dotted path to the user-types ↔ wire-envelope
+[codec](codec.md) — **required for every family except HTTP**, which always uses the runtime `HttpJsonCodec` and so
+may omit it. `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime
+default for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class`
+to plug in a custom transport — see
 [Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
 
 Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe

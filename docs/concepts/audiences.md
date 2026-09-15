@@ -128,8 +128,6 @@ command InfoSec runs before signing off a release:
 $ kandra audit manifest.yaml --profile partner_woodland
 audit profile=partner_woodland include_audience=['partner_woodland']
 
-  + src/common/codecs/tlv.py  [internal, partner_woodland]
-  - src/common/codecs/json.py  [internal]
   + src/devices/pneumatic_bear_poker/handlers/poker.py  [internal, partner_woodland]
   - src/devices/pneumatic_bear_poker/handlers/super_secret.py  [internal]
 ```
