@@ -71,7 +71,7 @@ vendoring:
   # source_root) -- for code or assets the static import walker can't discover.
   extra_include:
     - devices/pneumatic_bear_poker/handlers/super_important.py  # dynamically imported module
-    - devices/pneumatic_bear_poker/assets/  # whole directory of runtime data files
+    - devices/pneumatic_bear_poker/assets/                      # whole directory of runtime data files
   # Internal bench tooling -- keep it out of every shipped SDK.
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 ```

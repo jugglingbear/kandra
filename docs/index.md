@@ -26,8 +26,8 @@ Kandra generates:
 ## Quickstart
 
 ```python
-from kandra_runtime import HttpEnrollment  # Ships with Kandra
-from my_device_sdk import MyDeviceClient  # From your generated SDK
+from kandra_runtime import HttpEnrollment              # Ships with Kandra
+from my_device_sdk import MyDeviceClient               # From your generated SDK
 from my_device.handlers.some_group import SomeRequest  # From your handler code
 
 async with await MyDeviceClient.discover_and_connect(
@@ -46,8 +46,8 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 :caption: Overview
 :maxdepth: 1
 
-getting-started
 motivation
+getting-started
 design-review
 ```
 
