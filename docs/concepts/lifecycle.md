@@ -50,9 +50,9 @@ Where each import comes from:
 - **`my_device_sdk`** — *generated* by `kandra build` from your manifest. Holds the `MyDeviceClient` class
   (with `discover_and_connect`, `connect`, and one method per command) and the wiring for transports, codecs,
   and interpreters.
-- **`my_device.handlers.poker`** — *your code*. The request/response Pydantic models you wrote and pointed
-  at from the manifest's `request_model:` / `response_model:` fields. Kandra never touches these — it just
-  imports them by dotted path.
+- **`my_device.handlers.poker`** — *your code*. The request/response dataclasses you wrote, referenced by the
+  handler class that the manifest's `handler:` field points at. Kandra never touches these — it just imports
+  them by dotted path.
 
 - **First run:** scans every discoverable family, enrolls the first
   match, saves a (possibly composite) `Identity`, then opens transports.

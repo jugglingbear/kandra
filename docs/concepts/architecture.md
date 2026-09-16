@@ -65,7 +65,7 @@ split is still available for custom auth flows and bench scenarios where the fir
 
 ## Six Core Abstractions
 
-The runtime defines six interlocking protocols. Each gets a concept page; this is the executive summary.
+The runtime defines six interlocking abstractions. Each gets a concept page; this is the executive summary.
 
 ```{list-table}
 :header-rows: 1
@@ -123,7 +123,8 @@ classDiagram
         <<Protocol>>
         +save(identity: Identity)
         +load(saved_name: str) Identity
-        +list_saved() list~str~
+        +delete(saved_name: str)
+        +list_saved() list~Identity~
     }
     class Transport {
         <<Protocol>>
@@ -146,10 +147,13 @@ classDiagram
         +accepted: bool
     }
     class Command~Req,Resp~ {
+        +id: str
         +codec: Codec
-        +transport: Transport
         +interpreter: ResponseInterpreter
-        +dispatch(request: RequestT) Result~ResponseT~
+    }
+    class dispatch {
+        <<function>>
+        +dispatch(command, transport, request) Result~ResponseT~
     }
 
     Scanner ..> Candidate : yields
@@ -158,15 +162,17 @@ classDiagram
     IdentityStore ..> Identity : stores
     Transport ..> Identity : built from
     Command --> Codec : holds
-    Command --> Transport : holds
     Command --> ResponseInterpreter : holds
+    dispatch ..> Command : runs
+    dispatch ..> Transport : uses
     Codec ..> Transport : shares wire types
     ResponseInterpreter ..> Result : produces
     Codec ..> Result : decodes into
 ```
 
-Codec and Transport never reference each other directly — `Command` holds both and pipes the
-wire envelope between them. The dotted "shares wire types" edge is a *type-level* constraint
+Codec and Transport never reference each other directly — the free `dispatch()` function pairs a `Command` (which
+holds the codec) with a `Transport`, then pipes the wire envelope between them. The dotted "shares wire types" edge is
+a *type-level* constraint
 (`Codec[..., WireReqT, WireRespT]` must match `Transport[WireReqT, WireRespT]`), enforced by
 the generics at construction time.
 
@@ -191,7 +197,7 @@ sequenceDiagram
     Client->>Transport: from_identity(identity)
     Transport->>Device: open() (TCP / TLS handshake)
 
-    App->>Client: bear_poker.deploy(DeployRequest(...))
+    App->>Client: poker.deploy(DeployRequest(...))
     Client->>Codec: encode(request)
     Codec-->>Client: HttpRequest envelope
     Client->>Transport: request(envelope)

@@ -40,8 +40,9 @@ to surface it.
    :no-index:
 ```
 
-The manifest's `discovery.match` block is compiled into a `Matcher` at build time, so generated `scan_http()` /
-`scan_ble()` helpers ship with the correct predicate baked in. You only write a custom `Matcher` for ad-hoc tooling.
+The manifest's `discovery.ble` / `discovery.http` criteria (name prefix, service UUIDs, probe path, `Server` header,
+…) are compiled into a `default_<family>_matcher()` at build time, so generated `scan_ble()` / `scan_http()` helpers
+ship with the correct predicate baked in. You only write a custom `Matcher` for ad-hoc tooling.
 
 ## Overriding the Probe URLs (HTTP)
 

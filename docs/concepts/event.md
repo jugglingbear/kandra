@@ -1,7 +1,7 @@
 # Event
 
 An **Event** is a stateless device *emission* — a fire-and-forget notification you can `subscribe` to but never
-`read` or `write`. It is the fourth device primitive, alongside commands, attributes, and transports:
+`read` or `write`. It is the third operation primitive, alongside commands and attributes:
 
 - A **command** is a one-shot *action* (`poker.deploy`).
 - An **[attribute](attribute.md)** is durable *state* (`settings.poke_intensity`) — read / write / subscribe.

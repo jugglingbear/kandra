@@ -105,9 +105,11 @@ The runtime ships a sensible default for HTTP (`default_http_interpreter`) keyed
   - ANOMALOUS
 ```
 
-For BLE — and for HTTP devices with vendor-specific error envelopes (e.g. `{"status": "ok", "result_generic": -42}`) —
-you plug in a custom `ResponseInterpreter`. Manifest entries can declare a interpreter per transport family or per
-command.
+The generator wires the interpreter by transport family: `default_http_interpreter` for HTTP (the status-code rules
+above), and `always_accepted_interpreter` for BLE / loopback — there the codec itself flags a bad response by raising
+`CodecError` (which surfaces as `ANOMALOUS`). A custom rule — say an HTTP device with a vendor error envelope like
+`{"status": "ok", "result_generic": -42}` — means implementing the `ResponseInterpreter` protocol directly. The
+manifest has no per-command interpreter field today.
 
 ## Why an Envelope, Not Exceptions?
 

@@ -29,6 +29,7 @@ source_roots:
 
 transports:
   - id: http
+    family: http
     config: { base_url: "http://192.168.1.1:8080" }
     # HTTP needs no codec (built-in JSON) and no adapter (runtime HttpTransport) --
     # both are optional here. BLE / serial transports do declare a codec.
@@ -88,9 +89,13 @@ to plug in a custom transport — see
 
 Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
 to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live
-in the referenced handler classes. (The per-transport `http:` / `ble:` subscribe wiring for the attribute and event is
-elided above; see the [Attribute](attribute.md) and [Event](event.md) pages for the full blocks.) Any operation may also
-declare `capabilities: [tag, ...]` to gate it behind [device capabilities](capabilities.md).
+in the referenced handler classes. (Every command, attribute, and event that rides an HTTP or BLE transport also needs
+a per-transport `http:` / `ble:` wiring block — method/path, read/write/subscribe verbs, or a subscribe stream — all
+elided above for brevity; see the full example and the [Attribute](attribute.md) / [Event](event.md) pages.) A
+command's wire block may also carry an optional `codec:` (a dotted `module:Class`) that overrides the transport's
+default codec for that one command — the escape hatch when a single transport carries mixed wire formats (see
+[Per-command codec override](codec.md#per-command-codec-override)). Any operation may also declare
+`capabilities: [tag, ...]` to gate it behind [device capabilities](capabilities.md).
 
 A command may declare `idempotent: true` when re-sending it is harmless (the device treats a repeat as a no-op). That
 unlocks `retries: N` — after a *transient* transport failure (a dropped link or a timeout) the runtime re-sends the

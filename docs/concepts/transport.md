@@ -147,7 +147,7 @@ loopback) implements `subscribe(envelope)` and returns an `AsyncIterator` of wir
 `Transport` means a plain request/response transport is never forced to fake streaming, and consumers can
 `isinstance(transport, Subscribable)` to negotiate at runtime.
 
-`subscribe()` powers the [Attribute](attribute.md) `.subscribe()` facade (and, in a later milestone, events). The built-in
+`subscribe()` powers the [Attribute](attribute.md) `.subscribe()` facade and [Event](event.md) subscriptions. The built-in
 transports wire it up as follows:
 
 ```{list-table}
