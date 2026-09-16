@@ -59,8 +59,8 @@ For each manifest the generator:
    unlisted packages).
 4. Audience-filters the closure.
 5. Vendors the surviving files into `dist/<audience>/<sdk_pkg>/`.
-6. Emits a thin typed facade so consumers call typed methods like `await client.<group>.<command>(...)` instead of the
-   low-level `dispatch(cmd, …)`.
+6. Emits a thin typed facade so consumers call typed methods like `await client.<namespace>.<method>(...)` instead of
+   the low-level `dispatch(cmd, …)`.
 7. Verifies the generated package compiles and imports cleanly in an isolated subprocess before the build succeeds —
    a manifest or handler flaw that would emit a broken SDK fails the build instead of shipping.
 
