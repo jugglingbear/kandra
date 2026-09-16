@@ -10,15 +10,19 @@ one partner, you quickly end up with one of the following:
 
 Kandra picks a different tradeoff:
 
-- **Python is the source of truth.** Models, handlers, transports, and codecs are normal Python written in your repo.
-  You refactor with the IDE, lint with ruff, and test with pytest. No schema language.
+- **Python is the source of truth.** Your models, handlers, and codecs are normal Python classes in your repo, not
+  definitions in a schema language (transports are usually the runtime's built-ins). Your IDE, ruff, and pytest work on
+  them directly — there's no separate IDL to learn or keep your types in sync with.
 - **YAML is wiring only.** The manifest references your Python classes by dotted path and declares which commands ship
   on which transports for which audience. It contains **no** type definitions.
-- **Audience is first-class.** Each command and module is tagged so Kandra can emit one SDK per audience and fail the
-  build if anything leaks across. Building with `--profile <audience>` runs the pruning + vendoring + leakage scan; see
-  [Audiences & IP Isolation](concepts/audiences.md).
-- **One runtime, many SDKs.** The generated package depends on a small `kandra-runtime` PyPI package; a `--profile`
-  build additionally vendors only its own transitive code closure under `_internal/`, so the artifact is fully
+- **Audience is first-class.** Every device, command, attribute, and event carries an `audience:` in the manifest, and
+  a companion `audience_profiles.yaml` grants each *source file* to those audiences (an in-file `# kandra-audience:`
+  header can only narrow the grant). Building with `--profile <audience>` prunes the API surface *and* the vendored
+  code to that audience and leakage-scans the result, failing the build if the two disagree or anything leaks across.
+  See [Audiences & IP Isolation](concepts/audiences.md).
+- **One runtime, many SDKs.** Every generated package depends only on the small `kandra-runtime` PyPI package. A
+  `--profile` build goes further and *vendors* (copies in) that audience's own transitive closure — the handler, codec,
+  and model files it reaches plus everything they import — under an `_internal/` subpackage, so the artifact is fully
   self-contained.
 
 ## How It Works
@@ -26,18 +30,21 @@ Kandra picks a different tradeoff:
 ```{mermaid}
 flowchart LR
     subgraph inputs["Authoring inputs (your repo, never shipped)"]
+        direction TB
         yaml["device.yaml"]
         handlers["handlers/*.py"]
-        transports["transports/*.py"]
         codecs["codecs/*.py"]
         models["models/*.py"]
+        yaml ~~~ handlers ~~~ codecs ~~~ models
     end
     build(["kandra build"])
     subgraph artifact["Generated SDK"]
+        direction TB
         client["client.py"]
         commands["commands/*.py"]
         amodels["models/*.py"]
         registry["registry.py"]
+        client ~~~ commands ~~~ amodels ~~~ registry
     end
     runtime[("kandra-runtime (pip)")]
     inputs --> build --> artifact
