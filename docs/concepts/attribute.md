@@ -2,7 +2,8 @@
 
 An **Attribute** is a named piece of device *state* — something you can `read`, `write`, and (optionally) `subscribe`
 to. It complements the [Command](manifest.md) primitive: a command is a one-shot *action* (`poker.deploy`), while an
-attribute is durable *state* (`settings.poke_intensity`).
+attribute is durable *state* (`settings.poke_intensity`). The name follows device-modeling convention — a BLE GATT
+*attribute*, or an attribute on a Matter/Zigbee cluster: a value the firmware exposes, **not** a Python object field.
 
 The generator emits a namespaced sub-object on the client, so an attribute reads like an ordinary property with typed
 methods:
