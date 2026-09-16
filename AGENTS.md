@@ -116,7 +116,7 @@ repo root.
 | Integration tests (Docker) | `make test-integration` |
 | Regenerate manifest schema | `make schema` |
 | Validate example manifest | `make validate` |
-| Build example SDK | `make build-examples` |
+| Build example SDK | `make build-example` |
 | Build docs | `make build-docs` |
 | Serve docs (live reload) | `make serve-docs` |
 | Run all pre-commit hooks | `make precommit` |

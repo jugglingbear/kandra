@@ -25,7 +25,7 @@ editable.
 ## 2. Build the example SDK
 
 ```bash
-make build-examples
+make build-example
 ```
 
 Under the hood this runs `kandra build examples/pneumatic_bear_poker/manifest.yaml` and writes a self-contained, typed

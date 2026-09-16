@@ -160,8 +160,8 @@ validate:  ## Validate the example manifest (override with EXAMPLE_MANIFEST=path
 	@echo "📋 Validating $(EXAMPLE_MANIFEST)"
 	@$(POETRY) run kandra validate $(EXAMPLE_MANIFEST)
 
-.PHONY: build-examples
-build-examples:  ## Generate the example SDK(s) into ./dist (override EXAMPLE_MANIFEST=path)
+.PHONY: build-example
+build-example:  ## Generate the reference example SDK into ./dist (override EXAMPLE_MANIFEST=path)
 	@echo "🏗  Building SDK from $(EXAMPLE_MANIFEST)"
 	@$(POETRY) run kandra build $(EXAMPLE_MANIFEST) --output-dir $(DIST_DIR) --clean
 
