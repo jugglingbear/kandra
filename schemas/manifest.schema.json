@@ -160,6 +160,19 @@
           "title": "Channel",
           "type": "string"
         },
+        "codec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dotted path (``module:Class``) to a per-command payload codec overriding the transport's\n``codec`` for this command only. Same shape as any BLE payload codec\n(``Codec[Req, Resp, bytes, bytes]``); it is wrapped in the runtime ``BleChannelCodec``. Omit to use\nthe transport default.",
+          "title": "Codec"
+        },
         "expects_response": {
           "default": true,
           "description": "When false, fire-and-forget: a timeout is swallowed.",
@@ -733,6 +746,19 @@
           ],
           "title": "Body Codec",
           "type": "string"
+        },
+        "codec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dotted path (``module:Class``) to a per-command codec that overrides the built-in\n``HttpJsonCodec`` for this command only -- use it when one command's wire format differs from the\nrest of the transport (a binary or plain-text body). It is constructed like ``HttpJsonCodec``\n(method / path / request + response types / ``query_from_request``), so the simplest override\nsubclasses ``HttpJsonCodec`` and overrides ``decode``. Omit to use the JSON default.",
+          "title": "Codec"
         },
         "expects_response": {
           "default": true,

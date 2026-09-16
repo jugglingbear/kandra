@@ -47,6 +47,9 @@ class HttpCommandWire:
     query_from_request: bool
     expects_response: bool
     timeout: float | None
+    # Optional per-command codec override (dotted path). None => runtime HttpJsonCodec.
+    codec_import: str | None = None
+    codec_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,9 @@ class BleCommandWire:
     channel: str
     expects_response: bool
     timeout: float | None
+    # Optional per-command payload-codec override (dotted path). None => transport codec.
+    codec_import: str | None = None
+    codec_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -221,6 +227,11 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
             if line not in seen:
                 seen.add(line)
                 import_lines.append(line)
+        wires: tuple[HttpCommandWire | BleCommandWire, ...] = (*c.http_wires.values(), *c.ble_wires.values())
+        for wire in wires:
+            if wire.codec_import and wire.codec_import not in seen:
+                seen.add(wire.codec_import)
+                import_lines.append(wire.codec_import)
 
     # Determine if any HTTP-family transports are used (then we need
     # HttpJsonCodec imported from kandra_runtime).
@@ -280,10 +291,11 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f"request_type={c.request_alias}, response_type={c.response_alias}, "
             f"query_from_request={wire.query_from_request}"
         )
+        codec_class = wire.codec_alias or "HttpJsonCodec"
         return (
             f"{indent}TransportId.{t.enum_member}: Command(\n"
             f'{indent}    id="{c.command_id}",\n'
-            f"{indent}    codec=HttpJsonCodec({codec_args}),\n"
+            f"{indent}    codec={codec_class}({codec_args}),\n"
             f"{indent}    interpreter=default_http_interpreter,\n"
             f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
@@ -294,9 +306,11 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         timeout_arg = f"timeout={timeout}, " if timeout is not None else ""
         expects = "True" if ble_wire.expects_response else "False"
         assert t.codec_alias is not None
+        # Per-command override falls back to the transport's payload codec.
+        ble_codec_alias = ble_wire.codec_alias or t.codec_alias
         # User payload codec is instantiated with (request_type, response_type),
         # then wrapped in BleChannelCodec to attach the per-command channel.
-        payload_codec = f"{t.codec_alias}({c.request_alias}, {c.response_alias})"
+        payload_codec = f"{ble_codec_alias}({c.request_alias}, {c.response_alias})"
         return (
             f"{indent}TransportId.{t.enum_member}: Command(\n"
             f'{indent}    id="{c.command_id}",\n'

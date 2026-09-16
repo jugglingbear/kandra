@@ -173,6 +173,12 @@ class HttpCommandSpec(_ManifestModel):
     """HTTP verb for this command."""
     path: str = Field(min_length=1)
     """Request path (e.g. ``/v1/poker/deploy``)."""
+    codec: str | None = None
+    """Dotted path (``module:Class``) to a per-command codec that overrides the built-in
+    ``HttpJsonCodec`` for this command only -- use it when one command's wire format differs from the
+    rest of the transport (a binary or plain-text body). It is constructed like ``HttpJsonCodec``
+    (method / path / request + response types / ``query_from_request``), so the simplest override
+    subclasses ``HttpJsonCodec`` and overrides ``decode``. Omit to use the JSON default."""
     body_codec: Literal["json", "none"] = "json"
     """How the request body is encoded (``none`` = no body). Currently informational."""
     response_codec: Literal["json", "none"] = "json"
@@ -184,6 +190,11 @@ class HttpCommandSpec(_ManifestModel):
     timeout: float | None = Field(default=None, gt=0)
     """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
 
+    @field_validator("codec")
+    @classmethod
+    def _check_codec(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_dotted_path(value)
+
 
 class BleCommandSpec(_ManifestModel):
     """Per-(command, ble-transport) channel routing and behavior block.
@@ -194,10 +205,20 @@ class BleCommandSpec(_ManifestModel):
 
     channel: IdentifierStr
     """Name of the BLE channel (declared on the transport's ``channels:``) this command rides."""
+    codec: str | None = None
+    """Dotted path (``module:Class``) to a per-command payload codec overriding the transport's
+    ``codec`` for this command only. Same shape as any BLE payload codec
+    (``Codec[Req, Resp, bytes, bytes]``); it is wrapped in the runtime ``BleChannelCodec``. Omit to use
+    the transport default."""
     expects_response: bool = True
     """When false, fire-and-forget: a timeout is swallowed."""
     timeout: float | None = Field(default=None, gt=0)
     """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
+
+    @field_validator("codec")
+    @classmethod
+    def _check_codec(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_dotted_path(value)
 
 
 # ---------------------------------------------------------------------------

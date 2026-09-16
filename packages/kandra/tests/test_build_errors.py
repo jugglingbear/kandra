@@ -27,10 +27,12 @@ def _project(
     command_id: str = "ping.check",
     source_roots: str = "[src]",
     adapter_ref: str | None = None,
+    command_codec: str | None = None,
     extra_manifest: str = "",
 ) -> Path:
     """Write a minimal manifest + optional handler module; return the manifest path."""
     adapter_line = f"    adapter: {adapter_ref}\n" if adapter_ref else ""
+    codec_line = f"        codec: {command_codec}\n" if command_codec else ""
     src = root / "src"
     (src / "dev").mkdir(parents=True, exist_ok=True)
     (src / "dev" / "__init__.py").write_text("", encoding="utf-8")
@@ -48,6 +50,7 @@ def _project(
         f"  - id: {command_id}\n    handler: {handler_ref}\n    transports: [http]\n"
         "    audience: [internal, partner]\n"
         "    http:\n      http:\n        method: GET\n        path: /\n"
+        f"{codec_line}"
         f"{extra_manifest}",
         encoding="utf-8",
     )
@@ -272,3 +275,36 @@ def test_typecheck_failure_reports_errors(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(build_mod.subprocess, "run", fake_run)
     with pytest.raises(BuildError, match="failed --strict type checking"):
         build_mod._typecheck_generated_package(tmp_path, [tmp_path])
+
+
+_HTTP_CODEC = (
+    "from kandra_runtime import HttpJsonCodec\n\n\n"
+    "class MyHttpCodec(HttpJsonCodec):\n"
+    "    def decode(self, response):  # type: ignore[no-untyped-def]\n"
+    "        return response.body\n"
+)
+
+
+def test_per_command_http_codec_override(tmp_path: Path) -> None:
+    # A command declaring its own codec overrides the built-in HttpJsonCodec.
+    manifest = _project(tmp_path, command_codec="dev.c:MyHttpCodec")
+    (tmp_path / "src" / "dev" / "c.py").write_text(_HTTP_CODEC, encoding="utf-8")
+    result = build_sdk(manifest, output_root=tmp_path / "out")
+    registry = (result.package_path / "registry.py").read_text(encoding="utf-8")
+    assert "from dev.c import MyHttpCodec as _CmdCodec_ping_check_http" in registry
+    assert "codec=_CmdCodec_ping_check_http(" in registry
+    assert "codec=HttpJsonCodec(" not in registry
+
+
+def test_per_command_codec_vendored_and_rewritten(tmp_path: Path) -> None:
+    # A profile build vendors the override module and re-homes its import under _internal.
+    manifest = _project(tmp_path, command_codec="dev.c:MyHttpCodec")
+    (tmp_path / "src" / "dev" / "c.py").write_text(_HTTP_CODEC, encoding="utf-8")
+    (tmp_path / "audience_profiles.yaml").write_text(
+        "profiles:\n  partner:\n    include_audience: [internal, partner]\n",
+        encoding="utf-8",
+    )
+    result = build_sdk(manifest, output_root=tmp_path / "out", profile="partner", clean=True)
+    registry = (result.package_path / "registry.py").read_text(encoding="utf-8")
+    assert "from mini_sdk._internal.dev.c import MyHttpCodec" in registry
+    assert (result.package_path / "_internal" / "dev" / "c.py").is_file()

@@ -52,8 +52,9 @@ flowchart LR
 
 ## What you write per family
 
-You never subclass the runtime codecs below — the generator instantiates them from the manifest. What you *may* write
-is a **payload codec**: a plain `Codec[Req, Resp, bytes, bytes]`.
+For most commands you write no codec at all — the generator instantiates the runtime codecs below from the manifest.
+What you *may* write is a **payload codec**: a plain `Codec[Req, Resp, bytes, bytes]` for BLE or custom families, or a
+per-command `codec:` override for a one-off wire format (see below).
 
 ```{list-table}
 :header-rows: 1
@@ -74,6 +75,36 @@ is a **payload codec**: a plain `Codec[Req, Resp, bytes, bytes]`.
 
 For most commands a manifest entry suffices. A hand-written payload codec only appears when a command's wire format
 isn't plain JSON — custom binary framing, TLV, protobuf, and the like.
+
+## Per-command codec override
+
+The table above is the default: every command on a transport shares one codec — HTTP's `HttpJsonCodec`, or the BLE
+transport's payload codec. When a *single* transport must carry more than one wire format, a command's per-transport
+wire block may name its own `codec:`, a dotted `module:Class` reference into your source tree:
+
+```yaml
+commands:
+  - id: media.download
+    handler: devices.cam.handlers.media:Download
+    transports: [http]
+    http:
+      http:
+        method: GET
+        path: /videos/{id}
+        codec: devices.cam.codecs:RawBodyCodec   # returns raw bytes, not JSON
+```
+
+- **HTTP.** The override replaces the built-in `HttpJsonCodec` for that one command. It is constructed with the same
+  arguments (`method`, `path`, request/response types, `query_from_request`), so the usual pattern is to subclass
+  `HttpJsonCodec` and override `decode` (e.g. to return raw bytes or parse a non-JSON body). Because a codec builds
+  the whole `HttpRequest`, header quirks live here too.
+
+- **BLE.** The override replaces the transport's payload codec for that command's channel — a plain
+  `Codec[Req, Resp, bytes, bytes]` constructed with `(request_type, response_type)` and wrapped in `BleChannelCodec`.
+
+The override module is vendored into the SDK like any handler, so it must live under a `source_roots` tree. This is
+what lets one HTTP transport serve JSON status *and* a binary media download, or one BLE link carry a TLV control
+channel *and* an opaque-payload channel.
 
 ## Errors
 

@@ -46,7 +46,7 @@ from kandra.generator.render import (
 from kandra.leakage import assert_no_leakage
 from kandra.loader import load_manifest
 from kandra.manifest import Attribute, Command, Event, Manifest
-from kandra.manifest.model import HttpAttributeSpec
+from kandra.manifest.model import BleCommandSpec, HttpAttributeSpec, HttpCommandSpec
 from kandra.vendor import internal_prefix, rewrite_imports, vendor_closure
 
 if TYPE_CHECKING:
@@ -380,12 +380,28 @@ def _rewrite_transport_spec(spec: TransportSpec, tops: frozenset[str], prefix: s
 
 
 def _rewrite_command_spec(spec: CommandSpec, tops: frozenset[str], prefix: str) -> CommandSpec:
-    """Rewrite a command spec's request/response imports to the vendored namespace."""
+    """Rewrite a command spec's request/response and per-command codec imports to the vendored namespace."""
     return replace(
         spec,
         request_import=_rewrite_import_line(spec.request_import, tops, prefix),
         response_import=_rewrite_import_line(spec.response_import, tops, prefix),
+        http_wires={tid: _rewrite_http_wire(w, tops, prefix) for tid, w in spec.http_wires.items()},
+        ble_wires={tid: _rewrite_ble_wire(w, tops, prefix) for tid, w in spec.ble_wires.items()},
     )
+
+
+def _rewrite_http_wire(wire: HttpCommandWire, tops: frozenset[str], prefix: str) -> HttpCommandWire:
+    """Rewrite a per-command HTTP codec import to the vendored namespace (no-op without an override)."""
+    if wire.codec_import is None:
+        return wire
+    return replace(wire, codec_import=_rewrite_import_line(wire.codec_import, tops, prefix))
+
+
+def _rewrite_ble_wire(wire: BleCommandWire, tops: frozenset[str], prefix: str) -> BleCommandWire:
+    """Rewrite a per-command BLE codec import to the vendored namespace (no-op without an override)."""
+    if wire.codec_import is None:
+        return wire
+    return replace(wire, codec_import=_rewrite_import_line(wire.codec_import, tops, prefix))
 
 
 def _rewrite_attribute_spec(spec: AttributeSpec, tops: frozenset[str], prefix: str) -> AttributeSpec:
@@ -451,6 +467,16 @@ def _kandra_version() -> str:
 # ---------------------------------------------------------------------------
 
 
+def _command_codec_entry_points(command: Command) -> list[tuple[str, str]]:
+    """Return ``(module, label)`` pairs for a command's per-transport codec overrides."""
+    eps: list[tuple[str, str]] = []
+    wires: list[tuple[str, HttpCommandSpec | BleCommandSpec]] = [*command.http.items(), *command.ble.items()]
+    for tid, spec in wires:
+        if spec.codec is not None:
+            eps.append((spec.codec.split(":")[0], f"command {command.id!r} codec on transport {tid!r}"))
+    return eps
+
+
 def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
     """Collect ``(module, label)`` for every dotted reference the generator resolves.
 
@@ -462,6 +488,7 @@ def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
     for c in manifest.commands:
         if c.handler is not None:
             eps.append((c.handler.split(":")[0], f"command {c.id!r} handler"))
+        eps.extend(_command_codec_entry_points(c))
     for a in manifest.attributes:
         if a.handler is not None:
             eps.append((a.handler.split(":")[0], f"attribute {a.id!r} handler"))
@@ -531,6 +558,23 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
     return specs
 
 
+def _wire_codec(
+    codec: str | None, cmd_id: str, tid: str, entry_modules: set[str]
+) -> tuple[str | None, str | None]:
+    """Resolve an optional per-command codec override to an ``(import_line, alias)`` pair.
+
+    Records the codec's module in ``entry_modules`` so it is vendored, and returns
+    ``(None, None)`` when the command declares no override.
+    """
+    if codec is None:
+        return None, None
+    module_path, class_name = codec.split(":")
+    _import_attr(module_path, class_name, what=f"command {cmd_id!r} codec on transport {tid!r}")
+    entry_modules.add(module_path)
+    alias = f"_CmdCodec_{_sanitize(cmd_id)}_{_sanitize(tid)}"
+    return f"from {module_path} import {class_name} as {alias}", alias
+
+
 def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], frozenset[str]]:
     """Resolve manifest commands into render specs and their entry-point modules.
 
@@ -554,8 +598,10 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
         resp_alias = f"_Resp_{safe}"
         ns, method = _split_namespace(cmd.id)
 
-        http_wires = {
-            tid: HttpCommandWire(
+        http_wires: dict[str, HttpCommandWire] = {}
+        for tid, spec in cmd.http.items():
+            codec_import, codec_alias = _wire_codec(spec.codec, cmd.id, tid, entry_modules)
+            http_wires[tid] = HttpCommandWire(
                 method=spec.method,
                 path=spec.path,
                 body_codec=spec.body_codec,
@@ -563,17 +609,19 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
                 query_from_request=spec.query_from_request,
                 expects_response=spec.expects_response,
                 timeout=spec.timeout,
+                codec_import=codec_import,
+                codec_alias=codec_alias,
             )
-            for tid, spec in cmd.http.items()
-        }
-        ble_wires = {
-            tid: BleCommandWire(
-                channel=spec.channel,
-                expects_response=spec.expects_response,
-                timeout=spec.timeout,
+        ble_wires: dict[str, BleCommandWire] = {}
+        for tid, ble_spec in cmd.ble.items():
+            codec_import, codec_alias = _wire_codec(ble_spec.codec, cmd.id, tid, entry_modules)
+            ble_wires[tid] = BleCommandWire(
+                channel=ble_spec.channel,
+                expects_response=ble_spec.expects_response,
+                timeout=ble_spec.timeout,
+                codec_import=codec_import,
+                codec_alias=codec_alias,
             )
-            for tid, spec in cmd.ble.items()
-        }
 
         specs.append(
             CommandSpec(
