@@ -83,17 +83,19 @@ commands:
     handler: devices.pneumatic_bear_poker.handlers.settings:ReadIntensity
     transports: [http]
     http:
-      method: GET
-      path: /v1/settings/intensity
-      query_from_request: true    # request fields -> ?level=X
+      http:
+        method: GET
+        path: /v1/settings/intensity
+        query_from_request: true    # request fields -> ?level=X
 
   # POST — JSON body, JSON response.
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
     transports: [http]
     http:
-      method: POST
-      path: /v1/poker/deploy
+      http:
+        method: POST
+        path: /v1/poker/deploy
 ```
 
 HTTP verbs are **not** interchangeable — `GET /status` and `POST /status` are different operations to a
@@ -104,18 +106,15 @@ This forced a generalization: `Transport` became `Transport[WireReqT, WireRespT]
 `Codec[RequestT, ResponseT, WireReqT, WireRespT]`. Loopback stays `Transport[bytes, bytes]`; HTTP is
 `Transport[HttpRequest, HttpResponse]`; BLE is `Transport[BleRequest, bytes]`.
 
-### Retries are a wrapper, not a base-protocol concern
+### Retries live above the transport, not in the base protocol
 
-Two distinct retry concerns, deliberately kept apart:
-
-- **I/O-level** (connection refused, read timeout): a `RetryingTransport(inner, policy)` wrapper that
-  composes around any `Transport`. Default-off; opt in at construction time.
-
-- **Protocol-level** (HTTP 503, a BLE "busy" ack): belongs *above* the transport, at the command
-  dispatcher, which consults the `Result[T]` classification and resubmits on a configured allow-list.
-
-Keeping them separate means a "send once, observe the truth" test mode is simply *no wrapper*, not a
-magic flag.
+Retry policy is deliberately kept out of the base `Transport` protocol, so a "send once, observe the
+truth" test mode is just the default rather than a magic flag. Retries are instead a **per-command**
+concern declared in the manifest: mark a command `idempotent: true` (re-sending is a safe no-op) and
+give it `retries: N`, and `dispatch()` re-sends it up to `N` times after a *transient transport
+failure* (dropped link, timeout). Non-idempotent commands are never auto-retried. Protocol-level
+backoff (an HTTP 503 or a BLE "busy" ack the device wants you to retry) is **not** automated today —
+`dispatch()` returns the classified `Result` and the caller decides whether to re-issue.
 
 ### No-response commands are a manifest flag
 
@@ -127,7 +126,7 @@ ack over BLE before the firmware tears down, unlike HTTP). The runtime then:
 3. **Swallows a `TransportTimeoutError` and treats it as success** — the fire-and-forget contract.
 4. Skips `codec.decode` entirely.
 5. Requires the handler's `response` attribute to be `None` (enforced at build time).
-6. Returns `Result[None](classification=ACCEPTED, data=None)`.
+6. Returns `None` — there is no `Result`, since nothing was classified or decoded.
 
 This replaces a hand-maintained "no-response commands" allow-list with a per-command declarative flag
 that both the generator and runtime can see.
@@ -138,14 +137,19 @@ that both the generator and runtime can see.
 *name*, lives in the device's source tree, and is wired in by the manifest — never by an
 `if 'foo' in url` buried in the transport.
 
-- **Per-command codec override.** A command may name its own serialization codec (e.g. a
-  `query_codec:` for a firmware that expects percent-literals in the query string) instead of
-  inheriting the transport default. The override lives in the device's source tree, is documented as a
-  firmware-bug workaround, and is greppable from every direction (codec name → call sites; URL path →
-  manifest entry; bug ID → docstring).
+- **Per-command codec override.** A command's per-transport wire block may name its own `codec:`
+  instead of inheriting the transport default. This is how one transport carries mixed wire formats — a
+  JSON status endpoint alongside a raw-bytes media download over the same HTTP transport, or a TLV
+  control channel alongside an opaque-payload channel over the same BLE link. For HTTP the override
+  replaces the built-in `HttpJsonCodec` (typically a subclass that overrides `decode`); for BLE it
+  replaces the transport's payload codec for that command's channel. The override lives in the device's
+  source tree, is vendored into the SDK, and is greppable from every direction (codec name → call
+  sites; URL path or channel → manifest entry; bug ID → docstring).
 
-- **Transport request filters.** For non-payload quirks (e.g. "this command needs `Connection: close`"),
-  the manifest attaches a named `request_filter` from the source tree.
+- **Header and envelope quirks ride in that same codec.** A codec produces the *entire* wire request —
+  for HTTP that includes the method, path, query, and headers — so a "this command needs `Connection:
+  close`" quirk is just a field the custom codec sets. There is no separate request-filter concept to
+  learn or maintain.
 
 **The five-year-old-bug test.** If a future engineer asks "why does this command behave differently?",
 the answer is one manifest-grep plus one source-file open away. No archaeology, and no URL-substring
@@ -158,8 +162,7 @@ Every dispatched response is wrapped in a `Result[T]` carrying a five-state `Cla
 prior art, and what changed:
 
 - A device-specific result type became the **generic `Result[T]`**; a device-specific fault name became
-  the neutral `DEVICE_FAULT`. The generator may optionally emit a per-device alias
-  (`MyDeviceResult = Result`) for ergonomic continuity.
+  the neutral `DEVICE_FAULT`.
 
 - Convenience predicates (`accepted`, `rejected`, …) are adopted as-is on `Result[T]`.
 
@@ -167,9 +170,6 @@ prior art, and what changed:
   `.accepted` or reads `.data`. A framework built on Kandra wires
   `client.on_non_accepted = self.fail_test` itself; an `ignore_failures()` context manager suppresses
   it for negative-path assertions.
-
-- Raw-envelope escape hatches collapse into one generic `result.wire`, returning the transport envelope
-  for white-box tests.
 
 - **Universal** classification rules (anomalous; transport failure; HTTP 5xx → fault; HTTP 4xx →
   reject) ship in `kandra_runtime`. **Device-specific** rules (an application status enum, a BLE TLV
