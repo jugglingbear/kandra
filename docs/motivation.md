@@ -31,7 +31,7 @@ Kandra picks a different tradeoff:
 flowchart LR
     subgraph inputs["Authoring inputs (your repo, never shipped)"]
         direction TB
-        yaml["device.yaml"]
+        yaml["manifest.yaml"]
         handlers["handlers/*.py"]
         codecs["codecs/*.py"]
         models["models/*.py"]
