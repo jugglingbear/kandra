@@ -47,32 +47,30 @@ In one terminal, start the Flask firmware simulator. It implements every HTTP en
 the discovery probe, and the enrollment login:
 
 ```bash
-PORT=8080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
+PORT=48080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
 ```
 
-It serves on `http://localhost:8080` — leave it running. If that port is taken (VS Code and friends often squat on
-8080), change `PORT` to a free one and pass the demo the matching `--url http://localhost:<port>` in step 4; discovery
-probes exactly the URL you give it.
+It serves on `http://localhost:48080` — a high, uncommon port picked to stay out of the way of other dev servers.
+Leave it running, and point the demo at this same URL in step 4.
 
 ## 4. Run the lifecycle demo
 
-In a **second** terminal, run the demo. It needs the generated SDK (`dist/`) and the example's handler source
-(`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
+In a **second** terminal, run the demo against that same URL. It needs the generated SDK (`dist/`) and the example's
+handler source (`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py
+  poetry run python examples/pneumatic_bear_poker/demo.py --url http://localhost:48080
 ```
 
-(If your sim is on a non-default port, add `--url http://localhost:<port>`.) You should see each lifecycle phase
-logged, ending in a successful deploy:
+You should see each lifecycle phase logged, ending in a successful deploy:
 
 ```text
 [STORE] identities file: ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
 [STORE] currently saved: (none)
 [PHASE] no saved identity 'grizzly' -- running discover + enroll
-[DISCOVER] probing http://localhost:8080 for a Pneumatic Bear Poker ...
-[DISCOVER] found device at http://localhost:8080
+[DISCOVER] probing http://localhost:48080 for a Pneumatic Bear Poker ...
+[DISCOVER] found device at http://localhost:48080
 [ENROLL] POSTing /v1/auth/login and capturing the bearer token ...
 [ENROLL] credentials captured
 [SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
@@ -112,7 +110,7 @@ stale address fails with `TRANSPORT_FAILURE` — the demo detects that and print
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://localhost:8080
+  poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://localhost:48080
 ```
 
 `--reset` forgets the `grizzly` identity before running; deleting the JSON file shown in the `[STORE]` line does the
@@ -139,7 +137,7 @@ Prefer a container? The simulator ships a Dockerfile:
 
 ```bash
 docker build -t pneumatic-bear-poker-sim examples/pneumatic_bear_poker/firmware_sim
-docker run --rm -p 8080:8080 pneumatic-bear-poker-sim
+docker run --rm -p 48080:8080 pneumatic-bear-poker-sim
 ```
 
 Then run the demo exactly as in step 4.
