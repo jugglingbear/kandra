@@ -55,7 +55,7 @@ It serves on `http://localhost:8080`. Leave it running.
 ```{note}
 **Port 8080 already in use?** Plenty of tools (VS Code among them) squat on 8080. Start the sim on another port with
 `PORT=8081 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app`, then pass the demo the matching
-`BEAR_POKER_URL=http://localhost:8081` in step 4. The two must agree -- discovery probes exactly the URL you give it.
+`--url http://localhost:8081` in step 4. The two must agree -- discovery probes exactly the URL you give it.
 ```
 
 ## 4. Run the lifecycle demo
@@ -68,12 +68,21 @@ PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
   poetry run python examples/pneumatic_bear_poker/demo.py
 ```
 
-You should see:
+(If your sim is on a non-default port, add `--url http://localhost:<port>`.) You should see each lifecycle phase
+logged, ending in a successful deploy:
 
 ```text
-found HTTP: http://localhost:8080
-enrolled 'kitchen-bear'; saved identity to <PlatformDirsJsonStore ...>
-bear poked: delivered_psi=42
+[STORE] identities file: ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
+[STORE] currently saved: (none)
+[PHASE] no saved identity 'grizzly' -- running discover + enroll
+[DISCOVER] probing http://localhost:8080 for a Pneumatic Bear Poker ...
+[DISCOVER] found device at http://localhost:8080
+[ENROLL] POSTing /v1/auth/login and capturing the bearer token ...
+[ENROLL] credentials captured
+[SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
+[CONNECT] reopening device from saved identity 'grizzly' ...
+[DEPLOY] sending poker.deploy(pressure_psi=42) ...
+[DEPLOY] accepted: bear poked, delivered_psi=42
 ```
 
 That last line is the round trip: your Python `DeployRequest(pressure_psi=42)` went out over HTTP, and the device's
@@ -88,9 +97,9 @@ walks the phases every real caller follows — each is a single line in the gene
    [discovery](concepts/scanner.md) criteria. (The demo passes `base_urls=[...]` to aim it at the local sim.)
 2. **Enroll** — `HttpEnrollment` POSTs the login form and captures a bearer token, producing a persistent
    [Identity](concepts/identity.md).
-3. **Save** — `PlatformDirsJsonStore` writes that identity to a per-user config dir, so next time you skip discovery
-   and enrollment entirely.
-4. **Connect** — `PneumaticBearPokerClient.connect("kitchen-bear")` reloads the saved identity, opens the transport,
+3. **Save** — `PlatformDirsJsonStore` writes that identity to a per-user data dir (printed as the `[STORE]` line
+   above), so next time you skip discovery and enrollment entirely.
+4. **Connect** — `PneumaticBearPokerClient.connect("grizzly")` reloads the saved identity, opens the transport,
    and returns an async context manager.
 5. **Dispatch** — `await client.poker.deploy(...)` encodes the request, sends it, classifies the response, and returns
    a typed [`Result`](concepts/result.md).
@@ -99,14 +108,33 @@ Run the demo a second time and it skips straight to step 4 — the saved identit
 enrollment. See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
 shortcut that collapses steps 1–4).
 
-## Point it at real hardware
+## Clearing a saved identity
 
-The demo defaults to the local sim. To drive a real device, set its base URL:
+That saved identity is a small JSON cache — the demo prints its exact location each run (the `[STORE]` line). It
+pins the address captured at enrollment, so if the device later moves (a new sim port or IP), reconnecting to a
+stale address fails with `TRANSPORT_FAILURE` — the demo detects that and prints a hint. To forget it and re-enroll:
 
 ```bash
-BEAR_POKER_URL=http://192.168.1.50:8080 \
-  PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py
+PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
+  poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://localhost:8080
+```
+
+`--reset` forgets the `grizzly` identity before running; deleting the JSON file shown in the `[STORE]` line does the
+same by hand.
+
+```{note}
+Kandra *does* auto-detect one kind of staleness: expired or revoked **credentials** (an HTTP `401`/`403`) surface as a
+recoverable [`IdentityStaleError`](concepts/lifecycle.md) that triggers re-enrollment. A moved **address**, though, is
+indistinguishable from a device that is simply offline, so it cannot be auto-detected — hence `--reset`.
+```
+
+## Point it at real hardware
+
+The demo defaults to the local sim. To drive a real device, point `--url` at it:
+
+```bash
+PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
+  poetry run python examples/pneumatic_bear_poker/demo.py --url http://192.168.1.50:8080
 ```
 
 ## Run the simulator in Docker
