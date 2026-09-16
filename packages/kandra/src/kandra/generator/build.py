@@ -24,7 +24,7 @@ from kandra.audience import (
     posix_relpath,
     resolve_file_audience,
 )
-from kandra.closure import ClosureResult, ModuleFile, build_module_index, walk_closure
+from kandra.closure import ClosureResult, ModuleFile, build_module_index, resolve_entry_points, walk_closure
 from kandra.generator.render import (
     AttributeSpec,
     BleCommandWire,
@@ -129,6 +129,7 @@ def build_sdk(
     package_path = out_root / package_name
 
     with _augment_sys_path(resolved_roots):
+        resolve_entry_points(_manifest_entry_points(manifest), resolved_roots)
         transport_specs = _resolve_transports(manifest)
         command_specs, _entry = _resolve_commands(manifest.commands)
         attribute_op_specs, attribute_specs, _attr_entry = _resolve_attributes(manifest.attributes)
@@ -207,6 +208,7 @@ def _build_profile_sdk(
     package_path = out_root / package_name
 
     with _augment_sys_path(resolved_roots):
+        resolve_entry_points(_manifest_entry_points(manifest), resolved_roots)
         transport_specs = _resolve_transports(manifest)
         command_specs, entry_modules = _resolve_commands(surviving)
         attribute_op_specs, attribute_specs, attr_entry = _resolve_attributes(surviving_attrs)
@@ -447,6 +449,33 @@ def _kandra_version() -> str:
 # ---------------------------------------------------------------------------
 # Manifest → spec translation
 # ---------------------------------------------------------------------------
+
+
+def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
+    """Collect ``(module, label)`` for every dotted reference the generator resolves.
+
+    Handlers, codecs, and adapters are all user code that gets vendored, so each
+    must live under a source root (point ``source_roots`` at a shared tree if some
+    are shared across devices).
+    """
+    eps: list[tuple[str, str]] = []
+    for c in manifest.commands:
+        if c.handler is not None:
+            eps.append((c.handler.split(":")[0], f"command {c.id!r} handler"))
+    for a in manifest.attributes:
+        if a.handler is not None:
+            eps.append((a.handler.split(":")[0], f"attribute {a.id!r} handler"))
+    for e in manifest.events:
+        if e.handler is not None:
+            eps.append((e.handler.split(":")[0], f"event {e.id!r} handler"))
+    for t in manifest.transports:
+        # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not
+        # an entry point the generator resolves -- mirror _transport_codec_entry_modules.
+        if t.family != "http" and t.codec is not None:
+            eps.append((t.codec.split(":")[0], f"transport {t.id!r} codec"))
+        if t.adapter is not None:
+            eps.append((t.adapter.split(":")[0], f"transport {t.id!r} adapter"))
+    return eps
 
 
 def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:

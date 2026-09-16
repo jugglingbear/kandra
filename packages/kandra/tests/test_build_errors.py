@@ -7,6 +7,7 @@ from importlib import metadata
 from pathlib import Path
 
 import pytest
+from kandra.closure import ClosureError
 from kandra.generator import BuildError, build_sdk
 from kandra.generator import build as build_mod
 
@@ -25,9 +26,11 @@ def _project(
     handler_src: str | None = _GOOD_HANDLER,
     command_id: str = "ping.check",
     source_roots: str = "[src]",
+    adapter_ref: str | None = None,
     extra_manifest: str = "",
 ) -> Path:
     """Write a minimal manifest + optional handler module; return the manifest path."""
+    adapter_line = f"    adapter: {adapter_ref}\n" if adapter_ref else ""
     src = root / "src"
     (src / "dev").mkdir(parents=True, exist_ok=True)
     (src / "dev" / "__init__.py").write_text("", encoding="utf-8")
@@ -38,7 +41,9 @@ def _project(
         "schema_version: 1\n"
         "device:\n  id: mini\n  display_name: Mini\n  audience: [internal, partner]\n"
         f"source_roots: {source_roots}\n"
-        "transports:\n  - id: http\n    codec: k.c:C\n    family: http\n"
+        "transports:\n  - id: http\n    codec: k.c:C\n"
+        f"{adapter_line}"
+        "    family: http\n"
         "commands:\n"
         f"  - id: {command_id}\n    handler: {handler_ref}\n    transports: [http]\n"
         "    audience: [internal, partner]\n"
@@ -70,9 +75,34 @@ def test_handler_request_not_a_class_raises(tmp_path: Path) -> None:
         build_sdk(manifest, output_root=tmp_path / "out")
 
 
+def test_handler_outside_source_root_raises(tmp_path: Path) -> None:
+    # A handler that imports fine but lives outside the declared source roots must
+    # fail up front, not silently skip vendoring.
+    manifest = _project(tmp_path, handler_ref="collections:OrderedDict", handler_src=None)
+    with pytest.raises(ClosureError, match="not under any source root"):
+        build_sdk(manifest, output_root=tmp_path / "out")
+
+
+def test_profile_build_also_checks_entry_points(tmp_path: Path) -> None:
+    manifest = _project(tmp_path, handler_ref="collections:OrderedDict", handler_src=None)
+    (tmp_path / "audience_profiles.yaml").write_text(
+        "profiles:\n  internal:\n    include_audience: [internal, partner]\n    deny_substrings: []\nfiles: {}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ClosureError, match="not under any source root"):
+        build_sdk(manifest, output_root=tmp_path / "out", profile="internal")
+
+
+def test_adapter_outside_source_root_raises(tmp_path: Path) -> None:
+    # Codecs and adapters are held to the same rule as handlers: under a source root.
+    manifest = _project(tmp_path, adapter_ref="collections:OrderedDict")
+    with pytest.raises(ClosureError, match="not under any source root"):
+        build_sdk(manifest, output_root=tmp_path / "out")
+
+
 def test_handler_module_import_failure_raises(tmp_path: Path) -> None:
     manifest = _project(tmp_path, handler_ref="dev.missing:H", handler_src=None)
-    with pytest.raises(BuildError, match="cannot import module 'dev.missing'"):
+    with pytest.raises(ClosureError, match="dev.missing.*cannot be found"):
         build_sdk(manifest, output_root=tmp_path / "out")
 
 

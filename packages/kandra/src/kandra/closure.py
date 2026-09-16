@@ -22,6 +22,7 @@ Two manifest escape hatches are honored (see ``Vendoring`` in the manifest model
 from __future__ import annotations
 
 import ast
+import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -31,11 +32,12 @@ if TYPE_CHECKING:
 
 
 class ClosureError(Exception):
-    """Raised when the import closure cannot be computed.
+    """Raised when the import closure cannot be computed or an entry point is unresolved.
 
-    Causes include an unparseable source file, a dotted entry point that does
-    not resolve under any source root, or two source roots defining the same
-    top-level module name.
+    Causes include an unparseable source file, two source roots defining the same
+    top-level module name, an ``extra_include`` pattern that matches no files, or
+    (via :func:`resolve_entry_points`) a manifest handler / codec / adapter that
+    does not live under any source root.
     """
 
 
@@ -122,6 +124,52 @@ def build_module_index(roots: Sequence[Path]) -> dict[str, ModuleFile]:
     return index
 
 
+def resolve_entry_points(
+    entry_points: Sequence[tuple[str, str]],
+    roots: Sequence[Path],
+) -> None:
+    """Fail fast unless every manifest entry point lives under a source root.
+
+    This is the guard behind the promise that the closure walk is *restricted to
+    the source roots*. Handlers, codecs, and adapters are all user code that gets
+    vendored into a self-contained SDK, so each must resolve to a file under a
+    declared source root (point ``source_roots`` at a shared tree when some are
+    shared across devices). It runs for both a plain build and a ``--profile``
+    build so a mistyped or out-of-tree reference surfaces a clear error up front
+    instead of a late import failure in the generated package.
+
+    Args:
+        entry_points: ``(dotted_module, label)`` pairs for each handler / codec /
+            adapter the generator resolves.
+        roots: Source-root directories the generator may vendor from.
+
+    Raises:
+        ClosureError: One or more entry points are not under any source root; the
+            message names every offender and the roots searched.
+    """
+    index = build_module_index([r.resolve() for r in roots])
+    problems: list[str] = []
+    for dotted, label in entry_points:
+        if dotted in index:
+            continue
+        if _is_importable(dotted):
+            problems.append(f"  - {label}: module {dotted!r} is importable but not under any source root")
+        else:
+            problems.append(f"  - {label}: module {dotted!r} cannot be found under any source root or imported")
+    if problems:
+        roots_repr = ", ".join(str(r) for r in roots) or "<none>"
+        detail = "\n".join(problems)
+        raise ClosureError(f"manifest entry points do not resolve (source roots: {roots_repr}):\n{detail}")
+
+
+def _is_importable(dotted: str) -> bool:
+    """Return True when ``dotted`` can be located as an importable module."""
+    try:
+        return importlib.util.find_spec(dotted) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 def walk_closure(
     entry_modules: Iterable[str],
     roots: Sequence[Path],
@@ -146,8 +194,10 @@ def walk_closure(
         The :class:`ClosureResult` describing every file to vendor.
 
     Raises:
-        ClosureError: A source file cannot be parsed, or an entry point / extra
-            include does not resolve under any source root.
+        ClosureError: A source file cannot be parsed, an ``extra_include`` pattern
+            matches no files, or two source roots define the same module name.
+            (Entry points outside the roots are treated as external and skipped;
+            use :func:`resolve_entry_points` for an up-front hard check.)
     """
     resolved_roots = [r.resolve() for r in roots]
     index = build_module_index(resolved_roots)
