@@ -47,16 +47,12 @@ In one terminal, start the Flask firmware simulator. It implements every HTTP en
 the discovery probe, and the enrollment login:
 
 ```bash
-poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
+PORT=8080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
 ```
 
-It serves on `http://localhost:8080`. Leave it running.
-
-```{note}
-**Port 8080 already in use?** Plenty of tools (VS Code among them) squat on 8080. Start the sim on another port with
-`PORT=8081 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app`, then pass the demo the matching
-`--url http://localhost:8081` in step 4. The two must agree -- discovery probes exactly the URL you give it.
-```
+It serves on `http://localhost:8080` — leave it running. If that port is taken (VS Code and friends often squat on
+8080), change `PORT` to a free one and pass the demo the matching `--url http://localhost:<port>` in step 4; discovery
+probes exactly the URL you give it.
 
 ## 4. Run the lifecycle demo
 
