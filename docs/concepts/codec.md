@@ -33,9 +33,10 @@ A codec is generic in four types so it can sit precisely between any request/res
   - `HttpResponse`
 ```
 
-End users rarely write the raw four-param signature. They subclass a **family-paired** base shipped with each transport
-— for example `HttpJsonCodec[Req, Resp]` (with `WireReqT` / `WireRespT` already pinned to `HttpRequest` /
-`HttpResponse`).
+End users rarely touch all four parameters. HTTP/JSON commands need no codec at all — the generator wires the runtime's
+`HttpJsonCodec` from your `http:` block. For any other wire format you write a **payload codec**: a plain
+`Codec[Req, Resp, bytes, bytes]` that turns your dataclasses into `bytes` and back, which the generator adapts to the
+transport family (see below).
 
 ## How It Composes
 
@@ -49,28 +50,30 @@ flowchart LR
     codec -->|DeployResponse| user
 ```
 
-## Family-Paired Bases
+## What you write per family
+
+You never subclass the runtime codecs below — the generator instantiates them from the manifest. What you *may* write
+is a **payload codec**: a plain `Codec[Req, Resp, bytes, bytes]`.
 
 ```{list-table}
 :header-rows: 1
 
-* - Base
-  - Transport family
-  - You override...
-* - `HttpJsonCodec[Req, Resp]`
-  - HTTP
-  - `path`, `method`, and `_request_body()` / `_parse_response()`.
-* - `BleChannelCodec[Req, Resp]`
-  - BLE
-  - `tx_uuid`, `rx_uuid`, and the encode / decode helpers.
-* - `LoopbackCodec[Req, Resp]`
-  - Loopback (testing)
-  - Just `encode` / `decode` directly on `bytes`.
+* - Family
+  - Runtime codec (generator-instantiated)
+  - What you write
+* - HTTP
+  - `HttpJsonCodec`, built from the `http:` block (`method` / `path`) and your handler's types
+  - Nothing — omit `codec:` and use plain dataclasses
+* - BLE
+  - `BleChannelCodec`, which wraps your payload codec with the manifest's `ble.channel`
+  - A payload codec `Codec[Req, Resp, bytes, bytes]` (dataclass ↔ `bytes`)
+* - Loopback / custom
+  - the transport calls your codec directly
+  - A codec over `bytes`: `Codec[Req, Resp, bytes, bytes]`
 ```
 
-For most commands a manifest entry suffices — the generator produces the codec subclass for you. Hand-written codecs
-only appear when a command's wire format isn't expressible declaratively (custom binary framing, content-type
-negotiation, etc.).
+For most commands a manifest entry suffices. A hand-written payload codec only appears when a command's wire format
+isn't plain JSON — custom binary framing, TLV, protobuf, and the like.
 
 ## Errors
 
