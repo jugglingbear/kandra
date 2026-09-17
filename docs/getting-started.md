@@ -33,18 +33,19 @@ client package to `dist/pneumatic_bear_poker_sdk/`:
 
 ```text
 dist/pneumatic_bear_poker_sdk/
-├── __init__.py       # re-exports PneumaticBearPokerClient, scan_http, ...
-├── client.py         # typed client facade: connect() / discover_and_connect() + one method per command
-├── registry.py       # per-command codec + interpreter wiring
-├── transports.py     # transport factory table
-├── scanners.py       # discovery helpers baked from the manifest's discovery block
-└── py.typed          # PEP 561 marker
+├── __init__.py           # re-exports PneumaticBearPokerClient, scan_http, ...
+├── client.py             # typed client facade: connect() / discover_and_connect() + one method per command
+├── registry.py           # per-command codec + interpreter wiring
+├── transports.py         # TransportId enum
+├── scanners.py           # discovery helpers baked from the manifest's discovery block
+├── py.typed              # PEP 561 marker
+└── _generated_from.json  # provenance: manifest hash, tool versions, timestamp
 ```
 
 ## 3. Start the device simulator
 
-In one terminal, start the Flask firmware simulator — it implements every HTTP endpoint in the manifest: the commands,
-the discovery probe, and the enrollment login. Run it directly:
+In one terminal, start the Flask firmware simulator — it implements the device's command endpoints plus the discovery
+probe and enrollment login. Run it directly:
 
 ```bash
 PORT=48080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
@@ -77,7 +78,7 @@ You should see each lifecycle phase logged, ending in a successful deploy:
 [PHASE] no saved identity 'grizzly' -- running discover + enroll
 [DISCOVER] probing http://localhost:48080 for a Pneumatic Bear Poker ...
 [DISCOVER] found device at http://localhost:48080
-[ENROLL] POSTing /v1/auth/login and capturing the bearer token ...
+[ENROLL] running the manifest-declared login and capturing the bearer token ...
 [ENROLL] credentials captured
 [SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
 [CONNECT] reopening device from saved identity 'grizzly' ...
@@ -129,7 +130,6 @@ locations and how to clear a saved identity outside the demo.
 - Explore the rest of the generated client: `client.safety.emergency_retract()`, the
   `client.settings.poke_intensity` [attribute](concepts/attribute.md) (read / write / subscribe), and the
   `client.alerts.bear_stirred` [event](concepts/event.md).
-- Build a **pruned, per-audience** SDK with `kandra build --profile partner_woodland` — see
+- Build a **pruned, per-audience** SDK by passing `--profile partner_woodland` to `kandra build` — see
   [Audiences & IP Isolation](concepts/audiences.md).
-```
 
