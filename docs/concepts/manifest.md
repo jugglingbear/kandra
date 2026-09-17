@@ -85,7 +85,10 @@ Each entry under `transports:` names a wire channel. `codec:` is the dotted path
 may omit it. `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime
 default for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class`
 to plug in a custom transport — see
-[Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
+[Custom transports via the manifest](transport.md#custom-transports-via-the-manifest). An HTTP transport may also
+declare `enrollment: { login_path: /path }`, which the generator bakes into a `<device>_sdk.http_enrollment()` factory
+(and the default for `discover_and_connect`), keeping the device's login endpoint out of caller code — see
+[Enrollment](enrollment.md#declaring-the-http-login-in-the-manifest).
 
 Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
 to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live

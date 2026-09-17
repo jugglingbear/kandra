@@ -11,6 +11,7 @@ from kandra_runtime.enrollment import (
     Enrollment,
     EnrollmentError,
     HttpEnrollment,
+    LoginPayloadFactory,
 )
 from kandra_runtime.errors import (
     CapabilityUnavailableError,
@@ -95,6 +96,7 @@ __all__ = [
     "IdentityStaleError",
     "IdentityStore",
     "KandraError",
+    "LoginPayloadFactory",
     "LoopbackTransport",
     "Matcher",
     "NoArgs",

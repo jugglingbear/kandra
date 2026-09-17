@@ -26,14 +26,11 @@ Kandra generates:
 ## Quickstart
 
 ```python
-from kandra_runtime import HttpEnrollment              # Ships with Kandra
 from my_device_sdk import MyDeviceClient               # From your generated SDK
 from my_device.handlers.some_group import SomeRequest  # From your handler code
 
-async with await MyDeviceClient.discover_and_connect(
-    saved_name="kitchen",
-    enrollment=HttpEnrollment(login_path="/v1/auth/login"),
-) as client:
+# The HTTP login endpoint is declared in the manifest, so the common case needs no enrollment adapter.
+async with await MyDeviceClient.discover_and_connect(saved_name="kitchen") as client:
     result = await client.some_group.some_command(SomeRequest(...))
     if result.accepted:
         print(result.data)

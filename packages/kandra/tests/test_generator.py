@@ -54,6 +54,27 @@ def test_build_verification_accepts_the_reference_sdk(tmp_path: Path) -> None:
     assert result.package_path.is_dir()
 
 
+def test_generated_sdk_bakes_http_enrollment(sdk_on_path: Path) -> None:
+    """The manifest enrollment block becomes an exported, baked http_enrollment() factory."""
+    init_src = (sdk_on_path / "__init__.py").read_text(encoding="utf-8")
+    assert "http_enrollment" in init_src
+    client_src = (sdk_on_path / "client.py").read_text(encoding="utf-8")
+    assert "def http_enrollment(" in client_src
+    assert 'login_path="/v1/auth/login"' in client_src
+    # discover_and_connect's enrollment is now optional (defaults to the baked adapters).
+    assert "Enrollment | Mapping[str, Enrollment] | None" in client_src
+
+
+def test_http_enrollment_factory_returns_baked_adapter(sdk_on_path: Path) -> None:
+    """Calling the exported factory yields an HttpEnrollment carrying the manifest login path."""
+    import pneumatic_bear_poker_sdk as sdk
+    from kandra_runtime import HttpEnrollment
+
+    adapter = sdk.http_enrollment()
+    assert isinstance(adapter, HttpEnrollment)
+    assert adapter._login_path == "/v1/auth/login"  # baked from the manifest
+
+
 def test_registry_emits_idempotent_and_retries(sdk_on_path: Path) -> None:
     """``idempotent`` / ``retries`` manifest fields flow into the generated Command(...) entries."""
     registry_src = (sdk_on_path / "registry.py").read_text(encoding="utf-8")

@@ -161,6 +161,16 @@ def _default_token_extractor(payload: Mapping[str, Any]) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _make_field_extractor(field: str) -> TokenExtractor:
+    """Build a :data:`TokenExtractor` that reads the bearer token from a single named field."""
+
+    def _extract(payload: Mapping[str, Any]) -> str | None:
+        value = payload.get(field)
+        return value if isinstance(value, str) else None
+
+    return _extract
+
+
 class HttpEnrollment(Enrollment):
     """HTTP enrollment: optional login POST + token capture.
 
@@ -169,6 +179,8 @@ class HttpEnrollment(Enrollment):
     identity carries no token. When ``login_path`` is set, the adapter
     POSTs the result of ``login_payload`` and runs ``token_extractor``
     against the response JSON to populate ``HttpIdentity.auth_token``.
+    Pass ``token_field`` to read the token from a single named response field;
+    ``token_extractor`` is the escape hatch for richer extraction logic.
     """
 
     def __init__(
@@ -176,6 +188,7 @@ class HttpEnrollment(Enrollment):
         *,
         login_path: str | None = None,
         login_payload: LoginPayloadFactory | None = None,
+        token_field: str | None = None,
         token_extractor: TokenExtractor = _default_token_extractor,
         session_factory: Callable[[], aiohttp.ClientSession] | None = None,
         timeout: float = 5.0,
@@ -183,7 +196,7 @@ class HttpEnrollment(Enrollment):
         """Configure the HTTP enrollment adapter (see class docstring)."""
         self._login_path = login_path
         self._login_payload = login_payload
-        self._token_extractor = token_extractor
+        self._token_extractor = _make_field_extractor(token_field) if token_field is not None else token_extractor
         self._timeout = timeout
         self._session_factory = session_factory or (
             lambda: aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout))

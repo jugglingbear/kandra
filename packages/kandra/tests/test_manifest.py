@@ -122,6 +122,87 @@ commands:
         load_manifest(bad)
 
 
+def test_transport_enrollment_requires_http_family() -> None:
+    """A non-HTTP transport may not declare an enrollment block."""
+    bad = """
+schema_version: 1
+device:
+  id: foo
+  display_name: Foo
+  audience: [internal]
+source_roots: [src]
+transports:
+  - id: loop
+    family: loopback
+    codec: pkg.mod:Codec
+    enrollment: { login_path: /v1/auth/login }
+commands:
+  - id: x
+    handler: pkg.mod:Handler
+    transports: [loop]
+    audience: [internal]
+"""
+    with pytest.raises(LoaderError, match="enrollment is only supported on HTTP"):
+        load_manifest(bad)
+
+
+def test_transport_enrollment_login_path_must_be_absolute() -> None:
+    """login_path must be an absolute path starting with '/'."""
+    bad = """
+schema_version: 1
+device:
+  id: foo
+  display_name: Foo
+  audience: [internal]
+source_roots: [src]
+transports:
+  - id: http
+    family: http
+    enrollment: { login_path: v1/auth/login }
+commands:
+  - id: x
+    handler: pkg.mod:Handler
+    transports: [http]
+    audience: [internal]
+    http:
+      http:
+        method: GET
+        path: /
+"""
+    with pytest.raises(LoaderError, match="must be an absolute path"):
+        load_manifest(bad)
+
+
+def test_transport_enrollment_parses_on_http() -> None:
+    """An HTTP transport accepts a declarative enrollment block."""
+    good = """
+schema_version: 1
+device:
+  id: foo
+  display_name: Foo
+  audience: [internal]
+source_roots: [src]
+transports:
+  - id: http
+    family: http
+    enrollment: { login_path: /v1/auth/login, token_field: token }
+commands:
+  - id: x
+    handler: pkg.mod:Handler
+    transports: [http]
+    audience: [internal]
+    http:
+      http:
+        method: GET
+        path: /
+"""
+    manifest = load_manifest(good)
+    (transport,) = manifest.transports
+    assert transport.enrollment is not None
+    assert transport.enrollment.login_path == "/v1/auth/login"
+    assert transport.enrollment.token_field == "token"
+
+
 def test_duplicate_transport_id_is_rejected() -> None:
     bad = """
 schema_version: 1

@@ -975,6 +975,18 @@
           "title": "Config",
           "type": "object"
         },
+        "enrollment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransportEnrollment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HTTP only: declarative first-run login endpoint baked into the generated SDK's enrollment adapter."
+        },
         "family": {
           "anyOf": [
             {
@@ -1020,6 +1032,36 @@
         "handler"
       ],
       "title": "TransportAuth",
+      "type": "object"
+    },
+    "TransportEnrollment": {
+      "additionalProperties": false,
+      "description": "Declarative first-run login the generated SDK bakes into its HTTP enrollment adapter.\n\nOnly the *static* wiring lives here (the login path plus which response field carries the\ntoken). Runtime secrets -- credentials, API keys -- never live in the manifest; callers\ninject them at runtime via the generated ``<family>_enrollment(login_payload=...)`` factory.",
+      "properties": {
+        "login_path": {
+          "description": "Path (relative to the device base URL) the SDK POSTs to capture a credential, e.g. ``/v1/auth/login``.",
+          "minLength": 1,
+          "title": "Login Path",
+          "type": "string"
+        },
+        "token_field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Response JSON field holding the bearer token; defaults to the runtime's ``token`` / ``access_token`` probe.",
+          "title": "Token Field"
+        }
+      },
+      "required": [
+        "login_path"
+      ],
+      "title": "TransportEnrollment",
       "type": "object"
     },
     "Vendoring": {

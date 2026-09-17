@@ -165,6 +165,20 @@ async def test_http_enrollment_with_custom_extractor(auth_server) -> None:  # ty
     assert ident.auth_token == "alt-token"
 
 
+async def test_http_enrollment_with_token_field(auth_server) -> None:  # type: ignore[no-untyped-def]
+    """``token_field`` reads the bearer token from a single named response field."""
+    base, _ = auth_server
+    enrollment = HttpEnrollment(
+        login_path="/login_alt",
+        login_payload=lambda _c: {},
+        token_field="access_token",
+    )
+    candidate = Candidate(transport="http", address=base)
+    ident = await enrollment.enroll(candidate, saved_name="cloud")
+    assert isinstance(ident, HttpIdentity)
+    assert ident.auth_token == "alt-token"
+
+
 async def test_http_enrollment_login_failure_raises(auth_server) -> None:  # type: ignore[no-untyped-def]
     base, _ = auth_server
     enrollment = HttpEnrollment(

@@ -27,15 +27,17 @@ call: it tries the store first, and only falls back to scan + enroll
 + save when no record exists for `saved_name`.
 
 ```python
-from kandra_runtime import BleEnrollment, HttpEnrollment  # ships with Kandra
-from my_device_sdk import MyDeviceClient                  # generated from your manifest
-from my_device.handlers.poker import DeployRequest        # your hand-written request model
+from kandra_runtime import BleEnrollment                        # ships with Kandra
+from my_device_sdk import MyDeviceClient, http_enrollment       # generated from your manifest
+from my_device.handlers.poker import DeployRequest              # your hand-written request model
 
 async with await MyDeviceClient.discover_and_connect(
     saved_name="kitchen",
+    # An HTTP-only device needs no enrollment arg at all; a mixed device names each
+    # family it must enroll. `http_enrollment()` carries the manifest-baked login path.
     enrollment={
         "ble": BleEnrollment(),
-        "http": HttpEnrollment(login_path="/v1/auth/login"),
+        "http": http_enrollment(),
     },
 ) as client:
     result = await client.poker.deploy(DeployRequest(pressure_psi=42))
@@ -59,13 +61,15 @@ Where each import comes from:
 - **Every subsequent run:** loads `"kitchen"` from the store and
   opens transports. No BLE scanning, no HTTP login round-trip.
 
-For a single-family device (only BLE *or* only HTTP), pass a bare `Enrollment` instead of a mapping:
+For a single-family device you can pass a bare `Enrollment` instead of a mapping — or, for an HTTP device whose login
+is declared in the manifest, omit it entirely:
 
 ```python
-client = await MyDeviceClient.discover_and_connect(
-    saved_name="kitchen",
-    enrollment=HttpEnrollment(login_path="/v1/auth/login"),
-)
+# HTTP device, login baked from the manifest:
+client = await MyDeviceClient.discover_and_connect(saved_name="kitchen")
+
+# BLE-only device (bonding is a runtime step, so still pass the adapter):
+client = await MyDeviceClient.discover_and_connect(saved_name="kitchen", enrollment=BleEnrollment())
 ```
 
 `discover_and_connect()` is only generated when the manifest declares a `discovery:` block; without it, callers must use
@@ -139,18 +143,16 @@ any of:
 The explicit equivalent:
 
 ```python
-from kandra_runtime import HttpEnrollment, PlatformDirsJsonStore
-from my_device_sdk import MyDeviceClient, scan_http
+from kandra_runtime import PlatformDirsJsonStore
+from my_device_sdk import MyDeviceClient, http_enrollment, scan_http
 from my_device.handlers.poker import DeployRequest
 
 # Phase 1: discover
 candidates = await scan_http(timeout=5.0)
 candidate = candidates[0]  # or a smarter picker
 
-# Phase 2: enroll
-identity = await HttpEnrollment(login_path="/v1/auth/login").enroll(
-    candidate, saved_name="kitchen"
-)
+# Phase 2: enroll (login path baked from the manifest)
+identity = await http_enrollment().enroll(candidate, saved_name="kitchen")
 
 # Phase 3: save
 store = PlatformDirsJsonStore(app_name="my_device_sdk")

@@ -192,3 +192,41 @@ async def test_full_lifecycle_discover_enroll_save_reconnect_dispatch(
     assert result.accepted
     assert result.data == DeployResponse(delivered_psi=42)
     assert result.extra == {"http_status": 200}
+
+
+async def test_discover_and_connect_uses_baked_enrollment(
+    sdk_on_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``discover_and_connect`` with no ``enrollment`` uses the manifest-baked ``http_enrollment()``."""
+    import pneumatic_bear_poker_sdk.client as client_mod
+    import pneumatic_bear_poker_sdk.scanners as scanners_mod
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, DeployResponse
+    from kandra_runtime import HttpIdentity, PlatformDirsJsonStore
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, TransportId
+
+    monkeypatch.setattr(scanners_mod, "HttpScanner", _FakeHttpScanner)
+    monkeypatch.setattr(client_mod, "HttpTransport", _FakeHttpTransport)
+    monkeypatch.setattr(
+        client_mod,
+        "_TRANSPORT_FACTORIES",
+        ((TransportId.HTTP, "http", lambda ident: _FakeHttpTransport.from_identity(ident)),),
+    )
+
+    # The real baked factory would POST a login; swap in a network-free adapter so the
+    # default-enrollment path (enrollment=None -> _default_enrollment_map -> http_enrollment) is exercised.
+    class _NoNetworkEnrollment:
+        async def enroll(self, candidate: Any, *, saved_name: str) -> HttpIdentity:
+            return HttpIdentity(saved_name=saved_name, base_url=candidate.address)
+
+    monkeypatch.setattr(client_mod, "http_enrollment", lambda **_kwargs: _NoNetworkEnrollment())
+
+    store = PlatformDirsJsonStore(app_name="pneumatic_bear_poker_sdk", directory=tmp_path / "store")
+    async with await PneumaticBearPokerClient.discover_and_connect("grizzly", store=store) as client:
+        result = await client.poker.deploy(DeployRequest(pressure_psi=7))
+
+    assert result is not None
+    assert result.accepted
+    assert result.data == DeployResponse(delivered_psi=7)
+    assert PneumaticBearPokerClient.list_saved(store=store) == ["grizzly"]

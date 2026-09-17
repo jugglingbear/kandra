@@ -34,6 +34,10 @@ class TransportSpec:
     # this transport with the runtime default (HttpTransport / BleTransport).
     adapter_import: str | None = None
     adapter_alias: str | None = None
+    # Declarative HTTP enrollment (login_path/token_field) baked into a generated
+    # `http_enrollment()` factory; None when the transport declares no enrollment.
+    enrollment_login_path: str | None = None
+    enrollment_token_field: str | None = None
 
 
 @dataclass(frozen=True)
@@ -149,9 +153,17 @@ class EventSpec:
     subscribe_wires: tuple[SubscribeWire, ...]  # per-transport delivery modes
 
 
-def render_init(device_class: str, *, discovery: DiscoverySpec | None = None) -> str:
+def render_init(
+    device_class: str,
+    *,
+    discovery: DiscoverySpec | None = None,
+    has_http_enrollment: bool = False,
+) -> str:
     """Emit the generated package's ``__init__.py``."""
     sync_class = f"Sync{device_class}"
+    client_exports = [device_class, sync_class]
+    if has_http_enrollment:
+        client_exports.append("http_enrollment")
     extra_imports: list[str] = []
     extra_exports: list[str] = []
     if discovery is not None:
@@ -167,11 +179,11 @@ def render_init(device_class: str, *, discovery: DiscoverySpec | None = None) ->
         extra_exports.extend(scanner_exports)
 
     extra_import_block = ("\n" + "\n".join(extra_imports)) if extra_imports else ""
-    all_list = [device_class, sync_class, "TransportId", *extra_exports]
+    all_list = [*client_exports, "TransportId", *extra_exports]
     all_block = ", ".join(f'"{name}"' for name in all_list)
     return f'''"""Generated SDK. DO NOT EDIT — regenerate with `kandra build`."""
 
-from {_relative()}.client import {device_class}, {sync_class}
+from {_relative()}.client import {", ".join(client_exports)}
 from {_relative()}.transports import TransportId{extra_import_block}
 
 __all__ = [{all_block}]
@@ -981,11 +993,13 @@ def _render_discover_and_connect(families: list[str]) -> str:
         cls,
         saved_name: str,
         *,
-        enrollment: "Enrollment | Mapping[str, Enrollment]",
+        enrollment: "Enrollment | Mapping[str, Enrollment] | None" = None,
         store: "IdentityStore",
         discovery_timeout: float,
     ) -> "Identity":
         """Scan every discoverable family, enroll, and persist the (possibly composite) identity."""
+        if enrollment is None:
+            enrollment = _default_enrollment_map()
         known_families: tuple[str, ...] = ({known_families_repr},)
         if isinstance(enrollment, Mapping):
             enrollment_map: dict[str, Enrollment] = {{
@@ -1026,7 +1040,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
         cls,
         saved_name: str,
         *,
-        enrollment: "Enrollment | Mapping[str, Enrollment]",
+        enrollment: "Enrollment | Mapping[str, Enrollment] | None" = None,
         store: "IdentityStore | None" = None,
         discovery_timeout: float = 10.0,
     ) -> "Identity":
@@ -1055,7 +1069,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
         cls,
         saved_name: str,
         *,
-        enrollment: "Enrollment | Mapping[str, Enrollment]",
+        enrollment: "Enrollment | Mapping[str, Enrollment] | None" = None,
         store: "IdentityStore | None" = None,
         discovery_timeout: float = 10.0,
         transports: "Collection[TransportId] | None" = None,
@@ -1082,12 +1096,13 @@ def _render_discover_and_connect(families: list[str]) -> str:
         saved_name:
             Friendly name to look up (or, on first run, to store under).
         enrollment:
-            Either a single :class:`Enrollment` (acceptable when this
-            device has exactly one discoverable family) or a mapping
-            of family name (``"ble"`` / ``"http"``) to its
-            :class:`Enrollment` adapter. Only the entries matching
-            this device's discoverable families ({known_families_repr})
-            are consulted.
+            Defaults to the adapters declared in the manifest (baked from
+            any ``enrollment:`` transport block). Pass a single
+            :class:`Enrollment`, or a mapping of family name
+            (``"ble"`` / ``"http"``) to its adapter, to override --
+            for example to inject login credentials. Only entries
+            matching this device's discoverable families
+            ({known_families_repr}) are consulted.
         store:
             Identity store. Defaults to a
             :class:`PlatformDirsJsonStore` keyed on this device's id.
@@ -1177,6 +1192,11 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         runtime_extra_imports.extend(
             ["Enrollment", "EnrollmentError", "IdentityNotFoundError"]
         )
+    has_http_enrollment = any(
+        t.family == "http" and t.enrollment_login_path is not None for t in transports
+    )
+    if has_http_enrollment:
+        runtime_extra_imports.extend(["HttpEnrollment", "LoginPayloadFactory"])
     imports_block = (
         "from kandra_runtime import (\n"
         + "".join(f"    {name},\n" for name in sorted(set(runtime_extra_imports)))
@@ -1280,6 +1300,36 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
 
     return _refresh'''
 
+    enrollment_pieces: list[str] = []
+    if has_http_enrollment:
+        http_enroll = next(
+            t for t in transports if t.family == "http" and t.enrollment_login_path is not None
+        )
+        token_arg = (
+            f', token_field="{http_enroll.enrollment_token_field}"'
+            if http_enroll.enrollment_token_field is not None
+            else ""
+        )
+        enrollment_pieces.append(
+            'def http_enrollment(*, login_payload: "LoginPayloadFactory | None" = None) -> "HttpEnrollment":\n'
+            f'    """HTTP enrollment baked from the manifest (login_path={http_enroll.enrollment_login_path}).\n'
+            "\n"
+            "    Pass ``login_payload`` to supply credentials (password, API key, ...) for a login endpoint\n"
+            "    that requires them; omit it for open enrollment.\n"
+            '    """\n'
+            "    return HttpEnrollment(\n"
+            f'        login_path="{http_enroll.enrollment_login_path}"{token_arg}, login_payload=login_payload\n'
+            "    )"
+        )
+    if discoverable_families:
+        _map_entries = '{"http": http_enrollment()}' if has_http_enrollment else "{}"
+        enrollment_pieces.append(
+            'def _default_enrollment_map() -> "dict[str, Enrollment]":\n'
+            '    """Manifest-declared enrollment adapters; used when discover_and_connect gets no enrollment arg."""\n'
+            f'    adapters: "dict[str, Enrollment]" = {_map_entries}\n'
+            "    return adapters"
+        )
+
     module_level = "\n\n".join(
         [
             *module_lines,
@@ -1287,6 +1337,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             identity_helper,
             mark_validated_helper,
             mid_session_helper,
+            *enrollment_pieces,
         ]
     )
 

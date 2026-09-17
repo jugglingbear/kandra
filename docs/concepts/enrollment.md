@@ -11,18 +11,42 @@ The output of enrollment is *exactly* what you persist via an `IdentityStore` an
 
 In the recommended flow, **you don't call `Enrollment.enroll()` directly** — the generated
 `MyDeviceClient.discover_and_connect()` classmethod calls it for you on first run, then persists the result and reuses
-it forever. Your app code only constructs the adapter and hands it off:
+it forever. When the HTTP login endpoint is [declared in the manifest](#declaring-the-http-login-in-the-manifest), you
+don't even name an adapter:
 
 ```python
-async with await MyDeviceClient.discover_and_connect(
-    saved_name="kitchen",
-    enrollment=HttpEnrollment(login_path="/v1/auth/login"),
-) as client: ...
+async with await MyDeviceClient.discover_and_connect(saved_name="kitchen") as client: ...
 ```
 
-Call `Enrollment.enroll()` directly only when you need a custom flow (picking between multiple candidates on the bench,
-multi-step pairing, out-of-band provisioning); see [Lifecycle](lifecycle.md#when-to-use-the-explicit-flow) for the
-explicit two-script pattern.
+Pass `enrollment=` only to *override* that default — to inject login credentials, add a BLE bonding adapter, or supply
+a custom flow (a single `Enrollment`, or a `{family: adapter}` mapping; use the SDK's baked `http_enrollment()` for the
+HTTP entry). Call `Enrollment.enroll()` directly only when you need a custom flow (picking between multiple candidates
+on the bench, multi-step pairing, out-of-band provisioning); see
+[Lifecycle](lifecycle.md#when-to-use-the-explicit-flow) for the explicit two-script pattern.
+
+## Declaring the HTTP Login in the Manifest
+
+Rather than hardcoding the login path at every call site, declare it once on the HTTP transport:
+
+```yaml
+transports:
+  - id: http
+    family: http
+    enrollment: { login_path: /v1/auth/login }   # token_field: token   (optional; defaults to token / access_token)
+```
+
+The generator bakes this into an exported `http_enrollment()` factory and makes it the default for
+`discover_and_connect()`. Callers get the device's auth endpoint for free — it never appears in their code:
+
+```python
+from my_device_sdk import http_enrollment
+
+# Baked login path; inject credentials at runtime when the endpoint needs them.
+adapter = http_enrollment(login_payload=lambda _c: {"username": "u", "password": "p"})
+```
+
+Only the *static* wiring lives in the manifest. Runtime secrets (credentials, API keys) are never stored there — you
+supply them through `login_payload`.
 
 ## The Protocol
 
@@ -48,7 +72,7 @@ the caller catches one exception type regardless of *which* enrollment adapter r
   The bond key itself lives in the OS keychain — Kandra never persists
   raw key material.
 
-`HttpEnrollment` : POSTs a credentials payload to the configured login endpoint, extracts
+`HttpEnrollment` : POSTs a credentials payload to the manifest-declared login endpoint, extracts
   the auth token from the response, and emits an
   {class}`~kandra_runtime.identity.HttpIdentity` carrying that token.
 

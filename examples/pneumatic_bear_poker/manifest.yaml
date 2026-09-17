@@ -19,6 +19,9 @@ transports:
   - id: http
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
+    # The generated SDK bakes this into http_enrollment(); the device's auth
+    # endpoint stays out of caller code (credentials still injected at runtime).
+    enrollment: { login_path: /v1/auth/login }
 
 commands:
   - id: poker.deploy

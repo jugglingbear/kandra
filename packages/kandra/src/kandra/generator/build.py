@@ -530,6 +530,8 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                     codec_alias=None,
                     adapter_import=adapter_import,
                     adapter_alias=adapter_alias,
+                    enrollment_login_path=(t.enrollment.login_path if t.enrollment is not None else None),
+                    enrollment_token_field=(t.enrollment.token_field if t.enrollment is not None else None),
                 )
             )
             continue
@@ -1003,7 +1005,14 @@ def _write_package(
     # op id -> required capability tags, for every gated op (commands + attr/event ops).
     capability_map = {c.command_id: c.capabilities for c in registry_commands if c.capabilities}
     files: list[tuple[str, str]] = [
-        ("__init__.py", render_init(device_class, discovery=discovery)),
+        (
+            "__init__.py",
+            render_init(
+                device_class,
+                discovery=discovery,
+                has_http_enrollment=any(t.enrollment_login_path is not None for t in transports),
+            ),
+        ),
         ("py.typed", ""),
         ("transports.py", render_transports(transports)),
         ("registry.py", render_registry(registry_commands, transports)),

@@ -96,6 +96,27 @@ class TransportAuth(_ManifestModel):
         return _validate_dotted_path(value)
 
 
+class TransportEnrollment(_ManifestModel):
+    """Declarative first-run login the generated SDK bakes into its HTTP enrollment adapter.
+
+    Only the *static* wiring lives here (the login path plus which response field carries the
+    token). Runtime secrets -- credentials, API keys -- never live in the manifest; callers
+    inject them at runtime via the generated ``<family>_enrollment(login_payload=...)`` factory.
+    """
+
+    login_path: str = Field(min_length=1)
+    """Path (relative to the device base URL) the SDK POSTs to capture a credential, e.g. ``/v1/auth/login``."""
+    token_field: str | None = None
+    """Response JSON field holding the bearer token; defaults to the runtime's ``token`` / ``access_token`` probe."""
+
+    @field_validator("login_path")
+    @classmethod
+    def _check_login_path(cls, value: str) -> str:
+        if not value.startswith("/"):
+            raise ValueError(f"login_path must be an absolute path starting with '/', got {value!r}")
+        return value
+
+
 class BleChannelSpec(_ManifestModel):
     """One named (write, notify) characteristic pair on a BLE transport.
 
@@ -138,6 +159,8 @@ class Transport(_ManifestModel):
     """BLE only: named (write, notify) characteristic pairs; commands pick one via ``ble.<id>.channel``."""
     auth: TransportAuth | None = None
     """Reserved: handshake recipe for ``session_required`` commands on this transport (not yet wired)."""
+    enrollment: TransportEnrollment | None = None
+    """HTTP only: declarative first-run login endpoint baked into the generated SDK's enrollment adapter."""
 
     @field_validator("adapter", "codec")
     @classmethod
@@ -157,6 +180,11 @@ class Transport(_ManifestModel):
             raise ValueError(
                 f"transport {self.id!r}: 'codec' is required for family={self.family!r} "
                 "(only HTTP transports may omit it and use the built-in HttpJsonCodec)"
+            )
+        if self.enrollment is not None and self.family != "http":
+            raise ValueError(
+                f"transport {self.id!r} declares enrollment but family is {self.family!r}; "
+                "enrollment is only supported on HTTP transports"
             )
         return self
 
