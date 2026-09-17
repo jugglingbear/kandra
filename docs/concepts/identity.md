@@ -123,8 +123,8 @@ thanks to `@runtime_checkable`.
 ## Where Identities Are Stored
 
 `PlatformDirsJsonStore` writes a single `identities.json` file under the OS-appropriate per-user **data** directory,
-located by [`platformdirs`](https://pypi.org/project/platformdirs/) (the Python standard library has no equivalent).
-For an SDK package named `<sdk>` (e.g. `my_device_sdk`):
+located by [`platformdirs`](https://pypi.org/project/platformdirs/). For an SDK package named `<sdk>`
+(e.g. `my_device_sdk`):
 
 ```{list-table}
 :header-rows: 1
@@ -149,7 +149,7 @@ store (or remove the file by hand):
 ```python
 from kandra_runtime import PlatformDirsJsonStore
 
-PlatformDirsJsonStore(app_name="my_device_sdk").delete("kitchen")
+PlatformDirsJsonStore(app_name="my_device_sdk").delete("my_device")
 ```
 
 ```{note}
