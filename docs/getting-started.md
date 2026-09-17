@@ -44,14 +44,11 @@ dist/pneumatic_bear_poker_sdk/
 ## 3. Start the device simulator
 
 In one terminal, start the Flask firmware simulator. It implements every HTTP endpoint in the manifest — the commands,
-the discovery probe, and the enrollment login:
+the discovery probe, and the enrollment login. Leave it running:
 
 ```bash
 PORT=48080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
 ```
-
-It serves on `http://localhost:48080` — a high, uncommon port picked to stay out of the way of other dev servers.
-Leave it running, and point the demo at this same URL in step 4.
 
 ## 4. Run the lifecycle demo
 
@@ -89,8 +86,8 @@ walks the phases every real caller follows — each is a single line in the gene
 
 1. **Discover** — `scan_http()` probes the device's `/.well-known/...` endpoint and matches on the manifest's
    [discovery](concepts/scanner.md) criteria. (The demo passes `base_urls=[...]` to aim it at the local sim.)
-2. **Enroll** — `HttpEnrollment` POSTs the login form and captures a bearer token, producing a persistent
-   [Identity](concepts/identity.md).
+2. **Enroll** — the SDK's baked `http_enrollment()` (login path declared in the manifest) POSTs the login form and
+   captures a bearer token, producing a persistent [Identity](concepts/identity.md).
 3. **Save** — `PlatformDirsJsonStore` writes that identity to a per-user data dir (printed as the `[STORE]` line
    above), so next time you skip discovery and enrollment entirely.
 4. **Connect** — `PneumaticBearPokerClient.connect("grizzly")` reloads the saved identity, opens the transport,
@@ -102,25 +99,18 @@ Run the demo a second time and it skips straight to step 4 — the saved identit
 enrollment. See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
 shortcut that collapses steps 1–4).
 
-## Clearing a saved identity
+## Resetting the demo
 
-That saved identity is a small JSON cache — the demo prints its exact location each run (the `[STORE]` line). It
-pins the address captured at enrollment, so if the device later moves (a new sim port or IP), reconnecting to a
-stale address fails with `TRANSPORT_FAILURE` — the demo detects that and prints a hint. To forget it and re-enroll:
+The demo saves an identity on first run (the `[STORE]` line prints where). To wipe it and re-run discovery +
+enrollment — say, after moving the sim to a new port — pass `--reset`:
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
   poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://localhost:48080
 ```
 
-`--reset` forgets the `grizzly` identity before running; deleting the JSON file shown in the `[STORE]` line does the
-same by hand.
-
-```{note}
-Kandra *does* auto-detect one kind of staleness: expired or revoked **credentials** (an HTTP `401`/`403`) surface as a
-recoverable [`IdentityStaleError`](concepts/lifecycle.md) that triggers re-enrollment. A moved **address**, though, is
-indistinguishable from a device that is simply offline, so it cannot be auto-detected — hence `--reset`.
-```
+See [Identity → Where identities are stored](concepts/identity.md#where-identities-are-stored) for the on-disk
+locations and how to clear a saved identity outside the demo.
 
 ## Point it at real hardware
 

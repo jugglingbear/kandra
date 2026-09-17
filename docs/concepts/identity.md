@@ -100,8 +100,8 @@ sub-transport is wired up.
 ```
 
 The default implementation, {class}`~kandra_runtime.identity_store_file.PlatformDirsJsonStore`, writes to the
-OS-appropriate user-config directory (via `platformdirs`) using an atomic-rename strategy that's safe for the typical
-single-process CLI case.
+OS-appropriate per-user data directory (via `platformdirs`) using an atomic-rename strategy that's safe for the typical
+single-process CLI case; [Where Identities Are Stored](#where-identities-are-stored) lists the exact paths per OS.
 
 For sandbox scripts, tutorials, and unit tests, the runtime also ships
 {class}`~kandra_runtime.testing.MemoryIdentityStore` — an in-memory implementation that keeps records in a plain
@@ -119,6 +119,44 @@ client = await MyDeviceClient.connect("dev", store=store)
 
 Custom backends (Redis, SQLite, OS keychain) only need to satisfy the four-method `Protocol` — no inheritance required,
 thanks to `@runtime_checkable`.
+
+## Where Identities Are Stored
+
+`PlatformDirsJsonStore` writes a single `identities.json` file under the OS-appropriate per-user **data** directory,
+located by [`platformdirs`](https://pypi.org/project/platformdirs/) (the Python standard library has no equivalent).
+For an SDK package named `<sdk>` (e.g. `my_device_sdk`):
+
+```{list-table}
+:header-rows: 1
+:widths: 20 80
+
+* - OS
+  - `identities.json` location
+* - **macOS**
+  - `~/Library/Application Support/<sdk>/identities.json`
+* - **Linux**
+  - `~/.local/share/<sdk>/identities.json` (honors `$XDG_DATA_HOME`)
+* - **Windows**
+  - `%LOCALAPPDATA%\<sdk>\<sdk>\identities.json`
+```
+
+### Clearing a Saved Identity
+
+A saved identity pins the device address captured at enrollment, so if the device later moves (a new IP or port) the
+old address is dead — reconnecting surfaces as a `TRANSPORT_FAILURE`. To forget one and re-enroll, delete it through the
+store (or remove the file by hand):
+
+```python
+from kandra_runtime import PlatformDirsJsonStore
+
+PlatformDirsJsonStore(app_name="my_device_sdk").delete("kitchen")
+```
+
+```{note}
+Kandra auto-detects one kind of staleness: expired or revoked **credentials** (an HTTP `401` / `403`) surface as a
+recoverable [`IdentityStaleError`](lifecycle.md) that triggers re-enrollment. A moved **address**, though, is
+indistinguishable from a device that is simply offline, so it can't be auto-detected — clear the identity to recover.
+```
 
 ## Error Type
 
