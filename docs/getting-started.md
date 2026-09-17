@@ -10,8 +10,8 @@ required.
 ## Prerequisites
 
 - **Python 3.11+** and **[Poetry](https://python-poetry.org)**.
-- That's all — the local simulator uses Flask, which `make install` provides. Docker is optional; see
-  [Run the simulator in Docker](#run-the-simulator-in-docker).
+- That's all — the local simulator uses Flask, which `make install` provides. Docker is an optional alternative; see
+  [step 3](#3-start-the-device-simulator).
 
 ## 1. Install
 
@@ -43,12 +43,21 @@ dist/pneumatic_bear_poker_sdk/
 
 ## 3. Start the device simulator
 
-In one terminal, start the Flask firmware simulator. It implements every HTTP endpoint in the manifest — the commands,
-the discovery probe, and the enrollment login. Leave it running:
+In one terminal, start the Flask firmware simulator — it implements every HTTP endpoint in the manifest: the commands,
+the discovery probe, and the enrollment login. Run it directly:
 
 ```bash
 PORT=48080 poetry run python -m examples.pneumatic_bear_poker.firmware_sim.app
 ```
+
+Or, if you prefer a container, the simulator ships a Dockerfile:
+
+```bash
+docker build -t pneumatic-bear-poker-sim examples/pneumatic_bear_poker/firmware_sim
+docker run --rm -p 48080:8080 pneumatic-bear-poker-sim
+```
+
+Either way it serves on `http://localhost:48080` — leave it running.
 
 ## 4. Run the lifecycle demo
 
@@ -111,26 +120,6 @@ PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
 
 See [Identity → Where identities are stored](concepts/identity.md#where-identities-are-stored) for the on-disk
 locations and how to clear a saved identity outside the demo.
-
-## Point it at real hardware
-
-The demo defaults to the local sim. To drive a real device, point `--url` at it:
-
-```bash
-PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py --url http://192.168.1.50:8080
-```
-
-## Run the simulator in Docker
-
-Prefer a container? The simulator ships a Dockerfile:
-
-```bash
-docker build -t pneumatic-bear-poker-sim examples/pneumatic_bear_poker/firmware_sim
-docker run --rm -p 48080:8080 pneumatic-bear-poker-sim
-```
-
-Then run the demo exactly as in step 4.
 
 ## Next steps
 

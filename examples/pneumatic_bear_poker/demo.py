@@ -14,8 +14,8 @@ the user-facing reference for "what does kandra actually buy me?"
 
 **Expects a Pneumatic Bear Poker reachable over HTTP.** By default it looks for one at ``http://localhost:8080``
 -- start the Flask firmware simulator under ``examples/pneumatic_bear_poker/firmware_sim`` and this runs out of
-the box. Point elsewhere with ``--url`` (or the ``BEAR_POKER_URL`` env var), e.g. ``--url http://192.168.1.1:8080``
-for real hardware; clear a stale saved identity with ``--reset``. The integration test
+the box. Point elsewhere with ``--url`` (or the ``BEAR_POKER_URL`` env var), e.g. ``--url http://localhost:48080``
+when the sim runs on another port; clear a stale saved identity with ``--reset``. The integration test
 ``tests/test_example_end_to_end.py`` exercises the same flow with in-process fakes so CI needs no device.
 """
 
