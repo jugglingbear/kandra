@@ -43,7 +43,7 @@ PYTHONPATH="examples/hello_world/dist:examples/hello_world/src" \
 ```
 
 The whole demo ([`examples/hello_world/demo.py`](https://github.com/jugglingbear/kandra/blob/main/examples/hello_world/demo.py))
-is a dozen lines — no discovery, enrollment, or saved identity, just a transport pointed straight at the URL:
+is short — no discovery, enrollment, or saved identity, just a transport pointed straight at the URL:
 
 ```python
 transport = HttpTransport(BASE_URL)

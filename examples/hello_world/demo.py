@@ -31,9 +31,10 @@ BASE_URL = os.environ.get("HELLO_WORLD_URL", "http://localhost:8080")
 
 
 async def main() -> None:
-    """Open a transport, build the client, send one command."""
-    # No discovery/enrollment here -- point a transport straight at the URL and hand it to the client. (The
-    # pneumatic_bear_poker example shows the full discover -> enroll -> save -> connect lifecycle.)
+    """Open a transport, build the client, send one command.
+
+    No discovery/enrollment here -- point a transport straight at the URL and hand it to the client.
+    """
     transport = HttpTransport(BASE_URL)
     async with open_transport(transport):
         client = HelloWorldClient(transports={TransportId.HTTP: transport})
