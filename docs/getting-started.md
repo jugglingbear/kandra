@@ -62,8 +62,9 @@ Either way it serves on `http://127.0.0.1:48080` — leave it running.
 
 ## 4. Run the lifecycle demo
 
-In a **second** terminal, run the demo against that same URL. It needs the generated SDK (`dist/`) and the example's
-handler source (`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
+In a **second** terminal, run the demo against that same URL. It needs the generated SDK's import root (`dist/`,
+which contains the `pneumatic_bear_poker_sdk/` package) and the example's handler source
+(`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
