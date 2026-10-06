@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, cast
 
@@ -29,6 +30,7 @@ from kandra_runtime.codec import RequestT, ResponseT, WireReqT, WireRespT
 from kandra_runtime.errors import CodecError, IdentityStaleError, TransportError, TransportTimeoutError
 from kandra_runtime.result import Classification, ResponseInterpreter, Result
 from kandra_runtime.transport import Subscribable
+from kandra_runtime.wire import format_wire
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -85,6 +87,7 @@ async def dispatch(
     raw dispatch primitive.
     """
     envelope = command.codec.encode(request)
+    _trace_wire(command, envelope)
     if not command.expects_response:
         with contextlib.suppress(TransportTimeoutError):
             await _request_with_timeout(transport, envelope, command)
@@ -163,6 +166,7 @@ async def dispatch_subscribe(
         raise TransportError(f"transport {type(transport).__name__} does not support subscribe()")
     subscribable = cast("Subscribable[WireReqT, WireRespT]", transport)
     envelope = command.codec.encode(request)
+    _trace_wire(command, envelope)
     try:
         async for wire in subscribable.subscribe(envelope):
             yield _classify_and_decode(command, wire)
@@ -171,6 +175,16 @@ async def dispatch_subscribe(
             classification=Classification.TRANSPORT_FAILURE,
             reason=str(exc) or type(exc).__name__,
         )
+
+
+def _trace_wire(
+    command: Command[RequestT, ResponseT, WireReqT, WireRespT],
+    envelope: WireReqT,
+) -> None:
+    """Emit the formatted wire request on ``kandra.wire.<id>`` at DEBUG (no-op if disabled)."""
+    logger = logging.getLogger(f"kandra.wire.{command.id}")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("%s", format_wire(envelope))
 
 
 def _classify_and_decode(
@@ -223,9 +237,7 @@ async def _request_with_timeout(
     try:
         return await asyncio.wait_for(transport.request(envelope), command.timeout)
     except TimeoutError as exc:
-        raise TransportTimeoutError(
-            f"command {command.id!r} timed out after {command.timeout}s"
-        ) from exc
+        raise TransportTimeoutError(f"command {command.id!r} timed out after {command.timeout}s") from exc
 
 
 # Silence "unused import" warnings on TYPE_CHECKING-only names used in docs.

@@ -60,6 +60,7 @@ from kandra_runtime.scanner import (
     snapshot_scan,
 )
 from kandra_runtime.transport import Subscribable, Transport, open_transport
+from kandra_runtime.wire import format_wire
 
 __all__ = [
     "AlwaysAcceptedResponseInterpreter",
@@ -117,6 +118,7 @@ __all__ = [
     "dispatch_subscribe",
     "dispatch_sync",
     "format_failure",
+    "format_wire",
     "open_transport",
     "snapshot_scan",
 ]
