@@ -65,7 +65,10 @@ talks to a device.
 
 ## opengopro — a realistic manifest shape
 
-A dual-transport manifest (BLE **and** HTTP) for a fictional camera: the `shutter.start` / `shutter.stop` commands ride
+A dual-transport manifest (BLE **and** HTTP) modeled on the real
+[Open GoPro](https://gopro.github.io/OpenGoPro/) interface (see the
+[official API docs](https://gopro.github.io/OpenGoPro/docs/)), targeting actual HERO9-or-newer cameras: the
+`shutter.start` / `shutter.stop` commands ride
 a BLE TLV codec *and* an HTTP/JSON path, showing how a single logical command is wired to two different wire formats.
 This example is **manifest-only** — it demonstrates wiring (custom codecs, per-transport blocks, dual transports) and is
 not paired with buildable handler code, so read it alongside [The Manifest](concepts/manifest.md) rather than building
