@@ -98,8 +98,8 @@ walks the phases every real caller follows — each is a single line in the gene
 
 1. **Discover** — `scan_http()` probes the device's `/.well-known/...` endpoint and matches on the manifest's
    [discovery](concepts/scanner.md) criteria. (The demo passes `base_urls=[...]` to aim it at the local sim.)
-2. **Enroll** — the SDK's baked `http_enrollment()` (login path declared in the manifest) POSTs the login form and
-   captures a bearer token, producing a persistent [Identity](concepts/identity.md).
+2. **Enroll** — the SDK's baked `http_enrollment()` (login path declared in the manifest) POSTs a JSON login request
+   and captures the bearer token from the response, producing a persistent [Identity](concepts/identity.md).
 3. **Save** — `PlatformDirsJsonStore` writes that identity to a per-user data dir (printed as the `[STORE]` line
    above), so next time you skip discovery and enrollment entirely.
 4. **Connect** — `PneumaticBearPokerClient.connect("grizzly")` reloads the saved identity, opens the transport,
