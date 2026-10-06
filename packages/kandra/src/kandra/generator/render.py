@@ -1,9 +1,7 @@
 """String templates for the files emitted by `kandra build`.
 
-These functions are intentionally pure: they take simple data (paths,
-names, command specs) and return rendered Python source.  Anything that
-involves filesystem or import-system side effects lives in
-:mod:`kandra.generator.build`.
+These functions are intentionally pure: they take simple data (paths, names, command specs) and return rendered Python
+source.  Anything that involves filesystem or import-system side effects lives in :mod:`kandra.generator.build`.
 """
 
 from __future__ import annotations
@@ -21,21 +19,19 @@ class TransportSpec:
     transport_id: str  # e.g. "ble" / "http" — value of the TransportId enum member
     enum_member: str  # e.g. "BLE" / "HTTP" — name of the enum member
     family: Literal["loopback", "http", "ble"] | None
-    # Codec import is only meaningful for transports without family-paired
-    # built-in codecs (loopback / unknown family). HTTP and BLE transports
-    # use HttpJsonCodec / BLE codec from kandra_runtime instead.
+    # Codec import is only meaningful for transports without family-paired built-in codecs (loopback / unknown family).
+    # HTTP and BLE transports use HttpJsonCodec / BLE codec from kandra_runtime instead.
     codec_import: str | None
     codec_alias: str | None
-    # BLE channels declared on this transport: (channel_name, write_uuid, notify_uuid).
-    # Empty for non-BLE families. Used by generated client.connect() to wire
-    # `BleTransport.from_identity(identity, channels=...)`.
+    # BLE channels declared on this transport: (channel_name, write_uuid, notify_uuid). Empty for non-BLE families. Used
+    # by generated client.connect() to wire `BleTransport.from_identity(identity, channels=...)`.
     channels: tuple[tuple[str, str, str], ...] = ()
-    # Optional custom transport adapter (dotted path). When None, connect() opens
-    # this transport with the runtime default (HttpTransport / BleTransport).
+    # Optional custom transport adapter (dotted path). When None, connect() opens this transport with the runtime
+    # default (HttpTransport / BleTransport).
     adapter_import: str | None = None
     adapter_alias: str | None = None
-    # Declarative HTTP enrollment (login_path/token_field) baked into a generated
-    # `http_enrollment()` factory; None when the transport declares no enrollment.
+    # Declarative HTTP enrollment (login_path/token_field) baked into a generated `http_enrollment()` factory; None when
+    # the transport declares no enrollment.
     enrollment_login_path: str | None = None
     enrollment_token_field: str | None = None
 
@@ -172,29 +168,26 @@ def render_init(
             scanner_exports.extend(("default_ble_matcher", "make_ble_scanner", "scan_ble"))
         if discovery.http is not None:
             scanner_exports.extend(("default_http_matcher", "make_http_scanner", "scan_http"))
-        extra_imports.append(
-            f"from {_relative()}.scanners import "
-            + ", ".join(scanner_exports)
-        )
+        scanner_import_names = "".join(f"    {name},\n" for name in scanner_exports)
+        extra_imports.append(f"from {_relative()}.scanners import (\n{scanner_import_names})")
         extra_exports.extend(scanner_exports)
 
     extra_import_block = ("\n" + "\n".join(extra_imports)) if extra_imports else ""
     all_list = [*client_exports, "TransportId", *extra_exports]
-    all_block = ", ".join(f'"{name}"' for name in all_list)
+    all_block = "".join(f'    "{name}",\n' for name in all_list)
     return f'''"""Generated SDK. DO NOT EDIT — regenerate with `kandra build`."""
 
 from {_relative()}.client import {", ".join(client_exports)}
 from {_relative()}.transports import TransportId{extra_import_block}
 
-__all__ = [{all_block}]
+__all__ = [
+{all_block}]
 '''
 
 
 def render_transports(transports: list[TransportSpec]) -> str:
     """Emit the per-device ``TransportId`` enum module."""
-    members = "\n".join(
-        f'    {t.enum_member} = "{t.transport_id}"' for t in transports
-    )
+    members = "\n".join(f'    {t.enum_member} = "{t.transport_id}"' for t in transports)
     return f'''"""Transport identifiers declared in the device manifest."""
 
 from __future__ import annotations
@@ -216,9 +209,8 @@ def _render_runtime_imports(transports: list[TransportSpec], needs_http_codec: b
         lines.append("from kandra_runtime import HttpJsonCodec, default_http_interpreter")
     if any(t.family == "ble" for t in transports):
         lines.append("from kandra_runtime import BleChannelCodec")
-    # BLE and non-http families both use the always-accepted interpreter since
-    # BLE has no universal protocol-level status code and loopback/custom
-    # families don't either.
+    # BLE and non-http families both use the always-accepted interpreter since BLE has no universal protocol-level
+    # status code and loopback/custom families don't either.
     if any(t.family != "http" for t in transports):
         lines.append("from kandra_runtime import always_accepted_interpreter")
     return "\n".join(lines)
@@ -226,8 +218,8 @@ def _render_runtime_imports(transports: list[TransportSpec], needs_http_codec: b
 
 def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]) -> str:
     r"""Emit the ``registry.py`` module mapping command ids to per-transport ``Command``\ s."""
-    # Collect distinct import lines for user-supplied codecs (non-family
-    # transports) and per-command request/response aliases.
+    # Collect distinct import lines for user-supplied codecs (non-family transports) and per-command request/response
+    # aliases.
     seen: set[str] = set()
     import_lines: list[str] = []
     for t in transports:
@@ -245,8 +237,7 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
                 seen.add(wire.codec_import)
                 import_lines.append(wire.codec_import)
 
-    # Determine if any HTTP-family transports are used (then we need
-    # HttpJsonCodec imported from kandra_runtime).
+    # Determine if any HTTP-family transports are used (then we need HttpJsonCodec imported from kandra_runtime).
     needs_http_codec = any(t.family == "http" for t in transports)
 
     entries: list[str] = []
@@ -256,9 +247,7 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
         for tid in c.transports:
             t = transport_lookup[tid]
             per_transport_lines.append(_render_command_entry(c, t))
-        entries.append(
-            f'    "{c.command_id}": {{\n' + "\n".join(per_transport_lines) + "\n    },"
-        )
+        entries.append(f'    "{c.command_id}": {{\n' + "\n".join(per_transport_lines) + "\n    },")
 
     runtime_imports = _render_runtime_imports(transports, needs_http_codec)
 
@@ -298,16 +287,17 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         timeout = wire.timeout if wire.timeout is not None else c.timeout
         timeout_arg = f"timeout={timeout}, " if timeout is not None else ""
         expects = "True" if wire.expects_response else "False"
-        codec_args = (
-            f'method="{wire.method}", path="{wire.path}", '
-            f"request_type={c.request_alias}, response_type={c.response_alias}, "
-            f"query_from_request={wire.query_from_request}"
-        )
         codec_class = wire.codec_alias or "HttpJsonCodec"
         return (
             f"{indent}TransportId.{t.enum_member}: Command(\n"
             f'{indent}    id="{c.command_id}",\n'
-            f"{indent}    codec={codec_class}({codec_args}),\n"
+            f"{indent}    codec={codec_class}(\n"
+            f'{indent}        method="{wire.method}",\n'
+            f'{indent}        path="{wire.path}",\n'
+            f"{indent}        request_type={c.request_alias},\n"
+            f"{indent}        response_type={c.response_alias},\n"
+            f"{indent}        query_from_request={wire.query_from_request},\n"
+            f"{indent}    ),\n"
             f"{indent}    interpreter=default_http_interpreter,\n"
             f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
@@ -320,8 +310,8 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         assert t.codec_alias is not None
         # Per-command override falls back to the transport's payload codec.
         ble_codec_alias = ble_wire.codec_alias or t.codec_alias
-        # User payload codec is instantiated with (request_type, response_type),
-        # then wrapped in BleChannelCodec to attach the per-command channel.
+        # User payload codec is instantiated with (request_type, response_type), then wrapped in BleChannelCodec to
+        # attach the per-command channel.
         payload_codec = f"{ble_codec_alias}({c.request_alias}, {c.response_alias})"
         return (
             f"{indent}TransportId.{t.enum_member}: Command(\n"
@@ -334,9 +324,8 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
         )
-    # Loopback / unknown family: use the user-supplied codec from the manifest
-    # plus the always-accepted interpreter (the user's codec is responsible for
-    # raising CodecError on bad data; classification is meaningless here).
+    # Loopback / unknown family: use the user-supplied codec from the manifest plus the always-accepted interpreter (the
+    # user's codec is responsible for raising CodecError on bad data; classification is meaningless here).
     timeout_arg = f", timeout={c.timeout}" if c.timeout is not None else ""
     assert t.codec_alias is not None
     return (
@@ -384,8 +373,8 @@ def _render_facade_section(
     if not attributes and not events:
         return _EMPTY_FACADE_SECTION
 
-    # Every event subscribes (so needs NoArgs + the subscribe machinery); attributes
-    # need NoArgs for read/subscribe and the machinery only when they subscribe.
+    # Every event subscribes (so needs NoArgs + the subscribe machinery); attributes need NoArgs for read/subscribe and
+    # the machinery only when they subscribe.
     needs_no_args = bool(events) or any("read" in a.operations or "subscribe" in a.operations for a in attributes)
     needs_subscribe = bool(events) or any("subscribe" in a.operations for a in attributes)
 
@@ -431,7 +420,6 @@ def _render_facade_section(
         async_assigns=async_assigns,
         sync_assigns=sync_assigns,
     )
-
 
 
 def _render_attr_class(a: AttributeSpec, device_class: str) -> str:
@@ -520,16 +508,13 @@ def _render_subscribe_entry(op_id: str, wires: tuple[SubscribeWire, ...]) -> str
 
 def _render_subscribe_table(attributes: tuple[AttributeSpec, ...], events: tuple[EventSpec, ...]) -> str:
     """Render the ``_SUBSCRIBE_MODES`` map: subscribe op id -> transport -> (mode, interval)."""
-    entries = [
-        _render_subscribe_entry(a.attr_id, a.subscribe_wires) for a in attributes if "subscribe" in a.operations
-    ]
+    entries = [_render_subscribe_entry(a.attr_id, a.subscribe_wires) for a in attributes if "subscribe" in a.operations]
     entries += [_render_subscribe_entry(e.event_id, e.subscribe_wires) for e in events]
     return "_SUBSCRIBE_MODES: dict[str, dict[TransportId, tuple[str, float | None]]] = {\n" + "\n".join(entries) + "\n}"
 
 
-
-# Spliced verbatim into the client class when any attribute *or* event subscribes.
-# Braces are intentionally literal: this string is substituted as a value, not a template.
+# Spliced verbatim into the client class when any attribute *or* event subscribes. Braces are intentionally literal:
+# this string is substituted as a value, not a template.
 def _render_dispatch_subscribe(capability_gate: str) -> str:
     """Render the client ``_dispatch_subscribe`` method, with an optional capability gate."""
     return f'''
@@ -585,16 +570,13 @@ def _render_command_method(c: CommandSpec, *, sync: bool) -> str:
         f"        via: TransportId | None = None,\n"
         f"    ) -> Result[{c.response_alias}] | None:\n"
         f'        """Invoke `{c.command_id}`.\n\n'
-        f"        Returns a :class:`Result` envelope wrapping the typed response,\n"
-        f"        or ``None`` when this transport's spec sets\n"
-        f'        ``expects_response: false`` (fire-and-forget)."""\n'
+        f"        Returns a :class:`Result` envelope wrapping the typed response, or ``None`` when this transport's\n"
+        f'        spec sets ``expects_response: false`` (fire-and-forget)."""\n'
         f'        return await self._client._dispatch("{c.command_id}", request, via=via)'
     )
 
 
-def _render_namespace_class(
-    ns: str, *, sync: bool, device_class: str, methods: list[str], assigns: list[str]
-) -> str:
+def _render_namespace_class(ns: str, *, sync: bool, device_class: str, methods: list[str], assigns: list[str]) -> str:
     """Render one namespace class (async or sync) with its command methods + sub-object assigns."""
     if sync:
         header = (
@@ -637,9 +619,9 @@ _CAPABILITY_CLIENT_METHODS = '''
     async def discover_capabilities(self, probe: CapabilityProbe) -> Capabilities:
         """Query the device via ``probe`` and cache which operations are available.
 
-        Until this is called, no operation is gated. Afterwards, calling an
-        operation whose required capability tags the device lacks raises
-        ``CapabilityUnavailableError`` locally instead of failing on the wire.
+        Until this is called, no operation is gated. Afterwards, calling an operation whose required
+        capability tags the device lacks raises ``CapabilityUnavailableError`` locally instead of failing on
+        the wire.
         """
         self._capabilities = Capabilities(await probe.probe(self))
         return self._capabilities
@@ -670,8 +652,8 @@ def _render_tag_tuple(tags: tuple[str, ...]) -> str:
 def _render_capability_section(capability_map: dict[str, tuple[str, ...]]) -> _CapabilitySection:
     """Render the ``_CAPABILITIES`` table, discover method, and dispatch gates.
 
-    Returns the empty section when no operation declares capability tags, so a
-    manifest that never gates anything produces a byte-identical command-only client.
+    Returns the empty section when no operation declares capability tags, so a manifest that never gates anything
+    produces a byte-identical command-only client.
     """
     if not capability_map:
         return _EMPTY_CAPABILITY_SECTION
@@ -707,8 +689,8 @@ def render_client(
     for c in commands:
         commands_by_ns.setdefault(c.namespace, []).append(c)
 
-    # The async facade groups commands + attributes + events; the sync facade
-    # omits events (subscribe is async-only) and so may skip event-only namespaces.
+    # The async facade groups commands + attributes + events; the sync facade omits events (subscribe is async-only) and
+    # so may skip event-only namespaces.
     async_ns_order = list(commands_by_ns)
     for ns in [a.namespace for a in attributes] + [e.namespace for e in events]:
         if ns not in async_ns_order:
@@ -788,24 +770,19 @@ from {_relative()}.transports import TransportId
 class {device_class}:
     """Generated async facade for the device.
 
-    Construct with a mapping of :class:`TransportId` to live
-    :class:`kandra_runtime.Transport` instances; operations are exposed as
-    ``client.<namespace>.<method>(request, *, via=...)`` coroutines.
+    Construct with a mapping of :class:`TransportId` to live :class:`kandra_runtime.Transport` instances;
+    operations are exposed as ``client.<namespace>.<method>(request, *, via=...)`` coroutines.
 
-    Every operation returns a :class:`Result` envelope. The library
-    default is to *not* fail-fast on non-ACCEPTED results -- the caller
-    inspects ``result.accepted`` (or branches on
-    ``result.classification``) and reads ``result.data`` only when
-    accepted. A test framework can opt into fail-fast by assigning
-    ``client.on_non_accepted = test_framework.fail_test``; the hook
-    receives a single human-readable string built by
-    :func:`format_failure`. Wrap calls in :meth:`ignore_failures` to
-    temporarily suppress the hook for negative-path tests.
+    Every operation returns a :class:`Result` envelope. The library default is to *not* fail-fast on
+    non-ACCEPTED results -- the caller inspects ``result.accepted`` (or branches on ``result.classification``)
+    and reads ``result.data`` only when accepted. A test framework can opt into fail-fast by assigning
+    ``client.on_non_accepted = test_framework.fail_test``; the hook receives a single human-readable string
+    built by :func:`format_failure`. Wrap calls in :meth:`ignore_failures` to temporarily suppress the hook
+    for negative-path tests.
 
-    The client may be used as an async context manager. Transports
-    constructed by :meth:`connect` are closed on exit; transports
-    passed in via the constructor are left untouched (their lifecycle
-    belongs to the caller).
+    The client may be used as an async context manager. Transports constructed by :meth:`connect` are closed
+    on exit; transports passed in via the constructor are left untouched (their lifecycle belongs to the
+    caller).
     """
 
     def __init__(self, *, transports: Mapping[TransportId, Transport[Any, Any]]) -> None:
@@ -817,15 +794,13 @@ class {device_class}:
         self.on_non_accepted: Any = None
         """Optional callback ``(failure_summary: str) -> None`` invoked on non-ACCEPTED results.
 
-        ``None`` by default (library policy: surface the Result and let
-        the caller decide). Test frameworks wire this to their
-        ``fail_test`` entry point.
+        ``None`` by default (library policy: surface the Result and let the caller decide). Test frameworks
+        wire this to their ``fail_test`` entry point.
         """
         self._suppress_hook = False
         self._mid_session_refresh: Callable[[], Awaitable[None]] | None = None
-        """Async recovery hook installed by :meth:`connect` when
-        ``refresh_mid_session=True``: re-enrolls + rebuilds transports in place
-        after a mid-session :class:`IdentityStaleError`. ``None`` disables it."""
+        """Async recovery hook installed by :meth:`connect` when ``refresh_mid_session=True``: re-enrolls +
+        rebuilds transports in place after a mid-session :class:`IdentityStaleError`. ``None`` disables it."""
 {capability_section.init_line}{namespace_assigns_block}
 
 {connect_section.client_methods}
@@ -844,8 +819,7 @@ class {device_class}:
     async def aclose(self) -> None:
         """Close every transport this client owns (built by :meth:`connect`).
 
-        Transports supplied via the constructor are *not* closed — the
-        caller's own ``async with`` owns those.
+        Transports supplied via the constructor are *not* closed — the caller's own ``async with`` owns those.
         """
         for transport in list(self._owned_transports.values()):
             with contextlib.suppress(Exception):
@@ -856,8 +830,8 @@ class {device_class}:
     def ignore_failures(self) -> Iterator[None]:
         """Suppress :attr:`on_non_accepted` for commands run inside the block.
 
-        The :class:`Result` is still returned to the caller; only the
-        framework-installed hook is bypassed. Nesting is supported.
+        The :class:`Result` is still returned to the caller; only the framework-installed hook is bypassed.
+        Nesting is supported.
         """
         previous = self._suppress_hook
         self._suppress_hook = True
@@ -901,10 +875,9 @@ class {device_class}:
     ) -> Result[Any] | None:
         """Internal: resolve the transport, run the command, fire the hook if armed.
 
-        If a mid-session refresh hook is installed (``connect(...,
-        refresh_mid_session=True)``) and the transport raises
-        :class:`IdentityStaleError`, the hook re-enrolls + rebuilds transports
-        in place and the command is retried exactly once.
+        If a mid-session refresh hook is installed (``connect(..., refresh_mid_session=True)``) and the
+        transport raises :class:`IdentityStaleError`, the hook re-enrolls + rebuilds transports in place and
+        the command is retried exactly once.
         """
 {capability_section.dispatch_gate}        chosen = self._resolve_transport(command_id, via)
         command = COMMANDS[command_id][chosen]
@@ -926,9 +899,8 @@ class {device_class}:
 class {sync_class}:
     """Generated **sync** facade. Wraps the async client with `asyncio.run`.
 
-    Must not be called from inside a running event loop. Use the async
-    `{device_class}` when one is already running. The async client is
-    accessible as :attr:`async_client` for direct hook configuration
+    Must not be called from inside a running event loop. Use the async `{device_class}` when one is already
+    running. The async client is accessible as :attr:`async_client` for direct hook configuration
     (``client.async_client.on_non_accepted = ...``).
     """
 
@@ -962,9 +934,8 @@ class _ConnectSection:
 def _render_discover_and_connect(families: list[str]) -> str:
     """Render ``_enroll_and_save`` (shared), ``re_enroll``, and ``discover_and_connect``.
 
-    ``families`` lists the manifest families that have *both* a
-    transport entry and a discovery block — those are the families
-    eligible for scan + enroll.
+    ``families`` lists the manifest families that have *both* a transport entry and a discovery block — those are the
+    families eligible for scan + enroll.
     """
     # Per-family scan+enroll snippet (executed inside the method).
     scan_blocks: list[str] = []
@@ -1046,9 +1017,8 @@ def _render_discover_and_connect(families: list[str]) -> str:
     ) -> "Identity":
         """Re-run enrollment for a known device and atomically overwrite its saved record.
 
-        Use when stored credentials have gone stale (see
-        :class:`~kandra_runtime.IdentityStaleError`): re-discovers the device via
-        the manifest ``scan_<family>`` helpers, runs ``enrollment`` again, and
+        Use when stored credentials have gone stale (see :class:`~kandra_runtime.IdentityStaleError`):
+        re-discovers the device via the manifest ``scan_<family>`` helpers, runs ``enrollment`` again, and
         replaces the ``saved_name`` record. Returns the fresh identity.
 
         Typically wired into :meth:`connect` as the recovery hook::
@@ -1076,36 +1046,29 @@ def _render_discover_and_connect(families: list[str]) -> str:
     ) -> "Any":
         """One-shot connect: load saved identity, or scan + enroll + save on first run.
 
-        On the first call for a new ``saved_name`` this method runs
-        the full setup pipeline:
+        On the first call for a new ``saved_name`` this method runs the full setup pipeline:
 
-        1. Discover candidate devices using the manifest-generated
-           ``scan_<family>()`` helpers (one per discoverable family).
-        2. Run the supplied :class:`Enrollment` against the first
-           match in each family, producing one or more sub-identities.
-        3. Save the resulting (possibly :class:`CompositeIdentity`)
-           record into ``store``.
+        1. Discover candidate devices using the manifest-generated ``scan_<family>()`` helpers (one per
+           discoverable family).
+        2. Run the supplied :class:`Enrollment` against the first match in each family, producing one or
+           more sub-identities.
+        3. Save the resulting (possibly :class:`CompositeIdentity`) record into ``store``.
         4. Delegate to :meth:`connect` to open every transport.
 
-        On subsequent calls — the typical "second run" case — the
-        saved identity is loaded straight from ``store`` and only
-        :meth:`connect` is invoked; no scanning or enrollment happens.
+        On subsequent calls — the typical "second run" case — the saved identity is loaded straight from
+        ``store`` and only :meth:`connect` is invoked; no scanning or enrollment happens.
 
         Parameters
         ----------
         saved_name:
             Friendly name to look up (or, on first run, to store under).
         enrollment:
-            Defaults to the adapters declared in the manifest (baked from
-            any ``enrollment:`` transport block). Pass a single
-            :class:`Enrollment`, or a mapping of family name
-            (``"ble"`` / ``"http"``) to its adapter, to override --
-            for example to inject login credentials. Only entries
-            matching this device's discoverable families
-            ({known_families_repr}) are consulted.
+            Defaults to the adapters declared in the manifest (baked from any ``enrollment:`` transport
+            block). Pass a single :class:`Enrollment`, or a mapping of family name (``"ble"`` / ``"http"``)
+            to its adapter, to override -- for example to inject login credentials. Only entries matching
+            this device's discoverable families ({known_families_repr}) are consulted.
         store:
-            Identity store. Defaults to a
-            :class:`PlatformDirsJsonStore` keyed on this device's id.
+            Identity store. Defaults to a :class:`PlatformDirsJsonStore` keyed on this device's id.
         discovery_timeout:
             Per-family scan window in seconds. Default 10.0.
         transports:
@@ -1114,19 +1077,17 @@ def _render_discover_and_connect(families: list[str]) -> str:
         Raises
         ------
         EnrollmentError:
-            A discoverable family had zero scan matches, or the
-            supplied :class:`Enrollment` rejected the candidate.
+            A discoverable family had zero scan matches, or the supplied :class:`Enrollment` rejected the
+            candidate.
         ValueError:
-            ``enrollment`` is a single adapter but this device has
-            multiple discoverable families (ambiguous wiring).
+            ``enrollment`` is a single adapter but this device has multiple discoverable families
+            (ambiguous wiring).
 
         Notes
         -----
-        This method takes the *first* candidate returned by each
-        scanner. Devices in noisy environments (multiple cameras on
-        the bench) should call :func:`scan_ble` / :func:`scan_http`
-        directly, pick the one they want, then run the explicit
-        :class:`Enrollment` + :meth:`connect` flow.
+        This method takes the *first* candidate returned by each scanner. Devices in noisy environments
+        (multiple cameras on the bench) should call :func:`scan_ble` / :func:`scan_http` directly, pick the
+        one they want, then run the explicit :class:`Enrollment` + :meth:`connect` flow.
         """
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
@@ -1151,15 +1112,13 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
 ) -> _ConnectSection:
     """Render the ``connect()`` / ``list_saved()`` / ``discover_and_connect()`` plumbing.
 
-    The generator emits a per-BLE-transport ``_BLE_CHANNELS_<id>`` constant
-    (channels are manifest-defined, not part of the saved identity), a
-    ``_TRANSPORT_FACTORIES`` registry mapping each manifest transport to a
-    ``from_identity`` callable + its family, and a ``_identity_for_family``
-    helper that picks the right sub-record out of a ``CompositeIdentity``.
+    The generator emits a per-BLE-transport ``_BLE_CHANNELS_<id>`` constant (channels are manifest-defined, not part of
+    the saved identity), a ``_TRANSPORT_FACTORIES`` registry mapping each manifest transport to a ``from_identity``
+    callable + its family, and a ``_identity_for_family`` helper that picks the right sub-record out of a
+    ``CompositeIdentity``.
 
-    When ``discovery`` is supplied, a third classmethod
-    ``discover_and_connect()`` is appended that hides the
-    scan → enroll → save → connect dance behind a single call.
+    When ``discovery`` is supplied, a third classmethod ``discover_and_connect()`` is appended that hides the scan →
+    enroll → save → connect dance behind a single call.
     """
     has_ble = any(t.family == "ble" for t in transports)
     has_http = any(t.family == "http" for t in transports)
@@ -1176,8 +1135,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         if has_http and discovery.http is not None:
             discoverable_families.append("http")
 
-    # Runtime transports are imported only for families whose transports use the
-    # default (adapter omitted); a custom adapter is imported + used instead.
+    # Runtime transports are imported only for families whose transports use the default (adapter omitted); a custom
+    # adapter is imported + used instead.
     needs_ble_runtime = any(t.family == "ble" and t.adapter_alias is None for t in transports)
     needs_http_runtime = any(t.family == "http" and t.adapter_alias is None for t in transports)
     runtime_extra_imports: list[str] = ["BleIdentity", "CompositeIdentity", "HttpIdentity"]
@@ -1185,16 +1144,10 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
         runtime_extra_imports.append("BleTransport")
     if needs_http_runtime:
         runtime_extra_imports.append("HttpTransport")
-    runtime_extra_imports.extend(
-        ["Identity", "IdentityStore", "PlatformDirsJsonStore"]
-    )
+    runtime_extra_imports.extend(["Identity", "IdentityStore", "PlatformDirsJsonStore"])
     if discoverable_families:
-        runtime_extra_imports.extend(
-            ["Enrollment", "EnrollmentError", "IdentityNotFoundError"]
-        )
-    has_http_enrollment = any(
-        t.family == "http" and t.enrollment_login_path is not None for t in transports
-    )
+        runtime_extra_imports.extend(["Enrollment", "EnrollmentError", "IdentityNotFoundError"])
+    has_http_enrollment = any(t.family == "http" and t.enrollment_login_path is not None for t in transports)
     if has_http_enrollment:
         runtime_extra_imports.extend(["HttpEnrollment", "LoginPayloadFactory"])
     imports_block = (
@@ -1217,12 +1170,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             adapter_imports.append(t.adapter_import)
         if t.family == "ble":
             chan_var = f"_BLE_CHANNELS_{_sanitize(t.transport_id)}"
-            chan_items = ",\n".join(
-                f'    "{name}": ("{w}", "{n}")' for (name, w, n) in t.channels
-            )
-            module_lines.append(
-                f"{chan_var}: dict[str, tuple[str, str]] = {{\n{chan_items},\n}}"
-            )
+            chan_items = ",\n".join(f'    "{name}": ("{w}", "{n}")' for (name, w, n) in t.channels)
+            module_lines.append(f"{chan_var}: dict[str, tuple[str, str]] = {{\n{chan_items},\n}}")
             factory_entries.append(
                 f'    (TransportId.{t.enum_member}, "ble", '
                 f"lambda ident: {t.adapter_alias or 'BleTransport'}.from_identity(ident, channels={chan_var})),"
@@ -1247,10 +1196,9 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     identity_helper = '''def _identity_for_family(identity: "Identity", family: str) -> "Any":
     """Return the sub-identity matching ``family`` or ``None`` if absent.
 
-    Plain ``BleIdentity`` / ``HttpIdentity`` match their own family
-    directly; a :class:`CompositeIdentity` is searched by walking its
-    ``components`` map for the first sub-identity whose ``transport``
-    literal equals ``family``.
+    Plain ``BleIdentity`` / ``HttpIdentity`` match their own family directly; a :class:`CompositeIdentity` is
+    searched by walking its ``components`` map for the first sub-identity whose ``transport`` literal equals
+    ``family``.
     """
     if family == "ble" and isinstance(identity, BleIdentity):
         return identity
@@ -1265,9 +1213,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     mark_validated_helper = '''def _mark_validated(store: "IdentityStore", identity: "Identity") -> None:
     """Best-effort: stamp ``last_validated=now`` on a working identity and persist it.
 
-    Called after a successful connect so a store can surface "credentials last
-    confirmed working". Failures are swallowed -- a store write must never break
-    an otherwise-live connection.
+    Called after a successful connect so a store can surface "credentials last confirmed working". Failures
+    are swallowed -- a store write must never break an otherwise-live connection.
     """
     with contextlib.suppress(Exception):
         store.save(identity.model_copy(update={"last_validated": datetime.now(UTC)}))'''
@@ -1282,10 +1229,9 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
 ) -> "Callable[[], Awaitable[None]]":
     """Build the mid-session recovery hook ``connect`` installs on a client.
 
-    The returned coroutine re-enrolls via ``on_stale``, opens a fresh transport
-    set, swaps it into the live ``client``, closes the superseded transports,
-    and re-stamps ``last_validated``. A second :class:`IdentityStaleError` from
-    the reopen propagates to the awaiting command (a single retry only).
+    The returned coroutine re-enrolls via ``on_stale``, opens a fresh transport set, swaps it into the live
+    ``client``, closes the superseded transports, and re-stamps ``last_validated``. A second
+    :class:`IdentityStaleError` from the reopen propagates to the awaiting command (a single retry only).
     """
     async def _refresh() -> None:
         identity = await on_stale(saved_name)
@@ -1302,9 +1248,7 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
 
     enrollment_pieces: list[str] = []
     if has_http_enrollment:
-        http_enroll = next(
-            t for t in transports if t.family == "http" and t.enrollment_login_path is not None
-        )
+        http_enroll = next(t for t in transports if t.family == "http" and t.enrollment_login_path is not None)
         token_arg = (
             f', token_field="{http_enroll.enrollment_token_field}"'
             if http_enroll.enrollment_token_field is not None
@@ -1378,54 +1322,46 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     ) -> "Any":
         """Build and open a client from a previously enrolled identity.
 
-        Looks up ``saved_name`` in ``store`` (defaulting to a
-        :class:`~kandra_runtime.PlatformDirsJsonStore` keyed on this
-        device's id), instantiates every manifest transport whose
-        family the saved identity supports, opens each one, and
-        returns a ready-to-use client.
+        Looks up ``saved_name`` in ``store`` (defaulting to a :class:`~kandra_runtime.PlatformDirsJsonStore`
+        keyed on this device's id), instantiates every manifest transport whose family the saved identity
+        supports, opens each one, and returns a ready-to-use client.
 
         Parameters
         ----------
         saved_name:
             Friendly name passed to a prior ``enroll()`` call.
         store:
-            Identity store to query. Defaults to a
-            :class:`PlatformDirsJsonStore` with
+            Identity store to query. Defaults to a :class:`PlatformDirsJsonStore` with
             ``app_name=f\"{device_id}_sdk\"``.
         transports:
-            Optional filter — restrict activation to this set of
-            transport ids. If omitted, every transport the saved
-            identity supplies is activated.
+            Optional filter — restrict activation to this set of transport ids. If omitted, every transport
+            the saved identity supplies is activated.
         on_stale:
-            Optional async ``(saved_name) -> Identity`` recovery callback.
-            When a transport's ``open()`` raises :class:`IdentityStaleError`
-            (e.g. a stale BLE bond), it is invoked to re-establish
-            credentials (typically ``re_enroll``) and the connect is retried
-            once. When ``None`` (default), the stale error propagates.
+            Optional async ``(saved_name) -> Identity`` recovery callback. When a transport's ``open()``
+            raises :class:`IdentityStaleError` (e.g. a stale BLE bond), it is invoked to re-establish
+            credentials (typically ``re_enroll``) and the connect is retried once. When ``None`` (default),
+            the stale error propagates.
         refresh_mid_session:
-            When ``True``, also install ``on_stale`` as a *mid-session*
-            recovery hook: if a later command's :func:`dispatch` raises
-            :class:`IdentityStaleError` (e.g. an HTTP token expiring after
-            connect), the client re-enrolls, rebuilds its transports in
-            place, and retries that command exactly once. Off by default so a
-            connectivity/auth test harness observes the raw
-            :class:`IdentityStaleError`. Requires ``on_stale``.
+            When ``True``, also install ``on_stale`` as a *mid-session* recovery hook: if a later command's
+            :func:`dispatch` raises :class:`IdentityStaleError` (e.g. an HTTP token expiring after connect),
+            the client re-enrolls, rebuilds its transports in place, and retries that command exactly once.
+            Off by default so a connectivity/auth test harness observes the raw :class:`IdentityStaleError`.
+            Requires ``on_stale``.
 
         Raises
         ------
         IdentityNotFoundError:
             ``saved_name`` is not present in the store.
         IdentityStaleError:
-            Credentials were rejected at ``open()`` and no ``on_stale``
-            recovery callback was supplied (or recovery failed again).
+            Credentials were rejected at ``open()`` and no ``on_stale`` recovery callback was supplied
+            (or recovery failed again).
         ValueError:
-            ``refresh_mid_session=True`` was passed without ``on_stale``, or
-            the saved identity supplied no usable transport (e.g. it stores
-            only HTTP credentials but ``transports={TransportId.BLE}`` was
+            ``refresh_mid_session=True`` was passed without ``on_stale``, or the saved identity supplied no
+            usable transport (e.g. it stores only HTTP credentials but ``transports={TransportId.BLE}`` was
             requested).
         TransportError:
-            A transport's ``open()`` call failed; all transports opened
-            so far in this call are closed before re-raising.
+            A transport's ``open()`` call failed; all transports opened so far in this call are closed
+            before re-raising.
         """
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
@@ -1465,8 +1401,8 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     def list_saved(cls, *, store: "IdentityStore | None" = None) -> list[str]:
         """Return the saved names known to ``store`` (default platformdirs store).
 
-        Symmetric with :meth:`connect`: every name returned here is a
-        valid argument to ``connect(saved_name=...)``.
+        Symmetric with :meth:`connect`: every name returned here is a valid argument to
+        ``connect(saved_name=...)``.
         """
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
@@ -1485,17 +1421,16 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
 def render_scanners(discovery: DiscoverySpec) -> str:
     """Emit ``scanners.py`` with default matchers + scanner factories.
 
-    Generated only when the manifest declares a ``discovery:`` block.
-    Each present family (``ble`` / ``http``) contributes:
+    Generated only when the manifest declares a ``discovery:`` block. Each present family (``ble`` / ``http``)
+    contributes:
 
     * ``default_<family>_matcher(candidate)`` — AND of the criteria
       declared in the manifest.
     * ``make_<family>_scanner()`` — returns a ready-to-use
-      :class:`kandra_runtime.Scanner` (HTTP scanner is pre-configured
-      with ``base_urls`` / ``probe_path`` from the manifest).
+      :class:`kandra_runtime.Scanner` (HTTP scanner is pre-configured with ``base_urls`` / ``probe_path`` from the
+      manifest).
     * ``scan_<family>(*, timeout, matcher=default_<family>_matcher)`` —
-      one-shot snapshot helper that wraps
-      :func:`kandra_runtime.snapshot_scan`.
+      one-shot snapshot helper that wraps :func:`kandra_runtime.snapshot_scan`.
     """
     imports = [
         "from collections.abc import Callable",
@@ -1579,9 +1514,7 @@ async def scan_ble(
 
 
 def _render_http_scanner_section(spec: HttpDiscoverySpec) -> str:
-    urls_lit = (
-        "(" + ", ".join(f'"{u}"' for u in spec.base_urls) + ",)"
-    )
+    urls_lit = "(" + ", ".join(f'"{u}"' for u in spec.base_urls) + ",)"
     header_lit = _py_literal(spec.server_header_prefix)
 
     return f'''# ---------------------------------------------------------------------------
@@ -1607,9 +1540,8 @@ def default_http_matcher(candidate: Candidate) -> bool:
 def make_http_scanner(base_urls: "Iterable[str] | None" = None) -> HttpScanner:
     """Construct an `HttpScanner`.
 
-    By default uses manifest-declared `base_urls` and `probe_path`.
-    Pass `base_urls` to override (useful for local dev against a sim
-    on `http://localhost:PORT`)."""
+    By default uses manifest-declared `base_urls` and `probe_path`. Pass `base_urls` to override (useful for
+    local dev against a sim on `http://localhost:PORT`)."""
     urls = list(base_urls) if base_urls is not None else list(_HTTP_BASE_URLS)
     return HttpScanner(urls, probe_path=_HTTP_PROBE_PATH)
 
@@ -1622,8 +1554,8 @@ async def scan_http(
 ) -> list[Candidate]:
     """One-shot HTTP discovery: probe each base_url, return matches within `timeout`.
 
-    `base_urls` overrides the manifest-declared list (handy for local
-    dev / sandbox scripts pointing at `http://localhost:PORT`)."""
+    `base_urls` overrides the manifest-declared list (handy for local dev / sandbox scripts pointing at
+    `http://localhost:PORT`)."""
     return await snapshot_scan(
         make_http_scanner(base_urls=base_urls), matcher=matcher, timeout=timeout
     )'''
