@@ -7,7 +7,8 @@
     "examples/hello_world/dist",
     "examples/pneumatic_bear_poker/src",
     "examples/pneumatic_bear_poker/dist",
-    "dist"
+    "examples/opengopro/src",
+    "examples/opengopro/dist"
   ],
   "python.analysis.typeCheckingMode": "strict",
   "python-envs.defaultEnvManager": "ms-python.python:poetry",

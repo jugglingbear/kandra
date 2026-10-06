@@ -25,14 +25,14 @@ editable.
 ## 2. Build the example SDK
 
 ```bash
-make build-example
+poetry run kandra build examples/pneumatic_bear_poker/manifest.yaml
 ```
 
-Under the hood this runs `kandra build examples/pneumatic_bear_poker/manifest.yaml` and writes a self-contained, typed
-client package to `dist/pneumatic_bear_poker_sdk/`:
+This writes a self-contained, typed client package next to the manifest, at
+`examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/`:
 
 ```text
-dist/pneumatic_bear_poker_sdk/
+examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/
 ├── __init__.py           # re-exports PneumaticBearPokerClient, scan_http, ...
 ├── client.py             # typed client facade: connect() / discover_and_connect() + one method per command
 ├── registry.py           # per-command codec + interpreter wiring
@@ -67,7 +67,7 @@ which contains the `pneumatic_bear_poker_sdk/` package) and the example's handle
 (`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
 
 ```bash
-PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
+PYTHONPATH="examples/pneumatic_bear_poker/dist:examples/pneumatic_bear_poker/src" \
   poetry run python examples/pneumatic_bear_poker/demo.py --url http://127.0.0.1:48080
 ```
 
@@ -129,7 +129,7 @@ The demo saves an identity on first run (the `[STORE]` line prints where). To wi
 enrollment — say, after moving the sim to a new port — pass `--reset`:
 
 ```bash
-PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
+PYTHONPATH="examples/pneumatic_bear_poker/dist:examples/pneumatic_bear_poker/src" \
   poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://127.0.0.1:48080
 ```
 

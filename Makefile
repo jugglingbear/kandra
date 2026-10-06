@@ -160,11 +160,6 @@ validate:  ## Validate the example manifest (override with EXAMPLE_MANIFEST=path
 	@echo "📋 Validating $(EXAMPLE_MANIFEST)"
 	@$(POETRY) run kandra validate $(EXAMPLE_MANIFEST)
 
-.PHONY: build-example
-build-example:  ## Generate the reference example SDK into ./dist (override EXAMPLE_MANIFEST=path)
-	@echo "🏗  Building SDK from $(EXAMPLE_MANIFEST)"
-	@$(POETRY) run kandra build $(EXAMPLE_MANIFEST) --output-dir $(DIST_DIR) --clean
-
 ##@ Documentation
 
 .PHONY: build-docs
@@ -248,5 +243,6 @@ clean: clean-docs  ## Remove build artifacts and caches
 	@echo "🧼 Cleaning up"
 	rm -rf $(DIST_DIR) build *.egg-info .pytest_cache .ruff_cache htmlcov .coverage
 	rm -rf $(RUNTIME_DIR)/dist $(KANDRA_DIR)/dist
+	rm -rf $(EXAMPLES_DIR)/*/dist
 	find . -type d \( -name .mypy_cache -o -name .pytest_cache -o -name .ruff_cache -o -name __pycache__ \) -prune -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete

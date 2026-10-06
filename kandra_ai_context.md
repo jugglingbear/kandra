@@ -166,7 +166,8 @@ Design detail: `docs/concepts/lifecycle.md`.
 - **Firmware simulator**: NBP has a Flask sim (`examples/pneumatic_bear_poker/firmware_sim/`,
   also a Dockerfile) implementing every HTTP endpoint (commands, discovery probe, enrollment
   login). Docker + direct-run are presented together as two ways to start the sim (turn 131).
-- Running the demo needs `PYTHONPATH="dist:examples/pneumatic_bear_poker/src"`.
+- Running the demo needs `PYTHONPATH="examples/pneumatic_bear_poker/dist:examples/pneumatic_bear_poker/src"`
+  (each example builds into its own `examples/<device>/dist/` — the `kandra build` default output dir).
 - **Port pain (recurring):** VS Code / the remote server squats on ports (8080, then 48080).
   Resolution: pick a high uncommon default, make the port explicit via `PORT=` env for the
   sim and `--url` for the demo, and **drop the "if it doesn't work…" hedging** from docs —
