@@ -47,9 +47,7 @@ async def test_ble_enrollment_opens_transport_and_returns_identity() -> None:
         transport_factory=_FakeBleTransport,
         probe_channel=("0000ffff-0000-1000-8000-00805f9b34fb", "0000fffe-0000-1000-8000-00805f9b34fb"),
     )
-    candidate = Candidate(
-        transport="ble", address="AA:BB:CC:DD:EE:FF", advertised_name="PBP-001"
-    )
+    candidate = Candidate(transport="ble", address="AA:BB:CC:DD:EE:FF", advertised_name="PBP-001")
     ident = await enrollment.enroll(candidate, saved_name="poker")
     assert isinstance(ident, BleIdentity)
     assert ident.saved_name == "poker"
@@ -78,6 +76,26 @@ async def test_ble_enrollment_propagates_open_failure() -> None:
     candidate = Candidate(transport="ble", address="AA:BB:CC:DD:EE:FF")
     with pytest.raises(EnrollmentError, match="bond"):
         await enrollment.enroll(candidate, saved_name="poker")
+
+
+async def test_ble_enrollment_passes_device_channels() -> None:
+    # The generated client wires the manifest's channel map here; bonding uses those channels verbatim.
+    _FakeBleTransport.instances.clear()
+    channels = {"command": ("0000ffff-0000-1000-8000-00805f9b34fb", "0000fffe-0000-1000-8000-00805f9b34fb")}
+    enrollment = BleEnrollment(channels=channels, transport_factory=_FakeBleTransport)
+    candidate = Candidate(transport="ble", address="AA:BB:CC:DD:EE:FF")
+    await enrollment.enroll(candidate, saved_name="cam")
+    assert _FakeBleTransport.instances[0].channels == channels
+
+
+async def test_ble_enrollment_bare_bond_uses_no_channels() -> None:
+    # With neither channels nor probe_channel, bonding is a bare connect+disconnect (empty channel map).
+    _FakeBleTransport.instances.clear()
+    enrollment = BleEnrollment(transport_factory=_FakeBleTransport)
+    candidate = Candidate(transport="ble", address="AA:BB:CC:DD:EE:FF")
+    ident = await enrollment.enroll(candidate, saved_name="cam")
+    assert isinstance(ident, BleIdentity)
+    assert _FakeBleTransport.instances[0].channels == {}
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +245,7 @@ def test_http_transport_from_identity_user_headers_override() -> None:
     from kandra_runtime.http_transport import HttpTransport
 
     ident = HttpIdentity(saved_name="cloud", base_url="http://x", auth_token="tok-abc")
-    transport = HttpTransport.from_identity(
-        ident, default_headers={"Authorization": "Bearer override"}
-    )
+    transport = HttpTransport.from_identity(ident, default_headers={"Authorization": "Bearer override"})
     assert transport._default_headers["Authorization"] == "Bearer override"
 
 

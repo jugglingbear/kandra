@@ -100,8 +100,8 @@ class BleTransport:
         """Initialize transport configuration. No I/O occurs here."""
         if not address:
             raise ValueError("BleTransport address must be non-empty")
-        if not channels:
-            raise ValueError("BleTransport requires at least one channel")
+        # Zero channels is valid: a channel-less transport can still open()/close() (e.g. a bonding-only connect
+        # during enrollment); request()/subscribe() then reject any channel name as undeclared.
         for name, pair in channels.items():
             if not isinstance(pair, tuple) or len(pair) != 2:
                 raise ValueError(f"channel {name!r}: value must be (write_uuid, notify_uuid) tuple")

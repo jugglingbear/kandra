@@ -1150,6 +1150,15 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
     has_http_enrollment = any(t.family == "http" and t.enrollment_login_path is not None for t in transports)
     if has_http_enrollment:
         runtime_extra_imports.extend(["HttpEnrollment", "LoginPayloadFactory"])
+    # A discoverable BLE transport with declared channels gets a default BleEnrollment that bonds on those manifest
+    # channels, so discover_and_connect works for a BLE-only device without a hand-wired enroller.
+    ble_enroll_transports = [t for t in transports if t.family == "ble" and t.channels]
+    has_ble_enrollment = "ble" in discoverable_families and bool(ble_enroll_transports)
+    if has_ble_enrollment:
+        runtime_extra_imports.append("BleEnrollment")
+    ble_channels_var = (
+        f"_BLE_CHANNELS_{_sanitize(ble_enroll_transports[0].transport_id)}" if has_ble_enrollment else None
+    )
     imports_block = (
         "from kandra_runtime import (\n"
         + "".join(f"    {name},\n" for name in sorted(set(runtime_extra_imports)))
@@ -1266,7 +1275,12 @@ def _render_connect_section(  # noqa: C901  (branch-heavy code generator)
             "    )"
         )
     if discoverable_families:
-        _map_entries = '{"http": http_enrollment()}' if has_http_enrollment else "{}"
+        _entries: list[str] = []
+        if has_http_enrollment:
+            _entries.append('"http": http_enrollment()')
+        if has_ble_enrollment:
+            _entries.append(f'"ble": BleEnrollment(channels={ble_channels_var})')
+        _map_entries = "{" + ", ".join(_entries) + "}"
         enrollment_pieces.append(
             'def _default_enrollment_map() -> "dict[str, Enrollment]":\n'
             '    """Manifest-declared enrollment adapters; used when discover_and_connect gets no enrollment arg."""\n'

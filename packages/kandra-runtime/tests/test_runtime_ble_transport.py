@@ -169,18 +169,14 @@ async def test_request_routes_per_channel(transport: BleTransport, fake: FakeBle
     fake.respond_with(_CHANNELS["query"][0], lambda _data: b"query-reply")
     fake.respond_with(_CHANNELS["command"][0], lambda _data: b"command-reply")
     assert await transport.request(BleRequest(channel="query", payload=b"q")) == b"query-reply"
-    assert (
-        await transport.request(BleRequest(channel="command", payload=b"c")) == b"command-reply"
-    )
+    assert await transport.request(BleRequest(channel="command", payload=b"c")) == b"command-reply"
     # Each write hit the right write_uuid.
     written_uuids = [u for u, _ in fake.writes]
     assert _CHANNELS["query"][0] in written_uuids
     assert _CHANNELS["command"][0] in written_uuids
 
 
-async def test_concurrent_same_channel_requests_serialize(
-    transport: BleTransport, fake: FakeBleakClient
-) -> None:
+async def test_concurrent_same_channel_requests_serialize(transport: BleTransport, fake: FakeBleakClient) -> None:
     counter = {"n": 0}
 
     def responder(data: bytes) -> bytes:
@@ -265,9 +261,11 @@ def test_empty_address_rejected() -> None:
         BleTransport("", channels=_CHANNELS)
 
 
-def test_empty_channels_rejected() -> None:
-    with pytest.raises(ValueError, match="at least one channel"):
-        BleTransport("AA:BB:CC:DD:EE:FF", channels={})
+def test_empty_channels_allowed() -> None:
+    # A channel-less transport is valid: it can open()/close() (e.g. a bonding-only connect during
+    # enrollment); it simply can't route any request.
+    transport = BleTransport("AA:BB:CC:DD:EE:FF", channels={})
+    assert not transport.is_open
 
 
 def test_malformed_channel_pair_rejected() -> None:
@@ -333,9 +331,7 @@ def test_ble_channel_codec_empty_channel_rejected() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_dispatch_routes_through_ble(
-    transport: BleTransport, fake: FakeBleakClient
-) -> None:
+async def test_dispatch_routes_through_ble(transport: BleTransport, fake: FakeBleakClient) -> None:
     fake.respond_with(_CHANNELS["command"][0], lambda _data: b"7")
     command: Command[_PingReq, _PingResp, BleRequest, bytes] = Command(
         id="ping",
@@ -349,9 +345,7 @@ async def test_dispatch_routes_through_ble(
     assert result.data == _PingResp(n=7, ok=True)
 
 
-async def test_dispatch_fire_and_forget_skips_decode(
-    transport: BleTransport, fake: FakeBleakClient
-) -> None:
+async def test_dispatch_fire_and_forget_skips_decode(transport: BleTransport, fake: FakeBleakClient) -> None:
     # No notify ever arrives — fire-and-forget should swallow the timeout.
     fake.respond_with(_CHANNELS["command"][0], lambda _data: None)
     command: Command[_PingReq, _PingResp, BleRequest, bytes] = Command(

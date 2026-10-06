@@ -92,9 +92,7 @@ def patched_client(
             (
                 TransportId.BLE,
                 "ble",
-                lambda ident: _FakeBleTransport.from_identity(
-                    ident, channels=client_mod._BLE_CHANNELS_ble
-                ),
+                lambda ident: _FakeBleTransport.from_identity(ident, channels=client_mod._BLE_CHANNELS_ble),
             ),
             (TransportId.HTTP, "http", lambda ident: _FakeHttpTransport.from_identity(ident)),
         ),
@@ -123,9 +121,7 @@ async def test_connect_activates_both_families_from_composite_identity(
         CompositeIdentity(
             saved_name="bear-1",
             components={
-                "control": BleIdentity(
-                    saved_name="bear-1", address="AA:BB:CC:DD:EE:FF", advertised_name="Bear"
-                ),
+                "control": BleIdentity(saved_name="bear-1", address="AA:BB:CC:DD:EE:FF", advertised_name="Bear"),
                 "api": HttpIdentity(saved_name="bear-1", base_url="http://10.0.0.1:8080"),
             },
         )
@@ -175,17 +171,13 @@ async def test_connect_transports_filter_narrows_activation(
         CompositeIdentity(
             saved_name="bear-3",
             components={
-                "control": BleIdentity(
-                    saved_name="bear-3", address="AA:BB:CC:DD:EE:FF", advertised_name="Bear"
-                ),
+                "control": BleIdentity(saved_name="bear-3", address="AA:BB:CC:DD:EE:FF", advertised_name="Bear"),
                 "api": HttpIdentity(saved_name="bear-3", base_url="http://10.0.0.1:8080"),
             },
         )
     )
 
-    client = await BleWidgetClient.connect(
-        "bear-3", store=store, transports={TransportId.BLE}
-    )
+    client = await BleWidgetClient.connect("bear-3", store=store, transports={TransportId.BLE})
     try:
         assert set(client._transports.keys()) == {TransportId.BLE}
     finally:
@@ -204,9 +196,7 @@ async def test_connect_raises_when_identity_has_no_matching_family(
     store.save(HttpIdentity(saved_name="bear-4", base_url="http://10.0.0.1:8080"))
 
     with pytest.raises(ValueError, match="no transports"):
-        await BleWidgetClient.connect(
-            "bear-4", store=store, transports={TransportId.BLE}
-        )
+        await BleWidgetClient.connect("bear-4", store=store, transports={TransportId.BLE})
 
 
 async def test_connect_propagates_identity_not_found(
@@ -303,9 +293,7 @@ async def test_discover_and_connect_uses_saved_identity_when_present(
     from kandra_runtime import BleIdentity
 
     store = _make_store(tmp_path)
-    store.save(
-        BleIdentity(saved_name="kitchen", address="AA:BB:CC:DD:EE:FF", advertised_name="K")
-    )
+    store.save(BleIdentity(saved_name="kitchen", address="AA:BB:CC:DD:EE:FF", advertised_name="K"))
 
     scan_called = {"ble": 0, "http": 0}
 
@@ -321,9 +309,7 @@ async def test_discover_and_connect_uses_saved_identity_when_present(
     monkeypatch.setattr(patched_client, "scan_http", fake_scan_http)
 
     enroll = _FakeEnrollment(identity=None)
-    client = await BleWidgetClient.discover_and_connect(
-        "kitchen", enrollment={"ble": enroll}, store=store
-    )
+    client = await BleWidgetClient.discover_and_connect("kitchen", enrollment={"ble": enroll}, store=store)
     try:
         assert scan_called == {"ble": 0, "http": 0}
         assert enroll.calls == []
@@ -354,9 +340,7 @@ async def test_discover_and_connect_scans_enrolls_and_saves_on_first_run(
     monkeypatch.setattr(patched_client, "scan_ble", fake_scan_ble)
     monkeypatch.setattr(patched_client, "scan_http", fake_scan_http)
 
-    ble_ident = BleIdentity(
-        saved_name="kitchen", address="AA:BB:CC:DD:EE:FF", advertised_name="K"
-    )
+    ble_ident = BleIdentity(saved_name="kitchen", address="AA:BB:CC:DD:EE:FF", advertised_name="K")
     http_ident = HttpIdentity(saved_name="kitchen", base_url="http://10.0.0.1:8080")
 
     client = await BleWidgetClient.discover_and_connect(
@@ -376,6 +360,13 @@ async def test_discover_and_connect_scans_enrolls_and_saves_on_first_run(
         await client.aclose()
 
 
+def test_default_enrollment_map_wires_ble_with_manifest_channels(sdk_on_path: Path) -> None:
+    """A discoverable BLE transport with channels yields a default BleEnrollment bonding on those channels."""
+    client_src = (sdk_on_path / "client.py").read_text(encoding="utf-8")
+    assert "BleEnrollment," in client_src  # imported from kandra_runtime
+    assert '"ble": BleEnrollment(channels=_BLE_CHANNELS_ble)' in client_src
+
+
 async def test_discover_and_connect_single_family_unwraps_to_plain_identity(
     patched_client: Any,
     tmp_path: Path,
@@ -392,9 +383,7 @@ async def test_discover_and_connect_single_family_unwraps_to_plain_identity(
 
     monkeypatch.setattr(patched_client, "scan_ble", fake_scan_ble)
 
-    ble_ident = BleIdentity(
-        saved_name="ble-only", address="AA:BB:CC:DD:EE:FF", advertised_name="X"
-    )
+    ble_ident = BleIdentity(saved_name="ble-only", address="AA:BB:CC:DD:EE:FF", advertised_name="X")
     client = await BleWidgetClient.discover_and_connect(
         "ble-only", enrollment={"ble": _FakeEnrollment(ble_ident)}, store=store
     )
@@ -424,9 +413,7 @@ async def test_discover_and_connect_raises_when_no_candidates(
 
     ble_ident = BleIdentity(saved_name="x", address="A", advertised_name="x")
     with pytest.raises(EnrollmentError, match="no BLE candidates"):
-        await BleWidgetClient.discover_and_connect(
-            "x", enrollment={"ble": _FakeEnrollment(ble_ident)}, store=store
-        )
+        await BleWidgetClient.discover_and_connect("x", enrollment={"ble": _FakeEnrollment(ble_ident)}, store=store)
 
 
 async def test_discover_and_connect_rejects_single_enrollment_for_multi_family(
@@ -438,9 +425,7 @@ async def test_discover_and_connect_rejects_single_enrollment_for_multi_family(
 
     store = _make_store(tmp_path)
     with pytest.raises(ValueError, match="multiple discoverable"):
-        await BleWidgetClient.discover_and_connect(
-            "x", enrollment=_FakeEnrollment(identity=None), store=store
-        )
+        await BleWidgetClient.discover_and_connect("x", enrollment=_FakeEnrollment(identity=None), store=store)
 
 
 async def test_via_rejects_unwired_transport(sdk_on_path: Path) -> None:

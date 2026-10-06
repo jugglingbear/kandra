@@ -89,8 +89,10 @@ class BleEnrollment(Enrollment):
     capture and persist the LTK. This adapter performs that connect+disconnect dance so the bond is in place before the
     user's first real ``Client.connect(saved_name=...)`` call.
 
-    Pass ``probe_channel`` (a ``(write_uuid, notify_uuid)`` pair) when the device requires a paired characteristic touch
-    to trigger bonding; leave it ``None`` to just connect and disconnect.
+    Pass ``channels`` (the device's manifest channel map) — or ``probe_channel`` for a single
+    ``(write_uuid, notify_uuid)`` pair — when the device needs a paired characteristic touch to trigger bonding;
+    omit both to just connect and disconnect. The generated client wires its baked manifest channels here
+    automatically, so callers rarely set either by hand.
 
     Tests inject ``transport_factory`` to substitute the BLE layer.
     """
@@ -99,10 +101,16 @@ class BleEnrollment(Enrollment):
         self,
         *,
         probe_channel: tuple[str, str] | None = None,
+        channels: Mapping[str, tuple[str, str]] | None = None,
         transport_factory: BleTransportFactory | None = None,
     ) -> None:
         """Configure the BLE enrollment adapter (see class docstring)."""
-        self._probe_channel = probe_channel
+        if channels is not None:
+            self._channels: dict[str, tuple[str, str]] = dict(channels)
+        elif probe_channel is not None:
+            self._channels = {"probe": probe_channel}
+        else:
+            self._channels = {}
         self._transport_factory = transport_factory or _default_ble_transport_factory
 
     async def enroll(self, candidate: Candidate, *, saved_name: str) -> Identity:
@@ -111,9 +119,8 @@ class BleEnrollment(Enrollment):
             raise EnrollmentError(
                 f"BleEnrollment cannot enroll non-BLE candidate " f"(transport={candidate.transport!r})"
             )
-        channels: dict[str, tuple[str, str]] = {"probe": self._probe_channel} if self._probe_channel is not None else {}
         try:
-            async with self._transport_factory(candidate.address, channels):
+            async with self._transport_factory(candidate.address, self._channels):
                 pass
         except TransportError as exc:
             raise EnrollmentError(f"BleEnrollment: failed to bond with {candidate.address!r}: {exc}") from exc
