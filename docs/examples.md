@@ -1,6 +1,6 @@
 # Examples
 
-Kandra ships three example devices under
+Kandra ships example devices under
 [`examples/`](https://github.com/jugglingbear/kandra/tree/main/examples), each chosen to illustrate a different slice
 of the framework. Pick the one that matches what you're trying to learn.
 
@@ -27,14 +27,34 @@ of the framework. Pick the one that matches what you're trying to learn.
 
 ## hello_world — the smallest device
 
-One HTTP command (`greeting.hello`) backed by one handler. Build it and call a single typed method:
+One HTTP command (`greeting.hello`) backed by one handler. Build it, start the tiny simulator, and call a single typed
+method:
 
 ```bash
-kandra build examples/hello_world/manifest.yaml
+# 1. build the SDK -> examples/hello_world/dist/
+poetry run kandra build examples/hello_world/manifest.yaml
+
+# 2. start the one-route simulator (leave it running in one terminal)
+poetry run python -m examples.hello_world.firmware_sim
+
+# 3. run the demo in another terminal
+PYTHONPATH="examples/hello_world/dist:examples/hello_world/src" \
+  poetry run python examples/hello_world/demo.py
 ```
 
-The generated client exposes `await client.greeting.hello(HelloRequest(message="hello"))`. There is no discovery,
-enrollment, or simulator here — it is the minimal shape of a manifest plus a handler, nothing more.
+The whole demo ([`examples/hello_world/demo.py`](https://github.com/jugglingbear/kandra/blob/main/examples/hello_world/demo.py))
+is a dozen lines — no discovery, enrollment, or saved identity, just a transport pointed straight at the URL:
+
+```python
+transport = HttpTransport(BASE_URL)
+async with open_transport(transport):
+    client = HelloWorldClient(transports={TransportId.HTTP: transport})
+    result = await client.greeting.hello(HelloRequest(message="hello"))
+print(f"PUT hello -> {result.data.reply}")   # PUT hello -> world
+```
+
+There is no discovery or enrollment lifecycle here — just the minimal shape of a manifest plus a handler. The
+`pneumatic_bear_poker` example below layers on discovery, enrollment, and saved identities.
 
 ## pneumatic_bear_poker — the full walkthrough
 
