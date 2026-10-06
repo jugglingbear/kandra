@@ -58,7 +58,7 @@ docker build -t pneumatic-bear-poker-sim examples/pneumatic_bear_poker/firmware_
 docker run --rm -p 48080:8080 pneumatic-bear-poker-sim
 ```
 
-Either way it serves on `http://localhost:48080` — leave it running.
+Either way it serves on `http://127.0.0.1:48080` — leave it running.
 
 ## 4. Run the lifecycle demo
 
@@ -67,7 +67,7 @@ handler source (`examples/pneumatic_bear_poker/src/`) on `PYTHONPATH`:
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py --url http://localhost:48080
+  poetry run python examples/pneumatic_bear_poker/demo.py --url http://127.0.0.1:48080
 ```
 
 You should see each lifecycle phase logged, ending in a successful deploy:
@@ -76,8 +76,8 @@ You should see each lifecycle phase logged, ending in a successful deploy:
 [STORE] identities file: ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
 [STORE] currently saved: (none)
 [PHASE] no saved identity 'grizzly' -- running discover + enroll
-[DISCOVER] probing http://localhost:48080 for a Pneumatic Bear Poker ...
-[DISCOVER] found device at http://localhost:48080
+[DISCOVER] probing http://127.0.0.1:48080 for a Pneumatic Bear Poker ...
+[DISCOVER] found device at http://127.0.0.1:48080
 [ENROLL] running the manifest-declared login and capturing the bearer token ...
 [ENROLL] credentials captured
 [SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
@@ -129,7 +129,7 @@ enrollment — say, after moving the sim to a new port — pass `--reset`:
 
 ```bash
 PYTHONPATH="dist:examples/pneumatic_bear_poker/src" \
-  poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://localhost:48080
+  poetry run python examples/pneumatic_bear_poker/demo.py --reset --url http://127.0.0.1:48080
 ```
 
 See [Identity → Where identities are stored](concepts/identity.md#where-identities-are-stored) for the on-disk
