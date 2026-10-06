@@ -1,19 +1,14 @@
 """Capability negotiation: ask a device what it supports before calling in.
 
-An operation (command / attribute / event) may declare required capability
-*tags* in the manifest (``capabilities: [...]``). A :class:`CapabilityProbe` — a
-device-specific adapter you implement, like a codec or transport adapter —
-reports which tags the *connected* device supports. The generated client's
-``discover_capabilities(probe)`` caches that set; afterwards, calling an
-operation whose required tags the device lacks raises
-:class:`~kandra_runtime.errors.CapabilityUnavailable` locally instead of failing
-on the wire.
+An operation (command / attribute / event) may declare required capability *tags* in the manifest
+(``capabilities: [...]``). A :class:`CapabilityProbe` — a device-specific adapter you implement, like a codec or
+transport adapter — reports which tags the *connected* device supports. The generated client's
+``discover_capabilities(probe)`` caches that set; afterwards, calling an operation whose required tags the device lacks
+raises :class:`~kandra_runtime.errors.CapabilityUnavailable` locally instead of failing on the wire.
 
-Kandra never imposes a capabilities format on the device: tags are opaque
-strings you choose, matched by set-containment. Gate at whatever granularity you
-need — a shared feature tag for operations that ship together, or a per-operation
-tag (commonly the op id) when a device may support one operation of a feature but
-not another.
+Kandra never imposes a capabilities format on the device: tags are opaque strings you choose, matched by
+set-containment. Gate at whatever granularity you need — a shared feature tag for operations that ship together, or a
+per-operation tag (commonly the op id) when a device may support one operation of a feature but not another.
 """
 
 from __future__ import annotations
@@ -40,10 +35,9 @@ class Capabilities:
 class CapabilityProbe(Protocol):
     """Reports which capability tags a connected device supports.
 
-    A device-specific adapter you implement — Kandra defines the protocol, you
-    supply the behavior (a hardcoded table from a published spec, a live
-    capabilities endpoint queried through the passed client, ...). Return the set
-    of tags the device supports; the client gates operations by set-containment.
+    A device-specific adapter you implement — Kandra defines the protocol, you supply the behavior (a hardcoded table
+    from a published spec, a live capabilities endpoint queried through the passed client, ...). Return the set of tags
+    the device supports; the client gates operations by set-containment.
     """
 
     async def probe(self, client: Any) -> frozenset[str]:
@@ -54,8 +48,8 @@ class CapabilityProbe(Protocol):
 class StaticCapabilityProbe:
     """A :class:`CapabilityProbe` returning a fixed tag set.
 
-    For tests and devices whose capabilities are known statically (e.g. hardcoded
-    from a published spec rather than queried at runtime)::
+    For tests and devices whose capabilities are known statically (e.g. hardcoded from a published spec rather
+    than queried at runtime)::
 
         caps = await client.discover_capabilities(StaticCapabilityProbe("gps", "hdr"))
     """

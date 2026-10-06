@@ -17,8 +17,7 @@ HttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
 class HttpRequest:
     """Wire envelope consumed by the HTTP transport's ``request()``.
 
-    The codec produces this from the user's typed request dataclass;
-    the transport executes it.
+    The codec produces this from the user's typed request dataclass; the transport executes it.
     """
 
     method: HttpMethod
@@ -32,9 +31,8 @@ class HttpRequest:
 class HttpResponse:
     """Wire envelope produced by the HTTP transport's ``request()``.
 
-    The codec parses the body into the user's typed response dataclass.
-    Classification of the HTTP status (5xx -> DEVICE_FAULT, 4xx ->
-    REJECTED, etc.) is the result-envelope's job, not the codec's.
+    The codec parses the body into the user's typed response dataclass. Classification of the HTTP status (5xx ->
+    DEVICE_FAULT, 4xx -> REJECTED, etc.) is the result-envelope's job, not the codec's.
     """
 
     status: int
@@ -45,13 +43,11 @@ class HttpResponse:
 class HttpJsonCodec(Generic[RequestT, ResponseT]):
     """JSON body codec for HTTP commands with dataclass-shaped payloads.
 
-    Fixes ``WireReqT`` / ``WireRespT`` to ``HttpRequest`` /
-    ``HttpResponse`` so users only ever write two type parameters.
+    Fixes ``WireReqT`` / ``WireRespT`` to ``HttpRequest`` / ``HttpResponse`` so users only ever write two type
+    parameters.
 
-    The codec is constructed with the wire-format metadata that the
-    *generator* reads off the manifest's ``http:`` block, plus the
-    request/response types it reads off the handler class. End users
-    do not instantiate this directly.
+    The codec is constructed with the wire-format metadata that the *generator* reads off the manifest's ``http:``
+    block, plus the request/response types it reads off the handler class. End users do not instantiate this directly.
     """
 
     def __init__(
@@ -73,9 +69,7 @@ class HttpJsonCodec(Generic[RequestT, ResponseT]):
     def encode(self, request: RequestT) -> HttpRequest:
         """Serialize ``request`` into an :class:`HttpRequest` envelope."""
         if not is_dataclass(request) or isinstance(request, type):
-            raise CodecError(
-                f"HttpJsonCodec requires a dataclass instance, got {type(request).__name__}"
-            )
+            raise CodecError(f"HttpJsonCodec requires a dataclass instance, got {type(request).__name__}")
         fields = asdict(request)
         if self._query_from_request:
             # GET-style: request fields become query params, no body.
@@ -121,10 +115,8 @@ class DefaultHttpResponseInterpreter:
     - ``5xx`` → :attr:`Classification.DEVICE_FAULT`
     - everything else (1xx, 3xx, non-standard) → :attr:`Classification.ANOMALOUS`
 
-    Device-specific rules (e.g. parsing a JSON error envelope to surface
-    the device's own error code) live in user-supplied interpreters; this
-    one is the runtime default for any HTTP transport that doesn't
-    declare its own.
+    Device-specific rules (e.g. parsing a JSON error envelope to surface the device's own error code) live in
+    user-supplied interpreters; this one is the runtime default for any HTTP transport that doesn't declare its own.
     """
 
     def classify(self, response: HttpResponse) -> ClassificationVerdict:
@@ -134,16 +126,10 @@ class DefaultHttpResponseInterpreter:
         if 200 <= status < 300:
             return ClassificationVerdict(Classification.ACCEPTED, extra=extra)
         if 400 <= status < 500:
-            return ClassificationVerdict(
-                Classification.REJECTED, reason=f"HTTP {status}", extra=extra
-            )
+            return ClassificationVerdict(Classification.REJECTED, reason=f"HTTP {status}", extra=extra)
         if 500 <= status < 600:
-            return ClassificationVerdict(
-                Classification.DEVICE_FAULT, reason=f"HTTP {status}", extra=extra
-            )
-        return ClassificationVerdict(
-            Classification.ANOMALOUS, reason=f"unexpected HTTP {status}", extra=extra
-        )
+            return ClassificationVerdict(Classification.DEVICE_FAULT, reason=f"HTTP {status}", extra=extra)
+        return ClassificationVerdict(Classification.ANOMALOUS, reason=f"unexpected HTTP {status}", extra=extra)
 
 
 default_http_interpreter = DefaultHttpResponseInterpreter()

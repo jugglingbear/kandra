@@ -1,20 +1,16 @@
 """Vendor the import closure into the generated package and rewrite its imports.
 
-The closure walker (:mod:`kandra.closure`) decides *which* files ship; this
-module *copies* them into the SDK and rewrites their imports so the result is
-self-contained.
+The closure walker (:mod:`kandra.closure`) decides *which* files ship; this module *copies* them into the SDK and
+rewrites their imports so the result is self-contained.
 
-Layout: every vendored file keeps its path relative to its source root but is
-re-homed under ``<package>/_internal/``. A module authored as
-``common.codecs.json`` (source root ``src``) lands at
-``<package>/_internal/common/codecs/json.py`` and is importable as
-``<package>._internal.common.codecs.json``.
+Layout: every vendored file keeps its path relative to its source root but is re-homed under ``<package>/_internal/``. A
+module authored as ``common.codecs.json`` (source root ``src``) lands at ``<package>/_internal/common/codecs/json.py``
+and is importable as ``<package>._internal.common.codecs.json``.
 
-Import rewriting is **textual, not AST-round-tripped**: only the module
-reference inside each absolute ``import`` / ``from`` statement is edited, so
-comments (including ``# kandra-audience:`` headers), formatting, and docstrings
-survive verbatim. Relative imports (``from . import x``) are left untouched —
-the package tree is preserved under ``_internal``, so they still resolve.
+Import rewriting is **textual, not AST-round-tripped**: only the module reference inside each absolute ``import`` /
+``from`` statement is edited, so comments (including ``# kandra-audience:`` headers), formatting, and docstrings survive
+verbatim. Relative imports (``from . import x``) are left untouched — the package tree is preserved under ``_internal``,
+so they still resolve.
 """
 
 from __future__ import annotations
@@ -120,9 +116,8 @@ def vendor_closure(
 def rewrite_imports(source: str, vendored_tops: frozenset[str], prefix: str) -> str:
     """Rewrite absolute imports of vendored packages to the ``prefix`` namespace.
 
-    Only the module reference is edited; the rest of each statement (aliases,
-    imported names) and the surrounding file are preserved byte-for-byte.
-    Relative imports and imports of external packages are left unchanged.
+    Only the module reference is edited; the rest of each statement (aliases, imported names) and the surrounding file
+    are preserved byte-for-byte. Relative imports and imports of external packages are left unchanged.
 
     Args:
         source: The original module source text.
@@ -224,8 +219,8 @@ def _trailing_newline(line: str) -> str:
 def _trailing_comment(last_line: str, end_col: int) -> str:
     """Return any inline comment after an import on its final line.
 
-    Preserves a workaround note like ``from x import y  # noqa`` when the import
-    statement is rewritten. Returns ``''`` when nothing but whitespace follows.
+    Preserves a workaround note like ``from x import y  # noqa`` when the import statement is rewritten. Returns ``''``
+    when nothing but whitespace follows.
     """
     tail = last_line[end_col:].rstrip("\r\n")
     return tail if "#" in tail else ""

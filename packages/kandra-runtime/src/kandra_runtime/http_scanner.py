@@ -1,15 +1,11 @@
 """HTTP :class:`Scanner` adapter that probes a list of candidate base URLs.
 
-mDNS / SSD discovery is intentionally out of scope — that would
-pull in :mod:`zeroconf` and platform-specific service-type knowledge.
-This adapter handles the common "we already know a handful of likely
-URLs (LAN broadcast IP, mDNS-resolved hostname, last known address);
-probe each in parallel and tell me which ones are alive" pattern.
+mDNS / SSD discovery is intentionally out of scope — that would pull in :mod:`zeroconf` and platform-specific
+service-type knowledge. This adapter handles the common "we already know a handful of likely URLs (LAN broadcast IP,
+mDNS-resolved hostname, last known address); probe each in parallel and tell me which ones are alive" pattern.
 
-A *probe* is a single HTTP request whose 2xx response means "this URL
-hosts the device I'm looking for". The default probe issues ``GET /`` —
-override via the ``probe_path`` argument or by supplying your own
-``probe_callable``.
+A *probe* is a single HTTP request whose 2xx response means "this URL hosts the device I'm looking for". The default
+probe issues ``GET /`` — override via the ``probe_path`` argument or by supplying your own ``probe_callable``.
 """
 
 from __future__ import annotations
@@ -85,9 +81,7 @@ class HttpScanner(Scanner):
         self._probe = probe_callable or _default_probe(probe_path)
         self._per_probe_timeout = per_probe_timeout
         self._session_factory = session_factory or (
-            lambda: aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=per_probe_timeout)
-            )
+            lambda: aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=per_probe_timeout))
         )
 
     def scan(
@@ -102,9 +96,7 @@ class HttpScanner(Scanner):
             try:
                 session = self._session_factory()
             except Exception as exc:
-                raise TransportError(
-                    f"HttpScanner: failed to construct aiohttp session: {exc}"
-                ) from exc
+                raise TransportError(f"HttpScanner: failed to construct aiohttp session: {exc}") from exc
             tasks = [asyncio.create_task(self._safe_probe(session, url)) for url in self._candidates]
             try:
                 async for candidate in self._drain(tasks, timeout):
@@ -127,16 +119,12 @@ class HttpScanner(Scanner):
         timeout: float | None,
     ) -> AsyncIterator[Candidate]:
         pending: set[asyncio.Task[Candidate | None]] = set(tasks)
-        deadline = (
-            asyncio.get_running_loop().time() + timeout if timeout is not None else None
-        )
+        deadline = asyncio.get_running_loop().time() + timeout if timeout is not None else None
         while pending:
             remaining = None if deadline is None else deadline - asyncio.get_running_loop().time()
             if remaining is not None and remaining <= 0:
                 return
-            done, pending = await asyncio.wait(
-                pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait(pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
             if not done:
                 return  # deadline reached without any completion
             for task in done:

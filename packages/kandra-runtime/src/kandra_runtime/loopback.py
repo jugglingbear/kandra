@@ -1,12 +1,11 @@
 """In-memory loopback transport for tests and documentation examples.
 
-Wraps a user-supplied handler that maps a request envelope to a response
-envelope. Both sync and async handlers are supported.
+Wraps a user-supplied handler that maps a request envelope to a response envelope. Both sync and async handlers are
+supported.
 
-Generic on the wire envelope types so it satisfies any
-``Transport[WireReqT, WireRespT]`` slot -- ``Transport[bytes, bytes]``
-for raw payload tests, ``Transport[HttpRequest, HttpResponse]`` for HTTP
-codec round-trip tests, etc.
+Generic on the wire envelope types so it satisfies any ``Transport[WireReqT, WireRespT]`` slot --
+``Transport[bytes, bytes]`` for raw payload tests, ``Transport[HttpRequest, HttpResponse]`` for HTTP codec round-trip
+tests, etc.
 """
 
 from __future__ import annotations
@@ -26,13 +25,12 @@ WireRespT = TypeVar("WireRespT")
 class LoopbackTransport(Generic[WireReqT, WireRespT]):
     """A transport that routes requests through an in-process handler.
 
-    Useful for unit tests, runtime self-checks, and as the smallest
-    possible reference implementation of the `Transport` protocol.
+    Useful for unit tests, runtime self-checks, and as the smallest possible reference implementation of the `Transport`
+    protocol.
 
-    Pass ``subscribe_handler`` to also satisfy the
-    :class:`~kandra_runtime.transport.Subscribable` protocol: it maps a request
-    envelope to an ``AsyncIterator`` of wire responses (a scripted device push
-    stream), which the attribute / event layers consume.
+    Pass ``subscribe_handler`` to also satisfy the :class:`~kandra_runtime.transport.Subscribable` protocol: it maps a
+    request envelope to an ``AsyncIterator`` of wire responses (a scripted device push stream), which the attribute /
+    event layers consume.
     """
 
     def __init__(
@@ -62,8 +60,7 @@ class LoopbackTransport(Generic[WireReqT, WireRespT]):
     async def request(self, envelope: WireReqT) -> WireRespT:
         """Run the handler against `envelope` and return its result.
 
-        Awaits the result if the handler is a coroutine function or
-        otherwise returns an awaitable.
+        Awaits the result if the handler is a coroutine function or otherwise returns an awaitable.
         """
         if not self._open:
             raise TransportNotOpenError("LoopbackTransport is not open")
@@ -76,9 +73,8 @@ class LoopbackTransport(Generic[WireReqT, WireRespT]):
         """Yield the scripted subscribe stream for `envelope` until it is closed.
 
         Raises:
-            TransportError: constructed without a ``subscribe_handler``.
-            TransportNotOpenError: called before :meth:`open` (raised when
-                iteration begins).
+            TransportError: constructed without a ``subscribe_handler``. TransportNotOpenError: called before
+            :meth:`open` (raised when iteration begins).
         """
         handler = self._subscribe_handler
         if handler is None:

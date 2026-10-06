@@ -1,15 +1,11 @@
 """``kandra audit`` — report the effective audience of every source file per profile.
 
-InfoSec runs this before signing off a partner release. It answers two
-questions for a given profile:
+InfoSec runs this before signing off a partner release. It answers two questions for a given profile:
 
-* **What ships?** The resolved effective audience (YAML grant narrowed by any
-  ``# kandra-audience:`` header) of every ``.py`` file under the manifest's
-  source roots, and whether that file is included for the profile.
-* **What's stale?** Entries in ``audience_profiles.yaml``'s static ``files``
-  map that no longer resolve to a real file — a rename left them dangling, so
-  the referenced file has silently fallen back to the default ``internal``
-  grant.
+* **What ships?** The resolved effective audience (YAML grant narrowed by any ``# kandra-audience:`` header) of
+  every ``.py`` file under the manifest's source roots, and whether that file is included for the profile.
+* **What's stale?** Entries in ``audience_profiles.yaml``'s static ``files`` map that no longer resolve to a real
+  file — a rename left them dangling, so the referenced file has silently fallen back to the default ``internal`` grant.
 """
 
 from __future__ import annotations

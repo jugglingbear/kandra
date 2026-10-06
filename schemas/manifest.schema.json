@@ -128,7 +128,7 @@
     },
     "BleChannelSpec": {
       "additionalProperties": false,
-      "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nChannels live on the *transport*; commands select one via\n``ble.<transport_id>.channel``.",
+      "description": "One named (write, notify) characteristic pair on a BLE transport.\n\nChannels live on the *transport*; commands select one via ``ble.<transport_id>.channel``.",
       "properties": {
         "notify": {
           "description": "UUID of the notify characteristic.",
@@ -152,7 +152,7 @@
     },
     "BleCommandSpec": {
       "additionalProperties": false,
-      "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's\n``channels:`` map.",
+      "description": "Per-(command, ble-transport) channel routing and behavior block.\n\n``channel`` must name a channel declared on the BLE transport's ``channels:`` map.",
       "properties": {
         "channel": {
           "description": "Name of the BLE channel (declared on the transport's ``channels:``) this command rides.",
@@ -170,7 +170,7 @@
             }
           ],
           "default": null,
-          "description": "Dotted path (``module:Class``) to a per-command payload codec overriding the transport's\n``codec`` for this command only. Same shape as any BLE payload codec\n(``Codec[Req, Resp, bytes, bytes]``); it is wrapped in the runtime ``BleChannelCodec``. Omit to use\nthe transport default.",
+          "description": "Dotted path (``module:Class``) to a per-command payload codec overriding the transport's ``codec`` for\nthis command only. Same shape as any BLE payload codec (``Codec[Req, Resp, bytes, bytes]``); it is wrapped in\nthe runtime ``BleChannelCodec``. Omit to use the transport default.",
           "title": "Codec"
         },
         "expects_response": {
@@ -202,7 +202,7 @@
     },
     "BleDiscoverySpec": {
       "additionalProperties": false,
-      "description": "Match criteria for a BLE advertisement (all fields optional, AND'd).\n\nThe generated SDK emits a ``default_ble_matcher(candidate)`` that returns\n``True`` only when every present criterion matches the advertisement.",
+      "description": "Match criteria for a BLE advertisement (all fields optional, AND'd).\n\nThe generated SDK emits a ``default_ble_matcher(candidate)`` that returns ``True`` only when every present criterion\nmatches the advertisement.",
       "properties": {
         "manufacturer_id": {
           "anyOf": [
@@ -455,7 +455,7 @@
     },
     "DiscoverySpec": {
       "additionalProperties": false,
-      "description": "Optional top-level discovery configuration.\n\nLists at least one transport-family sub-block. Each present sub-block\ndrives generation of a corresponding ``make_<family>_scanner()`` and\n``default_<family>_matcher()`` in the SDK's ``scanners.py`` module.",
+      "description": "Optional top-level discovery configuration.\n\nLists at least one transport-family sub-block. Each present sub-block drives generation of a corresponding\n``make_<family>_scanner()`` and ``default_<family>_matcher()`` in the SDK's ``scanners.py`` module.",
       "properties": {
         "ble": {
           "anyOf": [
@@ -487,7 +487,7 @@
     },
     "Event": {
       "additionalProperties": false,
-      "description": "Stateless device emission primitive: a subscribe-only stream.\n\nDistinct from an attribute subscribe (which streams changes of a named,\nread/writable *value*): an event has no stored state \u2014 it is a\nfire-and-forget emission (e.g. \"button pressed\", \"recording started\"). The\nhandler declares a single ``payload`` type; the generated facade exposes\n``client.<namespace>.<event>.subscribe()`` (async-only).",
+      "description": "Stateless device emission primitive: a subscribe-only stream.\n\nDistinct from an attribute subscribe (which streams changes of a named, read/writable *value*): an event has no\nstored state \u2014 it is a fire-and-forget emission (e.g. \"button pressed\", \"recording started\"). The handler declares a\nsingle ``payload`` type; the generated facade exposes ``client.<namespace>.<event>.subscribe()`` (async-only).",
       "properties": {
         "audience": {
           "description": "Audiences allowed to subscribe (a subset of the device audience).",
@@ -567,7 +567,7 @@
     },
     "HttpAttributeOp": {
       "additionalProperties": false,
-      "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via\n``GET`` (e.g. ``GET /setting?option=9``) sets ``method: GET`` with\n``query_from_request: true``, exactly like a command.",
+      "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via ``GET`` (e.g. ``GET /setting?option=9``) sets\n``method: GET`` with ``query_from_request: true``, exactly like a command.",
       "properties": {
         "body_codec": {
           "default": "json",
@@ -680,7 +680,7 @@
     },
     "HttpAttributeSubscribe": {
       "additionalProperties": false,
-      "description": "HTTP subscribe wiring for an attribute: native SSE, or explicit opt-in polling.\n\nPolling is never a surprise default \u2014 ``mode: poll`` must supply an\n``interval``. ``mode: sse`` opens one long-lived event stream instead.",
+      "description": "HTTP subscribe wiring for an attribute: native SSE, or explicit opt-in polling.\n\nPolling is never a surprise default \u2014 ``mode: poll`` must supply an ``interval``. ``mode: sse`` opens one long-lived\nevent stream instead.",
       "properties": {
         "interval": {
           "anyOf": [
@@ -757,7 +757,7 @@
             }
           ],
           "default": null,
-          "description": "Dotted path (``module:Class``) to a per-command codec that overrides the built-in\n``HttpJsonCodec`` for this command only -- use it when one command's wire format differs from the\nrest of the transport (a binary or plain-text body). It is constructed like ``HttpJsonCodec``\n(method / path / request + response types / ``query_from_request``), so the simplest override\nsubclasses ``HttpJsonCodec`` and overrides ``decode``. Omit to use the JSON default.",
+          "description": "Dotted path (``module:Class``) to a per-command codec that overrides the built-in ``HttpJsonCodec`` for\nthis command only -- use it when one command's wire format differs from the rest of the transport (a binary\nor plain-text body). It is constructed like ``HttpJsonCodec`` (method / path / request + response types /\n``query_from_request``), so the simplest override subclasses ``HttpJsonCodec`` and overrides ``decode``. Omit\nto use the JSON default.",
           "title": "Codec"
         },
         "expects_response": {
@@ -823,7 +823,7 @@
     },
     "HttpDiscoverySpec": {
       "additionalProperties": false,
-      "description": "Probe-list configuration for HTTP discovery.\n\nUnlike BLE, HTTP discovery has nothing to listen for \u2014 the scanner\nmust be told which URLs to probe. ``base_urls`` is therefore\nrequired whenever this sub-block is present.",
+      "description": "Probe-list configuration for HTTP discovery.\n\nUnlike BLE, HTTP discovery has nothing to listen for \u2014 the scanner must be told which URLs to probe. ``base_urls``\nis therefore required whenever this sub-block is present.",
       "properties": {
         "base_urls": {
           "description": "URLs to probe in parallel; the first whose ``probe_path`` returns 200 wins.",
@@ -864,7 +864,7 @@
     },
     "HttpEventSpec": {
       "additionalProperties": false,
-      "description": "Per-(event, http-transport) subscribe wiring: native SSE, or explicit opt-in polling.\n\nIdentical shape to an attribute's subscribe block \u2014 an event *is* a\nsubscribe-only stream \u2014 but kept as its own model so the two primitives stay\nself-documenting. Polling is never a surprise default: ``mode: poll`` must\nsupply an ``interval``; ``mode: sse`` opens one long-lived event stream.",
+      "description": "Per-(event, http-transport) subscribe wiring: native SSE, or explicit opt-in polling.\n\nIdentical shape to an attribute's subscribe block \u2014 an event *is* a subscribe-only stream \u2014 but kept as its own\nmodel so the two primitives stay self-documenting. Polling is never a surprise default: ``mode: poll`` must supply\nan ``interval``; ``mode: sse`` opens one long-lived event stream.",
       "properties": {
         "interval": {
           "anyOf": [
@@ -919,7 +919,7 @@
     },
     "Transport": {
       "additionalProperties": false,
-      "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\n``codec`` is required for every family except HTTP: HTTP commands are\nJSON-encoded by the runtime ``HttpJsonCodec``, so an HTTP transport may omit\n``codec`` entirely.\n\nThe optional ``family`` field tags the transport for cross-validation:\nwhen set, commands riding this transport must supply the matching\nper-transport block (``http:`` for ``family=http``, ``ble:`` for\n``family=ble``). Loopback / unknown / null transports impose no such\nrequirement (this preserves the lightweight test-fixture style used\nin unit tests).",
+      "description": "A wire transport (BLE / HTTP / serial / etc.) plus its codec.\n\n``codec`` is required for every family except HTTP: HTTP commands are JSON-encoded by the runtime ``HttpJsonCodec``,\nso an HTTP transport may omit ``codec`` entirely.\n\nThe optional ``family`` field tags the transport for cross-validation: when set, commands riding this transport must\nsupply the matching per-transport block (``http:`` for ``family=http``, ``ble:`` for ``family=ble``). Loopback /\nunknown / null transports impose no such requirement (this preserves the lightweight test-fixture style used in unit\ntests).",
       "properties": {
         "adapter": {
           "anyOf": [
@@ -1036,7 +1036,7 @@
     },
     "TransportEnrollment": {
       "additionalProperties": false,
-      "description": "Declarative first-run login the generated SDK bakes into its HTTP enrollment adapter.\n\nOnly the *static* wiring lives here (the login path plus which response field carries the\ntoken). Runtime secrets -- credentials, API keys -- never live in the manifest; callers\ninject them at runtime via the generated ``<family>_enrollment(login_payload=...)`` factory.",
+      "description": "Declarative first-run login the generated SDK bakes into its HTTP enrollment adapter.\n\nOnly the *static* wiring lives here (the login path plus which response field carries the token). Runtime secrets --\ncredentials, API keys -- never live in the manifest; callers inject them at runtime via the generated\n``<family>_enrollment(login_payload=...)`` factory.",
       "properties": {
         "login_path": {
           "description": "Path (relative to the device base URL) the SDK POSTs to capture a credential, e.g. ``/v1/auth/login``.",
@@ -1066,7 +1066,7 @@
     },
     "Vendoring": {
       "additionalProperties": false,
-      "description": "Explicit overrides for the import-closure walker.\n\nThe walker auto-discovers most files; these knobs handle edge cases\n(dynamic imports, intentionally vendored extras, exclusions).",
+      "description": "Explicit overrides for the import-closure walker.\n\nThe walker auto-discovers most files; these knobs handle edge cases (dynamic imports, intentionally vendored extras,\nexclusions).",
       "properties": {
         "exclude": {
           "description": "Files / dirs / globs to drop from the vendored SDK.",

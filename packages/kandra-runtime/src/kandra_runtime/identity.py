@@ -1,21 +1,16 @@
 """Structured device identities and the :class:`IdentityStore` protocol.
 
-An *identity* is the small bundle of facts a generated client needs to
-reconnect to a previously-enrolled device without rediscovering it: a
-BLE MAC + friendly name, an HTTP base URL + auth token, the Wi-Fi
-credentials a camera handed back during pairing, etc.
+An *identity* is the small bundle of facts a generated client needs to reconnect to a previously-enrolled device without
+rediscovering it: a BLE MAC + friendly name, an HTTP base URL + auth token, the Wi-Fi credentials a camera handed back
+during pairing, etc.
 
-Identities are modeled as **pydantic discriminated-union records** so
-the ``kandra list-saved-devices`` CLI can render human-readable rows
-without instantiating each transport adapter. The discriminator is the
-``transport`` field, populated automatically by the per-class
-``model_config``.
+Identities are modeled as **pydantic discriminated-union records** so the ``kandra list-saved-devices`` CLI can render
+human-readable rows without instantiating each transport adapter. The discriminator is the ``transport`` field,
+populated automatically by the per-class ``model_config``.
 
-BLE bond keys are deliberately *not* part of any identity record —
-reconnection delegates to the host OS bond cache (CoreBluetooth
-keychain on macOS, ``/var/lib/bluetooth/`` on Linux). Stacks that need
-application-managed bond material can subclass :class:`BleIdentity` and
-register a custom :class:`IdentityStore` codec.
+BLE bond keys are deliberately *not* part of any identity record — reconnection delegates to the host OS bond cache
+(CoreBluetooth keychain on macOS, ``/var/lib/bluetooth/`` on Linux). Stacks that need application-managed bond material
+can subclass :class:`BleIdentity` and register a custom :class:`IdentityStore` codec.
 """
 
 from __future__ import annotations
@@ -52,8 +47,8 @@ class _IdentityBase(BaseModel):
 class BleIdentity(_IdentityBase):
     """Reconnection facts for a BLE peripheral.
 
-    ``address`` is the BLE MAC (or, on macOS, the CoreBluetooth-assigned
-    UUID). Bond keys live in the OS keychain — see the module docstring.
+    ``address`` is the BLE MAC (or, on macOS, the CoreBluetooth-assigned UUID). Bond keys live in the OS keychain — see
+    the module docstring.
     """
 
     transport: Literal["ble"] = "ble"
@@ -78,10 +73,8 @@ class HttpIdentity(_IdentityBase):
 class WifiCredentials(BaseModel):
     """SSID + password handed back by a device during pairing.
 
-    Modeled separately from :class:`BleIdentity` because some devices
-    expose Wi-Fi credentials over HTTP as well. Attach via
-    :class:`CompositeIdentity` when a single saved device needs more
-    than one transport's worth of facts.
+    Modeled separately from :class:`BleIdentity` because some devices expose Wi-Fi credentials over HTTP as well. Attach
+    via :class:`CompositeIdentity` when a single saved device needs more than one transport's worth of facts.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -93,13 +86,10 @@ class WifiCredentials(BaseModel):
 class CompositeIdentity(_IdentityBase):
     """A device that needs more than one set of reconnection facts.
 
-    Cameras typically need both a BLE bond (for control) and Wi-Fi
-    credentials (for media transfer); a wall-plug switch might pair via
-    BLE and then expose an HTTP API once joined to the LAN. The
-    ``components`` map keys are arbitrary labels chosen by the device
-    author (``"control"``, ``"media"``, ``"ap"``) — the generated
-    client surfaces them as constructor arguments to
-    :meth:`Transport.from_identity`.
+    Cameras typically need both a BLE bond (for control) and Wi-Fi credentials (for media transfer); a wall-plug switch
+    might pair via BLE and then expose an HTTP API once joined to the LAN. The ``components`` map keys are arbitrary
+    labels chosen by the device author (``"control"``, ``"media"``, ``"ap"``) — the generated client surfaces them as
+    constructor arguments to :meth:`Transport.from_identity`.
     """
 
     transport: Literal["composite"] = "composite"
@@ -113,8 +103,7 @@ class CompositeIdentity(_IdentityBase):
     )
 
 
-# Discriminated union — pydantic picks the concrete class by the
-# ``transport`` literal at parse time.
+# Discriminated union — pydantic picks the concrete class by the ``transport`` literal at parse time.
 Identity = Annotated[
     BleIdentity | HttpIdentity | CompositeIdentity,
     Field(discriminator="transport"),
@@ -129,8 +118,7 @@ Identity = Annotated[
 class IdentityNotFoundError(KandraError, LookupError):
     """Raised when :meth:`IdentityStore.load` cannot find a saved name.
 
-    Subclasses the standard ``LookupError`` so code that catches the
-    built-in still works.
+    Subclasses the standard ``LookupError`` so code that catches the built-in still works.
     """
 
 
@@ -143,11 +131,9 @@ class IdentityNotFoundError(KandraError, LookupError):
 class IdentityStore(Protocol):
     """Persistent map of ``saved_name -> Identity``.
 
-    Implementations must be safe to share across coroutines but are not
-    required to be safe across processes; the default
-    :class:`~kandra_runtime.identity_store_file.PlatformDirsJsonStore`
-    uses an atomic-rename write strategy that is safe for the typical
-    single-process CLI / client case.
+    Implementations must be safe to share across coroutines but are not required to be safe across processes; the
+    default :class:`~kandra_runtime.identity_store_file.PlatformDirsJsonStore` uses an atomic-rename write strategy that
+    is safe for the typical single-process CLI / client case.
     """
 
     def save(self, identity: Identity) -> None:

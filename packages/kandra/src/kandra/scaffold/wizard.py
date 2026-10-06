@@ -29,18 +29,16 @@ def load_answers(path: Path) -> Answers:
 def _default_project_name(target: Path | None) -> str:
     """Derive a reasonable project-name default from the target directory.
 
-    ``/tmp/test-sdk`` → ``Test SDK``; ``~/my_cool_thing`` → ``My Cool Thing``.
-    Strips a trailing ``-sdk`` / ``_sdk`` segment so it isn't doubled-up
-    when the wizard reattaches it later in slugs and package names. Falls
-    back to ``My Device SDK`` when ``target`` is None or unusable.
+    ``/tmp/test-sdk`` → ``Test SDK``; ``~/my_cool_thing`` → ``My Cool Thing``. Strips a trailing ``-sdk`` / ``_sdk``
+    segment so it isn't doubled-up when the wizard reattaches it later in slugs and package names. Falls back to
+    ``My Device SDK`` when ``target`` is None or unusable.
     """
     if target is None:
         return "My Device SDK"
     stem = target.name.strip()
     if not stem:
         return "My Device SDK"
-    # Strip a trailing -sdk / _sdk / sdk so we can append " SDK" cleanly
-    # without doubling it up.
+    # Strip a trailing -sdk / _sdk / sdk so we can append " SDK" cleanly without doubling it up.
     stripped, n = re.subn(r"[-_]?sdk$", "", stem, flags=re.IGNORECASE)
     if not stripped:
         return "My Device SDK"
@@ -51,17 +49,16 @@ def _default_project_name(target: Path | None) -> str:
     return f"{name} SDK" if n else name
 
 
-# Placeholder display name when we can't derive a meaningful one from the
-# project name (e.g. user accepted the "My Device SDK" default).
+# Placeholder display name when we can't derive a meaningful one from the project name (e.g. user accepted the "My
+# Device SDK" default).
 _PLACEHOLDER_DISPLAY_NAME = "Pneumatic Bear Poker"
 
 
 def _default_display_name(project_name: str) -> str:
     """Derive a device display name from the project name.
 
-    Strips a trailing ``SDK`` token (the SDK is not the device). Falls back
-    to a whimsical placeholder when nothing meaningful remains — the user
-    will almost certainly overwrite it, which is the point.
+    Strips a trailing ``SDK`` token (the SDK is not the device). Falls back to a whimsical placeholder when nothing
+    meaningful remains — the user will almost certainly overwrite it, which is the point.
     """
     stripped = re.sub(r"\s*SDK\s*$", "", project_name, flags=re.IGNORECASE).strip()
     if not stripped or stripped.lower() in {"my device", "device"}:
@@ -72,11 +69,10 @@ def _default_display_name(project_name: str) -> str:
 def run_wizard(target: Path | None = None) -> Answers:
     """Interactively collect answers from the user, returning an :class:`Answers`.
 
-    If ``target`` is supplied, its basename is used to derive a smart
-    default for the project name (e.g. ``/tmp/test-sdk`` → ``Test SDK``).
+    If ``target`` is supplied, its basename is used to derive a smart default for the project name (e.g.
+    ``/tmp/test-sdk`` → ``Test SDK``).
 
-    Aborts with ``KeyboardInterrupt`` if the user cancels (Ctrl+C). Callers
-    should catch that and exit cleanly.
+    Aborts with ``KeyboardInterrupt`` if the user cancels (Ctrl+C). Callers should catch that and exit cleanly.
     """
     project_name = _ask_text(
         "Project name",
@@ -169,7 +165,7 @@ def _ask_transport(family: str, *, default_wire: str) -> TransportAnswer:
     wire = _ask_select(
         "  Wire format",
         choices=[
-            questionary.Choice("json     — human-readable text (e.g. {\"power\": true})", value="json"),
+            questionary.Choice('json     — human-readable text (e.g. {"power": true})', value="json"),
             questionary.Choice("protobuf — compact binary, schema-defined (.proto files)", value="protobuf"),
             questionary.Choice("raw      — opaque bytes, you handle parsing yourself", value="raw"),
         ],

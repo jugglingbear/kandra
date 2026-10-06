@@ -1,9 +1,8 @@
 """Runtime exception hierarchy.
 
-All exceptions raised by the runtime derive from `KandraError`, so client
-code can catch one base class to handle any runtime-originated failure.
-Standard built-in exceptions (`ValueError`, `TypeError`, etc.) raised by
-user-supplied codecs or handlers are left alone.
+All exceptions raised by the runtime derive from `KandraError`, so client code can catch one base class to handle any
+runtime-originated failure. Standard built-in exceptions (`ValueError`, `TypeError`, etc.) raised by user-supplied
+codecs or handlers are left alone.
 """
 
 from __future__ import annotations
@@ -29,21 +28,18 @@ class TransportNotOpenError(TransportError):
 class TransportTimeoutError(TransportError, TimeoutError):
     """A command exceeded its configured timeout.
 
-    Subclasses the standard library `TimeoutError` so code that catches
-    the built-in still works.
+    Subclasses the standard library `TimeoutError` so code that catches the built-in still works.
     """
 
 
 class IdentityStaleError(TransportError):
     """Raised when a stored identity's credentials no longer authenticate.
 
-    A recoverable transport failure distinct from a generic dropped link: the
-    device is reachable but the saved credentials are no longer valid (an expired
-    HTTP token surfacing as 401/403, or a BLE bond invalidated by a peripheral
-    factory reset). Callers recover by re-enrolling — see the generated client's
-    ``connect(saved_name, on_stale=...)`` and ``re_enroll`` helpers. Subclasses
-    :class:`TransportError`, so existing ``except TransportError`` handlers still
-    catch it.
+    A recoverable transport failure distinct from a generic dropped link: the device is reachable but the saved
+    credentials are no longer valid (an expired HTTP token surfacing as 401/403, or a BLE bond invalidated by a
+    peripheral factory reset). Callers recover by re-enrolling — see the generated client's
+    ``connect(saved_name, on_stale=...)`` and ``re_enroll`` helpers. Subclasses :class:`TransportError`, so existing
+    ``except TransportError`` handlers still catch it.
     """
 
 
@@ -54,9 +50,8 @@ class CodecError(KandraError):
 class CapabilityUnavailableError(KandraError):
     """Raised when an operation requires capability tags the connected device lacks.
 
-    Only raised after ``discover_capabilities()`` has cached the device's
-    capability tags; before discovery, no operation is gated. The offending
-    operation id and the still-missing tags are attached for programmatic handling.
+    Only raised after ``discover_capabilities()`` has cached the device's capability tags; before discovery, no
+    operation is gated. The offending operation id and the still-missing tags are attached for programmatic handling.
     """
 
     def __init__(self, operation_id: str, missing: Collection[str]) -> None:

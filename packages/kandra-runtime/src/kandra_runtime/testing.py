@@ -1,7 +1,7 @@
 """Lightweight helpers for sandboxes, tutorials, and tests.
 
-This submodule is part of the public runtime surface but is intended
-for non-production use — its contents trade durability for brevity.
+This submodule is part of the public runtime surface but is intended for non-production use — its contents trade
+durability for brevity.
 """
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ from kandra_runtime.identity import Identity, IdentityNotFoundError, IdentitySto
 class MemoryIdentityStore(IdentityStore):
     """In-memory :class:`IdentityStore` — no disk side effects.
 
-    Intended for tests, examples, and exploratory sandbox scripts.
-    Not safe across processes; not durable across runs. For production
-    use see :class:`~kandra_runtime.PlatformDirsJsonStore`.
+    Intended for tests, examples, and exploratory sandbox scripts. Not safe across processes; not durable across runs.
+    For production use see :class:`~kandra_runtime.PlatformDirsJsonStore`.
     """
 
     def __init__(self) -> None:

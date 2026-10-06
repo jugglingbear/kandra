@@ -1,9 +1,7 @@
 """BLE :class:`Scanner` adapter built on top of :mod:`bleak`.
 
-Uses :class:`bleak.BleakScanner` in advertisement-detection-callback
-mode so :meth:`scan` can yield candidates as soon as the first
-advertisement for each device arrives, rather than waiting for the
-whole scan window to elapse.
+Uses :class:`bleak.BleakScanner` in advertisement-detection-callback mode so :meth:`scan` can yield candidates as soon
+as the first advertisement for each device arrives, rather than waiting for the whole scan window to elapse.
 """
 
 from __future__ import annotations
@@ -41,11 +39,9 @@ def _default_scanner_factory(detection_callback: Callable[[Any, Any], None]) -> 
 class BleScanner(Scanner):
     """BLE adapter implementing :class:`~kandra_runtime.scanner.Scanner`.
 
-    Each :meth:`scan` call starts a fresh :class:`bleak.BleakScanner`,
-    streams candidates until the iterator is closed or ``timeout``
-    elapses, then stops the scanner. Concurrent calls to :meth:`scan`
-    on the same instance are not supported (bleak's scanner is a
-    singleton resource per process on most platforms).
+    Each :meth:`scan` call starts a fresh :class:`bleak.BleakScanner`, streams candidates until the iterator is closed
+    or ``timeout`` elapses, then stops the scanner. Concurrent calls to :meth:`scan` on the same instance are not
+    supported (bleak's scanner is a singleton resource per process on most platforms).
     """
 
     def __init__(self, *, scanner_factory: _ScannerFactory | None = None) -> None:
@@ -54,9 +50,8 @@ class BleScanner(Scanner):
         Parameters
         ----------
         scanner_factory:
-            Optional override for :class:`bleak.BleakScanner` —
-            primarily for tests. Receives the detection callback and
-            must return an object satisfying :class:`_BleakScannerLike`.
+            Optional override for :class:`bleak.BleakScanner` — primarily for tests. Receives the detection
+            callback and must return an object satisfying :class:`_BleakScannerLike`.
         """
         self._scanner_factory = scanner_factory or _default_scanner_factory
 
@@ -74,15 +69,11 @@ class BleScanner(Scanner):
             address = getattr(device, "address", None)
             if not isinstance(address, str) or address in seen:
                 return
-            advertised_name = getattr(advertisement_data, "local_name", None) or getattr(
-                device, "name", None
-            )
+            advertised_name = getattr(advertisement_data, "local_name", None) or getattr(device, "name", None)
             metadata = {
                 "rssi": getattr(advertisement_data, "rssi", None),
                 "service_uuids": tuple(getattr(advertisement_data, "service_uuids", ()) or ()),
-                "manufacturer_data": dict(
-                    getattr(advertisement_data, "manufacturer_data", {}) or {}
-                ),
+                "manufacturer_data": dict(getattr(advertisement_data, "manufacturer_data", {}) or {}),
             }
             candidate = Candidate(
                 transport="ble",

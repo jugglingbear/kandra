@@ -80,29 +80,23 @@ def build_sdk(
 ) -> BuildResult:
     """Generate the SDK package described by ``manifest_path``.
 
-    ``output_root`` defaults to ``<manifest_dir>/dist``. The generated
-    package lives at ``<output_root>/<device_id>_sdk/``. Source roots
-    declared in the manifest are temporarily prepended to ``sys.path``
+    ``output_root`` defaults to ``<manifest_dir>/dist``. The generated package lives at
+    ``<output_root>/<device_id>_sdk/``. Source roots declared in the manifest are temporarily prepended to ``sys.path``
     while handler classes are introspected, then restored.
 
-    When ``clean`` is true, the target package directory is removed
-    before regeneration. This prevents stale files (e.g. a command
-    removed from the manifest) from lingering in the output tree.
+    When ``clean`` is true, the target package directory is removed before regeneration. This prevents stale files (e.g.
+    a command removed from the manifest) from lingering in the output tree.
 
-    When ``verify`` is true (the default), the freshly written package must
-    byte-compile and import cleanly in an isolated subprocess before the
-    build succeeds; ``typecheck`` additionally runs ``mypy --strict`` over
-    it. Either check raises :class:`BuildError` on failure, so a manifest or
-    handler flaw fails the build instead of shipping a broken SDK.
+    When ``verify`` is true (the default), the freshly written package must byte-compile and import cleanly in an
+    isolated subprocess before the build succeeds; ``typecheck`` additionally runs ``mypy --strict`` over it. Either
+    check raises :class:`BuildError` on failure, so a manifest or handler flaw fails the build instead of shipping a
+    broken SDK.
 
-    When ``profile`` is set, the **audience-pruning + vendoring** pipeline runs
-    instead of the plain import-from-source-roots build: the manifest is pruned
-    to that profile's audiences, the handler import closure is vendored into
-    ``<output_root>/<profile>/<device_id>_sdk/_internal`` with imports rewritten,
-    a leakage scan enforces the profile's denylist, and the self-contained
-    package is import-checked with the source roots *off* ``sys.path``.
-    ``profiles_path`` overrides the default
-    ``<manifest_dir>/audience_profiles.yaml`` location.
+    When ``profile`` is set, the **audience-pruning + vendoring** pipeline runs instead of the plain
+    import-from-source-roots build: the manifest is pruned to that profile's audiences, the handler import closure is
+    vendored into ``<output_root>/<profile>/<device_id>_sdk/_internal`` with imports rewritten, a leakage scan enforces
+    the profile's denylist, and the self-contained package is import-checked with the source roots *off* ``sys.path``.
+    ``profiles_path`` overrides the default ``<manifest_dir>/audience_profiles.yaml`` location.
     """
     manifest_path = manifest_path.resolve()
     manifest = load_manifest(manifest_path)
@@ -272,8 +266,8 @@ def _build_profile_sdk(
     assert_no_leakage(package_path, selected.deny_substrings, base=package_path)
 
     if verify:
-        # Self-containment check: import the vendored package with the source
-        # roots OFF the path. Any reach back into the authoring tree fails here.
+        # Self-containment check: import the vendored package with the source roots OFF the path. Any reach back into
+        # the authoring tree fails here.
         _verify_package(
             package_path,
             package_name,
@@ -292,9 +286,8 @@ def _build_profile_sdk(
 def _transport_codec_entry_modules(manifest: Manifest, used_transport_ids: set[str]) -> frozenset[str]:
     """Return codec modules the generated registry imports for used non-HTTP transports.
 
-    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor); BLE
-    and loopback/unknown transports import the user's codec, so its module must
-    be part of the closure.
+    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor); BLE and loopback/unknown transports import
+    the user's codec, so its module must be part of the closure.
     """
     modules: set[str] = set()
     for t in manifest.transports:
@@ -315,9 +308,8 @@ def _filter_closure_by_audience(
 ) -> tuple[ClosureResult, set[Path]]:
     """Drop closure files whose effective audience excludes the target profile.
 
-    Modules are resolved with their ``# kandra-audience:`` header applied; assets
-    use the YAML grant only. A build error is raised if any surviving file still
-    imports a dropped one (the exact chain is reported).
+    Modules are resolved with their ``# kandra-audience:`` header applied; assets use the YAML grant only. A build error
+    is raised if any surviving file still imports a dropped one (the exact chain is reported).
     """
     include_set = set(include)
     dropped: set[Path] = set()
@@ -480,9 +472,8 @@ def _command_codec_entry_points(command: Command) -> list[tuple[str, str]]:
 def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
     """Collect ``(module, label)`` for every dotted reference the generator resolves.
 
-    Handlers, codecs, and adapters are all user code that gets vendored, so each
-    must live under a source root (point ``source_roots`` at a shared tree if some
-    are shared across devices).
+    Handlers, codecs, and adapters are all user code that gets vendored, so each must live under a source root (point
+    ``source_roots`` at a shared tree if some are shared across devices).
     """
     eps: list[tuple[str, str]] = []
     for c in manifest.commands:
@@ -496,8 +487,8 @@ def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
         if e.handler is not None:
             eps.append((e.handler.split(":")[0], f"event {e.id!r} handler"))
     for t in manifest.transports:
-        # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not
-        # an entry point the generator resolves -- mirror _transport_codec_entry_modules.
+        # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not an entry point the generator resolves
+        # -- mirror _transport_codec_entry_modules.
         if t.family != "http" and t.codec is not None:
             eps.append((t.codec.split(":")[0], f"transport {t.id!r} codec"))
         if t.adapter is not None:
@@ -515,11 +506,10 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
             _import_attr(a_module, a_class, what=f"transport {t.id!r} adapter")
             adapter_alias = f"_Adapter_{_sanitize(t.id)}"
             adapter_import = f"from {a_module} import {a_class} as {adapter_alias}"
-        # HTTP uses the built-in HttpJsonCodec from kandra_runtime (parameterized
-        # per-command from the http: blocks), so the manifest's transport.codec
-        # is optional and ignored here. BLE imports the user's payload codec and
-        # wraps it per-command with BleChannelCodec; loopback / unknown family
-        # import the user's codec and wire it positionally as (request, response).
+        # HTTP uses the built-in HttpJsonCodec from kandra_runtime (parameterized per-command from the http: blocks), so
+        # the manifest's transport.codec is optional and ignored here. BLE imports the user's payload codec and wraps it
+        # per-command with BleChannelCodec; loopback / unknown family import the user's codec and wire it positionally
+        # as (request, response).
         if t.family == "http":
             specs.append(
                 TransportSpec(
@@ -542,9 +532,7 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
         alias = f"_Codec_{_sanitize(t.id)}"
         channels: tuple[tuple[str, str, str], ...] = ()
         if t.family == "ble":
-            channels = tuple(
-                (name, spec.write, spec.notify) for name, spec in t.channels.items()
-            )
+            channels = tuple((name, spec.write, spec.notify) for name, spec in t.channels.items())
         specs.append(
             TransportSpec(
                 transport_id=t.id,
@@ -560,13 +548,11 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
     return specs
 
 
-def _wire_codec(
-    codec: str | None, cmd_id: str, tid: str, entry_modules: set[str]
-) -> tuple[str | None, str | None]:
+def _wire_codec(codec: str | None, cmd_id: str, tid: str, entry_modules: set[str]) -> tuple[str | None, str | None]:
     """Resolve an optional per-command codec override to an ``(import_line, alias)`` pair.
 
-    Records the codec's module in ``entry_modules`` so it is vendored, and returns
-    ``(None, None)`` when the command declares no override.
+    Records the codec's module in ``entry_modules`` so it is vendored, and returns ``(None, None)`` when the command
+    declares no override.
     """
     if codec is None:
         return None, None
@@ -581,8 +567,8 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
     """Resolve manifest commands into render specs and their entry-point modules.
 
     Returns the per-command specs plus the set of dotted module names the
-    generated glue will import (handler modules and the request/response model
-    modules read off each handler). Those seed the vendoring import closure.
+    generated glue will import (handler modules and the request/response model modules read off each handler). Those
+    seed the vendoring import closure.
     """
     specs: list[CommandSpec] = []
     entry_modules: set[str] = set()
@@ -651,13 +637,11 @@ def _resolve_attributes(
 ) -> tuple[list[CommandSpec], tuple[AttributeSpec, ...], frozenset[str]]:
     """Resolve manifest attributes into synthetic op commands, facade specs, and entry modules.
 
-    Each attribute expands to one synthetic command per declared operation
-    (``<id>.read`` / ``.write`` / ``.subscribe``) wired into the same registry
-    the command layer uses, plus one :class:`AttributeSpec` describing the
-    ``client.<namespace>.<name>`` facade. Read/subscribe requests carry the
-    runtime :class:`NoArgs` sentinel; the handler's ``value`` type is the
-    read/subscribe payload and the write input, and an optional ``write_ack``
-    type (defaulting to ``value``) is the write response.
+    Each attribute expands to one synthetic command per declared operation (``<id>.read`` / ``.write`` / ``.subscribe``)
+    wired into the same registry the command layer uses, plus one :class:`AttributeSpec` describing the
+    ``client.<namespace>.<name>`` facade. Read/subscribe requests carry the runtime :class:`NoArgs` sentinel; the
+    handler's ``value`` type is the read/subscribe payload and the write input, and an optional ``write_ack`` type
+    (defaulting to ``value``) is the write response.
     """
     op_specs: list[CommandSpec] = []
     attr_specs: list[AttributeSpec] = []
@@ -798,9 +782,7 @@ def _attribute_subscribe_wires(attr: Attribute) -> tuple[SubscribeWire, ...]:
         if tid in attr.http:
             sub = attr.http[tid].subscribe
             assert sub is not None  # validation guarantees a subscribe block here
-            wires.append(
-                SubscribeWire(enum_member=_enum_member(tid), mode=sub.mode, interval=sub.interval)
-            )
+            wires.append(SubscribeWire(enum_member=_enum_member(tid), mode=sub.mode, interval=sub.interval))
         elif tid in attr.ble:
             wires.append(SubscribeWire(enum_member=_enum_member(tid), mode="ble", interval=None))
     return tuple(wires)
@@ -817,9 +799,7 @@ def _read_attribute_type(handler_cls: type, attr: str, attribute_id: str, *, req
             )
         return None
     if not isinstance(value, type):
-        raise BuildError(
-            f"attribute {attribute_id!r}: handler.{attr} must be a class, got {type(value).__name__}"
-        )
+        raise BuildError(f"attribute {attribute_id!r}: handler.{attr} must be a class, got {type(value).__name__}")
     return value
 
 
@@ -828,11 +808,9 @@ def _resolve_events(
 ) -> tuple[list[CommandSpec], tuple[EventSpec, ...], frozenset[str]]:
     """Resolve manifest events into synthetic subscribe commands, facade specs, and entry modules.
 
-    Each event becomes one synthetic ``<id>.subscribe`` command wired into the
-    same registry the command layer uses, plus one :class:`EventSpec` describing
-    the ``client.<namespace>.<name>.subscribe()`` facade. The subscribe request
-    carries the runtime :class:`NoArgs` sentinel; the handler's ``payload`` type
-    is the streamed emission payload.
+    Each event becomes one synthetic ``<id>.subscribe`` command wired into the same registry the command layer uses,
+    plus one :class:`EventSpec` describing the ``client.<namespace>.<name>.subscribe()`` facade. The subscribe request
+    carries the runtime :class:`NoArgs` sentinel; the handler's ``payload`` type is the streamed emission payload.
     """
     op_specs: list[CommandSpec] = []
     event_specs: list[EventSpec] = []
@@ -967,10 +945,7 @@ def _read_handler_type(handler_cls: type, attr: str, command_id: str) -> type:
             f"is missing required attribute {attr!r} (set `{attr} = SomeDataclass`)"
         )
     if not isinstance(value, type):
-        raise BuildError(
-            f"command {command_id!r}: handler.{attr} must be a class, "
-            f"got {type(value).__name__}"
-        )
+        raise BuildError(f"command {command_id!r}: handler.{attr} must be a class, " f"got {type(value).__name__}")
     return value
 
 
@@ -998,9 +973,9 @@ def _write_package(
         shutil.rmtree(package_path)
     package_path.mkdir(parents=True, exist_ok=True)
 
-    # The registry carries real commands plus the synthetic attribute + event ops;
-    # the client facade groups real commands into namespace methods, attributes
-    # into read/write/subscribe sub-objects, and events into subscribe sub-objects.
+    # The registry carries real commands plus the synthetic attribute + event ops; the client facade groups real
+    # commands into namespace methods, attributes into read/write/subscribe sub-objects, and events into subscribe
+    # sub-objects.
     registry_commands = commands + list(attribute_op_specs or []) + list(event_op_specs or [])
     # op id -> required capability tags, for every gated op (commands + attr/event ops).
     capability_map = {c.command_id: c.capabilities for c in registry_commands if c.capabilities}
@@ -1056,17 +1031,16 @@ def _verify_package(
 ) -> None:
     """Fail the build unless the freshly generated package is sound.
 
-    Escalating checks so a manifest or handler flaw surfaces here rather than
-    in a shipped SDK:
+    Escalating checks so a manifest or handler flaw surfaces here rather than in a shipped SDK:
 
     1. Byte-compile every generated module (precise syntax errors).
     2. Import the package in a hermetic subprocess whose search path is
-       exactly ``import_roots`` plus the interpreter's own site-packages --
-       catching bad imports, missing symbols, and import-time exceptions.
+       exactly ``import_roots`` plus the interpreter's own site-packages -- catching bad imports, missing symbols, and
+       import-time exceptions.
     3. Optionally run ``mypy --strict`` over the package.
 
-    Only files this build wrote are compiled; unrelated files a user may have
-    dropped into an additive (non-``clean``) output tree are left alone.
+    Only files this build wrote are compiled; unrelated files a user may have dropped into an additive (non-``clean``)
+    output tree are left alone.
     """
     _compile_generated_sources(written_files)
     _import_in_clean_subprocess(package_name, import_roots)
@@ -1116,8 +1090,8 @@ def _typecheck_generated_package(package_path: Path, import_roots: list[Path]) -
             "mypy",
             "--strict",
             "--follow-imports=silent",
-            # Types from an unfollowed dep (e.g. an editable/untyped runtime) degrade to
-            # Any; that's about the environment, not the generated code, so don't fail on it.
+            # Types from an unfollowed dep (e.g. an editable/untyped runtime) degrade to Any; that's about the
+            # environment, not the generated code, so don't fail on it.
             "--disable-error-code=no-any-unimported",
             "--no-error-summary",
             str(package_path),
@@ -1143,9 +1117,7 @@ def _augment_sys_path(roots: list[Path]) -> Iterator[None]:
     added = [str(r) for r in roots if r.exists()]
     missing = [r for r in roots if not r.exists()]
     if missing:
-        raise BuildError(
-            "manifest source_roots do not exist: " + ", ".join(str(m) for m in missing)
-        )
+        raise BuildError("manifest source_roots do not exist: " + ", ".join(str(m) for m in missing))
     sys.path[:0] = added
     snapshot = set(sys.modules)
     try:
@@ -1154,8 +1126,7 @@ def _augment_sys_path(roots: list[Path]) -> Iterator[None]:
         for p in added:
             with suppress(ValueError):
                 sys.path.remove(p)
-        # Drop modules imported during introspection so repeated builds in
-        # the same process see fresh module objects.
+        # Drop modules imported during introspection so repeated builds in the same process see fresh module objects.
         for name in list(sys.modules):
             if name not in snapshot:
                 del sys.modules[name]
@@ -1169,13 +1140,9 @@ def _import_attr(module_path: str, attr: str, *, what: str) -> type:
     try:
         value = getattr(module, attr)
     except AttributeError as exc:
-        raise BuildError(
-            f"{what}: module {module_path!r} has no attribute {attr!r}"
-        ) from exc
+        raise BuildError(f"{what}: module {module_path!r} has no attribute {attr!r}") from exc
     if not isinstance(value, type):
-        raise BuildError(
-            f"{what}: {module_path}:{attr} resolved to {type(value).__name__}, expected a class"
-        )
+        raise BuildError(f"{what}: {module_path}:{attr} resolved to {type(value).__name__}, expected a class")
     return value
 
 
@@ -1195,10 +1162,7 @@ def _enum_member(transport_id: str) -> str:
 def _split_namespace(command_id: str) -> tuple[str, str]:
     parts = command_id.split(".")
     if len(parts) < 2:
-        raise BuildError(
-            f"command id {command_id!r} must contain at least one dot "
-            "(format: '<namespace>.<method>')"
-        )
+        raise BuildError(f"command id {command_id!r} must contain at least one dot " "(format: '<namespace>.<method>')")
     return parts[0], "_".join(parts[1:])
 
 

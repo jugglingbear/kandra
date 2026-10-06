@@ -20,16 +20,14 @@ class ScaffoldError(Exception):
 def ensure_target_available(target: Path) -> None:
     """Raise :class:`ScaffoldError` if ``target`` exists and is non-empty.
 
-    Scaffolding is a one-shot generator that never overwrites existing
-    work, so callers should run this check *before* doing any expensive or
-    interactive work (e.g. the wizard) to fail fast rather than asking the
-    user a pile of questions only to refuse at the end.
+    Scaffolding is a one-shot generator that never overwrites existing work, so callers should run this check
+    *before* doing any expensive or interactive work (e.g. the wizard) to fail fast rather than asking the user a
+    pile of questions only to refuse at the end.
     """
     target = target.resolve()
     if target.exists() and any(target.iterdir()):
         raise ScaffoldError(
-            f"refusing to scaffold into non-empty directory {target}; "
-            "remove it (or pass a fresh path) and try again"
+            f"refusing to scaffold into non-empty directory {target}; " "remove it (or pass a fresh path) and try again"
         )
 
 
@@ -44,8 +42,7 @@ class RenderResult:
 def render(answers: Answers, target: Path) -> RenderResult:
     """Render the scaffold for ``answers`` into ``target``.
 
-    Refuses to overwrite an existing non-empty ``target`` directory.
-    Creates ``target`` if it doesn't exist.
+    Refuses to overwrite an existing non-empty ``target`` directory. Creates ``target`` if it doesn't exist.
     """
     target = target.resolve()
     ensure_target_available(target)
@@ -104,8 +101,7 @@ def _plan(answers: Answers) -> list[tuple[str, str]]:
 def _build_context(answers: Answers) -> dict[str, object]:
     """Build the Jinja render context.
 
-    Pre-computes derived values (handler dotted paths, transport YAML
-    fragments, etc.) so templates stay declarative.
+    Pre-computes derived values (handler dotted paths, transport YAML fragments, etc.) so templates stay declarative.
     """
     pkg = answers.package_name
     transports_ctx = []
@@ -158,16 +154,16 @@ def _build_context(answers: Answers) -> dict[str, object]:
 def _kandra_dependency_lines(source: str) -> tuple[str, str]:
     """Build the ``[tool.poetry.dependencies]`` lines for kandra + runtime.
 
-    kandra and kandra-runtime are not yet published to PyPI. The user chooses
-    how the generated project should depend on them:
+    kandra and kandra-runtime are not yet published to PyPI. The user chooses how the generated project should depend on
+    them:
 
     * ``"local"`` — point at the on-disk packages via absolute ``path``
       dependencies so ``poetry install`` works immediately from this checkout.
     * ``"pypi"`` — emit ordinary version constraints for a future published
       release (won't resolve until the packages are actually on an index).
 
-    ``"local"`` silently falls back to a version constraint when no sibling
-    source tree exists (e.g. kandra was installed from a wheel).
+    ``"local"`` silently falls back to a version constraint when no sibling source tree exists (e.g. kandra was
+    installed from a wheel).
     """
     if source == "pypi":
         return ('"*"', '"*"')
@@ -179,6 +175,6 @@ def _kandra_dependency_lines(source: str) -> tuple[str, str]:
             f'{{ path = "{kandra_pkg.as_posix()}", develop = true }}',
             f'{{ path = "{runtime_pkg.as_posix()}", develop = true }}',
         )
-    # Local requested but no sibling source tree (installed from a wheel) —
-    # fall back to a version constraint and let the user point at a real index.
+    # Local requested but no sibling source tree (installed from a wheel) — fall back to a version constraint and let
+    # the user point at a real index.
     return ('"*"', '"*"')

@@ -1,25 +1,20 @@
 """One-time device setup that produces a persistent :class:`~kandra_runtime.identity.Identity`.
 
-The :class:`Enrollment` protocol covers the "I know this is the device
-I want, now do whatever pairing / login / bonding handshake is needed
-to make future ``connect()`` calls cheap" step. It takes a
-:class:`~kandra_runtime.scanner.Candidate` (typically the result of
-:class:`~kandra_runtime.scanner.Scanner.scan`) plus a user-chosen
-``saved_name`` and returns the :class:`Identity` to persist in an
+The :class:`Enrollment` protocol covers the "I know this is the device I want, now do whatever pairing / login / bonding
+handshake is needed to make future ``connect()`` calls cheap" step. It takes a
+:class:`~kandra_runtime.scanner.Candidate` (typically the result of :class:`~kandra_runtime.scanner.Scanner.scan`) plus
+a user-chosen ``saved_name`` and returns the :class:`Identity` to persist in an
 :class:`~kandra_runtime.identity.IdentityStore`.
 
 Two ready-made adapters ship:
 
-* :class:`BleEnrollment` — opens the BLE link once to confirm pairing
-  succeeds (delegating bond storage to the OS), then returns a
-  :class:`~kandra_runtime.identity.BleIdentity`.
-* :class:`HttpEnrollment` — POSTs an optional login payload to a
-  configurable path, captures the bearer token from the response, and
-  returns an :class:`~kandra_runtime.identity.HttpIdentity`.
+* :class:`BleEnrollment` — opens the BLE link once to confirm pairing succeeds (delegating bond storage to the
+  OS), then returns a :class:`~kandra_runtime.identity.BleIdentity`.
+* :class:`HttpEnrollment` — POSTs an optional login payload to a configurable path, captures the bearer token from
+  the response, and returns an :class:`~kandra_runtime.identity.HttpIdentity`.
 
-Device authors who need richer flows (camera Wi-Fi credential exchange,
-multi-step pairing, captive-portal handshakes) subclass these or
-provide their own :class:`Enrollment` implementation.
+Device authors who need richer flows (camera Wi-Fi credential exchange, multi-step pairing, captive-portal handshakes)
+subclass these or provide their own :class:`Enrollment` implementation.
 """
 
 from __future__ import annotations
@@ -44,9 +39,8 @@ class EnrollmentError(KandraError):
 class Enrollment(Protocol):
     """One-time device setup; produces the :class:`Identity` to persist.
 
-    Implementations must accept any :class:`Candidate` whose ``transport``
-    family they understand; they should raise :class:`EnrollmentError`
-    for candidates from other families rather than returning ``None``.
+    Implementations must accept any :class:`Candidate` whose ``transport`` family they understand; they should raise
+    :class:`EnrollmentError` for candidates from other families rather than returning ``None``.
     """
 
     async def enroll(self, candidate: Candidate, *, saved_name: str) -> Identity:
@@ -69,9 +63,7 @@ class _BleTransportLike(Protocol):
 BleTransportFactory = Callable[[str, Mapping[str, tuple[str, str]]], _BleTransportLike]
 
 
-def _default_ble_transport_factory(
-    address: str, channels: Mapping[str, tuple[str, str]]
-) -> _BleTransportLike:
+def _default_ble_transport_factory(address: str, channels: Mapping[str, tuple[str, str]]) -> _BleTransportLike:
     return _BleTransportContextAdapter(BleTransport(address, channels=channels))
 
 
@@ -93,15 +85,12 @@ class _BleTransportContextAdapter:
 class BleEnrollment(Enrollment):
     """BLE enrollment: opens the link once to drive OS bonding, then stores the address.
 
-    On macOS / Linux, simply connecting to the peripheral with a paired
-    characteristic write is enough for the OS to capture and persist
-    the LTK. This adapter performs that connect+disconnect dance so the
-    bond is in place before the user's first real
-    ``Client.connect(saved_name=...)`` call.
+    On macOS / Linux, simply connecting to the peripheral with a paired characteristic write is enough for the OS to
+    capture and persist the LTK. This adapter performs that connect+disconnect dance so the bond is in place before the
+    user's first real ``Client.connect(saved_name=...)`` call.
 
-    Pass ``probe_channel`` (a ``(write_uuid, notify_uuid)`` pair) when
-    the device requires a paired characteristic touch to trigger
-    bonding; leave it ``None`` to just connect and disconnect.
+    Pass ``probe_channel`` (a ``(write_uuid, notify_uuid)`` pair) when the device requires a paired characteristic touch
+    to trigger bonding; leave it ``None`` to just connect and disconnect.
 
     Tests inject ``transport_factory`` to substitute the BLE layer.
     """
@@ -120,23 +109,16 @@ class BleEnrollment(Enrollment):
         """Pair with ``candidate`` and return a :class:`BleIdentity`."""
         if candidate.transport != "ble":
             raise EnrollmentError(
-                f"BleEnrollment cannot enroll non-BLE candidate "
-                f"(transport={candidate.transport!r})"
+                f"BleEnrollment cannot enroll non-BLE candidate " f"(transport={candidate.transport!r})"
             )
-        channels: dict[str, tuple[str, str]] = (
-            {"probe": self._probe_channel} if self._probe_channel is not None else {}
-        )
+        channels: dict[str, tuple[str, str]] = {"probe": self._probe_channel} if self._probe_channel is not None else {}
         try:
             async with self._transport_factory(candidate.address, channels):
                 pass
         except TransportError as exc:
-            raise EnrollmentError(
-                f"BleEnrollment: failed to bond with {candidate.address!r}: {exc}"
-            ) from exc
+            raise EnrollmentError(f"BleEnrollment: failed to bond with {candidate.address!r}: {exc}") from exc
         except Exception as exc:
-            raise EnrollmentError(
-                f"BleEnrollment: failed to bond with {candidate.address!r}: {exc}"
-            ) from exc
+            raise EnrollmentError(f"BleEnrollment: failed to bond with {candidate.address!r}: {exc}") from exc
         return BleIdentity(
             saved_name=saved_name,
             address=candidate.address,
@@ -174,13 +156,11 @@ def _make_field_extractor(field: str) -> TokenExtractor:
 class HttpEnrollment(Enrollment):
     """HTTP enrollment: optional login POST + token capture.
 
-    When ``login_path`` is ``None``, enrollment is a no-op handshake —
-    the candidate's address becomes the stored ``base_url`` and the
-    identity carries no token. When ``login_path`` is set, the adapter
-    POSTs the result of ``login_payload`` and runs ``token_extractor``
-    against the response JSON to populate ``HttpIdentity.auth_token``.
-    Pass ``token_field`` to read the token from a single named response field;
-    ``token_extractor`` is the escape hatch for richer extraction logic.
+    When ``login_path`` is ``None``, enrollment is a no-op handshake — the candidate's address becomes the stored
+    ``base_url`` and the identity carries no token. When ``login_path`` is set, the adapter POSTs the result of
+    ``login_payload`` and runs ``token_extractor`` against the response JSON to populate ``HttpIdentity.auth_token``.
+    Pass ``token_field`` to read the token from a single named response field; ``token_extractor`` is the escape hatch
+    for richer extraction logic.
     """
 
     def __init__(
@@ -206,8 +186,7 @@ class HttpEnrollment(Enrollment):
         """Optionally log in to ``candidate.address`` and return an :class:`HttpIdentity`."""
         if candidate.transport != "http":
             raise EnrollmentError(
-                f"HttpEnrollment cannot enroll non-HTTP candidate "
-                f"(transport={candidate.transport!r})"
+                f"HttpEnrollment cannot enroll non-HTTP candidate " f"(transport={candidate.transport!r})"
             )
         base_url = candidate.address.rstrip("/")
         token: str | None = None
@@ -219,18 +198,12 @@ class HttpEnrollment(Enrollment):
                 try:
                     async with session.post(url, json=dict(payload)) as resp:
                         if resp.status >= 400:
-                            raise EnrollmentError(
-                                f"HttpEnrollment: login POST {url} returned {resp.status}"
-                            )
+                            raise EnrollmentError(f"HttpEnrollment: login POST {url} returned {resp.status}")
                         body = await resp.json(content_type=None)
                 except (TimeoutError, aiohttp.ClientError) as exc:
-                    raise EnrollmentError(
-                        f"HttpEnrollment: login POST to {url} failed: {exc}"
-                    ) from exc
+                    raise EnrollmentError(f"HttpEnrollment: login POST to {url} failed: {exc}") from exc
                 if not isinstance(body, Mapping):
-                    raise EnrollmentError(
-                        f"HttpEnrollment: login response from {url} was not a JSON object"
-                    )
+                    raise EnrollmentError(f"HttpEnrollment: login response from {url} was not a JSON object")
                 token = self._token_extractor(body)
             finally:
                 await session.close()
@@ -247,7 +220,5 @@ class HttpEnrollment(Enrollment):
         if hasattr(result, "__await__"):
             result = await result
         if not isinstance(result, Mapping):
-            raise EnrollmentError(
-                f"HttpEnrollment.login_payload returned non-mapping: {type(result).__name__}"
-            )
+            raise EnrollmentError(f"HttpEnrollment.login_payload returned non-mapping: {type(result).__name__}")
         return result

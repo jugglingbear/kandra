@@ -2,15 +2,13 @@
 
 Subcommands:
 
-* ``kandra schema``      — dump the manifest JSON Schema (for editor
-                          autocomplete / external validation).
+* ``kandra schema``      — dump the manifest JSON Schema (for editor autocomplete / external validation).
 * ``kandra validate``    — load and validate a manifest YAML.
-* ``kandra build``       — generate the SDK package for a manifest (optionally
-                          audience-pruned + vendored via ``--profile``).
-* ``kandra audit``       — report the effective audience of every source file
-                          for a profile (InfoSec release sign-off).
-* ``kandra create-sdk``  — scaffold a new Poetry project that uses kandra
-                          (interactive wizard or YAML-driven).
+* ``kandra build``       — generate the SDK package for a manifest (optionally audience-pruned + vendored via
+                          ``--profile``).
+* ``kandra audit``       — report the effective audience of every source file for a profile (InfoSec release
+                          sign-off).
+* ``kandra create-sdk``  — scaffold a new Poetry project that uses kandra (interactive wizard or YAML-driven).
 """
 
 from __future__ import annotations
@@ -191,18 +189,15 @@ def _cmd_create_sdk(args: argparse.Namespace) -> int:
     if args.non_interactive and args.answers is None:
         print("create-sdk: --non-interactive requires --answers FILE.yaml", file=sys.stderr)
         return 2
-    # Fail fast before the (possibly interactive) wizard: scaffolding is a
-    # one-shot generator that won't overwrite an existing project, so check
-    # the target up front rather than asking a pile of questions first.
+    # Fail fast before the (possibly interactive) wizard: scaffolding is a one-shot generator that won't overwrite an
+    # existing project, so check the target up front rather than asking a pile of questions first.
     try:
         ensure_target_available(args.path)
     except ScaffoldError as exc:
         print(f"create-sdk: {exc}", file=sys.stderr)
         return 1
     try:
-        answers: Answers = (
-            load_answers(args.answers) if args.answers is not None else run_wizard(args.path)
-        )
+        answers: Answers = load_answers(args.answers) if args.answers is not None else run_wizard(args.path)
     except KeyboardInterrupt:
         print("\ncreate-sdk: cancelled.", file=sys.stderr)
         return 130

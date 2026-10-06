@@ -1,8 +1,7 @@
 """Codec abstraction: object <-> wire envelope for a single command.
 
-A codec maps between the user-facing typed request/response and the
-transport-family-specific wire envelopes (e.g. `HttpRequest` for HTTP,
-`bytes` for loopback, `BleRequest` for BLE).
+A codec maps between the user-facing typed request/response and the transport-family-specific wire envelopes (e.g.
+`HttpRequest` for HTTP, `bytes` for loopback, `BleRequest` for BLE).
 
 The four type parameters are:
 
@@ -11,11 +10,9 @@ The four type parameters are:
 * ``WireReqT``  -- the envelope the transport's ``request()`` consumes.
 * ``WireRespT`` -- the envelope the transport's ``request()`` produces.
 
-End users rarely write this raw four-param signature. They subclass a
-**family-paired** base shipped with each built-in transport -- for
-example ``HttpJsonCodec[Req, Resp]`` (``WireReqT`` / ``WireRespT``
-already fixed to ``HttpRequest`` / ``HttpResponse``). See the per-family
-modules (``kandra_runtime.http``, etc.).
+End users rarely write this raw four-param signature. They subclass a **family-paired** base shipped with each built-in
+transport -- for example ``HttpJsonCodec[Req, Resp]`` (``WireReqT`` / ``WireRespT`` already fixed to ``HttpRequest`` /
+``HttpResponse``). See the per-family modules (``kandra_runtime.http``, etc.).
 """
 
 from __future__ import annotations
@@ -33,11 +30,10 @@ WireRespT = TypeVar("WireRespT")
 class NoArgs:
     """Empty request marker for operations that take no input.
 
-    Generated attribute ``read()`` / ``subscribe()`` methods dispatch with a
-    :class:`NoArgs` instance so they can reuse the same command/codec pipeline
-    as everything else — a codec ``encode(NoArgs())`` produces an empty body /
-    query.
+    Generated attribute ``read()`` / ``subscribe()`` methods dispatch with a :class:`NoArgs` instance so they can reuse
+    the same command/codec pipeline as everything else — a codec ``encode(NoArgs())`` produces an empty body / query.
     """
+
 
 _RequestT_contra = TypeVar("_RequestT_contra", contravariant=True)
 _ResponseT_co = TypeVar("_ResponseT_co", covariant=True)
@@ -48,9 +44,8 @@ _WireRespT_contra = TypeVar("_WireRespT_contra", contravariant=True)
 class Codec(Protocol[_RequestT_contra, _ResponseT_co, _WireReqT_co, _WireRespT_contra]):
     """Serializes a command's request/response pair to/from a wire envelope.
 
-    Implementations should raise `kandra_runtime.errors.CodecError`
-    (or a subclass) on encode/decode failures so callers can catch
-    a single base class.
+    Implementations should raise `kandra_runtime.errors.CodecError` (or a subclass) on encode/decode failures so callers
+    can catch a single base class.
     """
 
     def encode(self, request: _RequestT_contra) -> _WireReqT_co:

@@ -1,15 +1,12 @@
 """Leakage scan: fail the build if a generated SDK contains forbidden substrings.
 
-The final IP-isolation gate. After vendoring + formatting, the generated tree is
-scanned for every ``deny_substrings`` entry declared by the active audience
-profile (internal codenames, author emails, source-repo paths, partner names,
-…). Any hit fails the build — a partner artifact must not contain a single
-forbidden token, including inside user-visible metadata like
-``_generated_from.json`` or a generated ``CHANGELOG.md``.
+The final IP-isolation gate. After vendoring + formatting, the generated tree is scanned for every ``deny_substrings``
+entry declared by the active audience profile (internal codenames, author emails, source-repo paths, partner names, …).
+Any hit fails the build — a partner artifact must not contain a single forbidden token, including inside user-visible
+metadata like ``_generated_from.json`` or a generated ``CHANGELOG.md``.
 
-Matching is a plain case-sensitive substring test, mirroring a ``grep``. Binary
-files (and ``__pycache__``) are skipped: the denylist targets human-readable
-leakage, and byte artifacts cannot be meaningfully audited this way.
+Matching is a plain case-sensitive substring test, mirroring a ``grep``. Binary files (and ``__pycache__``) are skipped:
+the denylist targets human-readable leakage, and byte artifacts cannot be meaningfully audited this way.
 """
 
 from __future__ import annotations

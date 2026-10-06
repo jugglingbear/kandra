@@ -1,22 +1,19 @@
 """Import-closure walker: discover the source files a manifest's handlers pull in.
 
-The generator emits thin glue (registry / client), but the *substance* of an SDK
-is the user's handler / codec / transport / model modules. To ship a
-self-contained package we must copy those files — and only those files — out of
-the authoring tree. This module computes that set.
+The generator emits thin glue (registry / client), but the *substance* of an SDK is the user's handler / codec /
+transport / model modules. To ship a self-contained package we must copy those files — and only those files — out of the
+authoring tree. This module computes that set.
 
-Starting from the manifest's entry-point modules (handler/codec/transport dotted
-paths), it parses each module's AST, follows every ``import`` / ``from ... import``
-that resolves *inside* the declared ``source_roots``, and repeats transitively.
-Imports that resolve to the stdlib, third-party packages, or the public runtime
-are treated as external and left alone.
+Starting from the manifest's entry-point modules (handler/codec/transport dotted paths), it parses each module's AST,
+follows every ``import`` / ``from ... import`` that resolves *inside* the declared ``source_roots``, and repeats
+transitively. Imports that resolve to the stdlib, third-party packages, or the public runtime are treated as external
+and left alone.
 
 Two manifest escape hatches are honored (see ``Vendoring`` in the manifest model):
 
-* ``exclude`` — drop a reachable file from the closure (e.g. internal bench
-  tooling that must never ship).
-* ``extra_include`` — force-add a file / directory / glob the static walk cannot
-  discover (dynamically imported modules, non-Python asset files).
+* ``exclude`` — drop a reachable file from the closure (e.g. internal bench tooling that must never ship).
+* ``extra_include`` — force-add a file / directory / glob the static walk cannot discover (dynamically imported
+  modules, non-Python asset files).
 """
 
 from __future__ import annotations
@@ -34,10 +31,9 @@ if TYPE_CHECKING:
 class ClosureError(Exception):
     """Raised when the import closure cannot be computed or an entry point is unresolved.
 
-    Causes include an unparseable source file, two source roots defining the same
-    top-level module name, an ``extra_include`` pattern that matches no files, or
-    (via :func:`resolve_entry_points`) a manifest handler / codec / adapter that
-    does not live under any source root.
+    Causes include an unparseable source file, two source roots defining the same top-level module name, an
+    ``extra_include`` pattern that matches no files, or (via :func:`resolve_entry_points`) a manifest handler / codec /
+    adapter that does not live under any source root.
     """
 
 
@@ -85,8 +81,8 @@ class ClosureResult:
     def top_level_packages(self) -> frozenset[str]:
         """Return the set of top-level package names spanned by the closure.
 
-        These are the names an import rewriter must re-home under the vendored
-        ``_internal`` namespace (e.g. ``{"devices", "common"}``).
+        These are the names an import rewriter must re-home under the vendored ``_internal`` namespace (e.g.
+        ``{"devices", "common"}``).
         """
         return frozenset(m.dotted.split(".", 1)[0] for m in self.modules)
 
@@ -130,12 +126,10 @@ def resolve_entry_points(
 ) -> None:
     """Fail fast unless every manifest entry point lives under a source root.
 
-    This is the guard behind the promise that the closure walk is *restricted to
-    the source roots*. Handlers, codecs, and adapters are all user code that gets
-    vendored into a self-contained SDK, so each must resolve to a file under a
-    declared source root (point ``source_roots`` at a shared tree when some are
-    shared across devices). It runs for both a plain build and a ``--profile``
-    build so a mistyped or out-of-tree reference surfaces a clear error up front
+    This is the guard behind the promise that the closure walk is *restricted to the source roots*. Handlers, codecs,
+    and adapters are all user code that gets vendored into a self-contained SDK, so each must resolve to a file under a
+    declared source root (point ``source_roots`` at a shared tree when some are shared across devices). It runs for both
+    a plain build and a ``--profile`` build so a mistyped or out-of-tree reference surfaces a clear error up front
     instead of a late import failure in the generated package.
 
     Args:
@@ -250,8 +244,8 @@ def _collect_seeds(
 
     for dotted in entry_modules:
         module = index_by_dotted.get(dotted)
-        # Entry points outside the source roots (e.g. kandra_runtime.*) are
-        # external — the generated package depends on them, never vendors them.
+        # Entry points outside the source roots (e.g. kandra_runtime.*) are external — the generated package depends on
+        # them, never vendors them.
         if module is not None and module.path not in seen:
             seeds.append(module)
             seen.add(module.path)
@@ -324,8 +318,8 @@ def _iter_imported_names(tree: ast.Module, module: ModuleFile) -> Iterator[str]:
 def _resolve_from_base(node: ast.ImportFrom, module: ModuleFile) -> str | None:
     """Resolve the absolute base module of a ``from ... import`` statement.
 
-    Handles relative imports by anchoring ``node.level`` against ``module``'s
-    package. Returns ``None`` if the relative import climbs above the top level.
+    Handles relative imports by anchoring ``node.level`` against ``module``'s package. Returns ``None`` if the relative
+    import climbs above the top level.
     """
     if node.level == 0:
         return node.module

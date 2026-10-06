@@ -1,20 +1,17 @@
 """Device discovery primitives: :class:`Candidate`, :class:`Scanner`, and helpers.
 
-A *candidate* is an in-range device that *might* be the one the caller
-wants — it has just enough metadata for a user-supplied
-:class:`Matcher` to accept or reject it. Once accepted, the candidate
-is handed to an :class:`~kandra_runtime.enrollment.Enrollment` adapter
-to produce a persistent :class:`~kandra_runtime.identity.Identity`.
+A *candidate* is an in-range device that *might* be the one the caller wants — it has just enough metadata for a
+user-supplied :class:`Matcher` to accept or reject it. Once accepted, the candidate is handed to an
+:class:`~kandra_runtime.enrollment.Enrollment` adapter to produce a persistent
+:class:`~kandra_runtime.identity.Identity`.
 
 Two entry points are exposed:
 
-* :meth:`Scanner.scan` — the streaming primitive. Yields candidates as
-  they are observed until the iterator is closed by the caller (or the
-  optional ``timeout`` elapses). Best for "connect to the first match"
-  flows and live UIs that want to render devices as they appear.
-* :func:`snapshot_scan` — thin collect-for-N-seconds helper that
-  consumes :meth:`Scanner.scan` and returns a list. Best for "show me
-  the menu, let me pick" CLI flows.
+* :meth:`Scanner.scan` — the streaming primitive. Yields candidates as they are observed until the iterator is
+  closed by the caller (or the optional ``timeout`` elapses). Best for "connect to the first match" flows and live UIs
+  that want to render devices as they appear.
+* :func:`snapshot_scan` — thin collect-for-N-seconds helper that consumes :meth:`Scanner.scan` and returns a list.
+  Best for "show me the menu, let me pick" CLI flows.
 """
 
 from __future__ import annotations
@@ -29,10 +26,9 @@ from typing import Any, Protocol, runtime_checkable
 class Candidate:
     """A device observed during a scan.
 
-    The fields are intentionally minimal; transport-specific metadata
-    (BLE service UUIDs, mDNS TXT records, signal strength, …) lives in
-    ``metadata`` as a free-form ``Mapping[str, Any]``. :class:`Matcher`
-    implementations consult those fields to decide acceptance.
+    The fields are intentionally minimal; transport-specific metadata (BLE service UUIDs, mDNS TXT records, signal
+    strength, …) lives in ``metadata`` as a free-form ``Mapping[str, Any]``. :class:`Matcher` implementations consult
+    those fields to decide acceptance.
     """
 
     transport: str
@@ -67,9 +63,8 @@ def accept_all(_candidate: Candidate) -> bool:
 class Scanner(Protocol):
     """Discovers in-range devices and surfaces them as :class:`Candidate` records.
 
-    Implementations are expected to be reusable across multiple
-    ``scan()`` invocations but need not be safe to call concurrently
-    against themselves.
+    Implementations are expected to be reusable across multiple ``scan()`` invocations but need not be safe to call
+    concurrently against themselves.
     """
 
     def scan(
@@ -85,8 +80,8 @@ class Scanner(Protocol):
         matcher:
             Predicate applied per candidate; only matches are yielded.
         timeout:
-            Optional wall-clock budget in seconds. When ``None``, the
-            scan runs until the caller closes the iterator.
+            Optional wall-clock budget in seconds. When ``None``, the scan runs until the caller closes the
+            iterator.
         """
 
 
@@ -98,9 +93,8 @@ async def snapshot_scan(
 ) -> list[Candidate]:
     """Collect every candidate observed by ``scanner`` for ``timeout`` seconds.
 
-    Returns the collected list in observation order, **deduplicated by
-    ``(transport, address)``** — a single device that re-advertises
-    during the window is reported once with the first observed metadata.
+    Returns the collected list in observation order, **deduplicated by ``(transport, address)``** — a single
+    device that re-advertises during the window is reported once with the first observed metadata.
     """
     if timeout <= 0:
         raise ValueError(f"snapshot_scan timeout must be > 0, got {timeout!r}")

@@ -1,9 +1,8 @@
 """Human-readable, transport-agnostic rendering of a wire request envelope.
 
-Used for lightweight wire tracing: :func:`~kandra_runtime.command.dispatch` emits
-the formatted envelope on the ``kandra.wire.<command-id>`` logger at ``DEBUG``
-right after ``codec.encode``, so any consumer can see the exact URL / bytes a
-command puts on the wire regardless of transport family.
+Used for lightweight wire tracing: :func:`~kandra_runtime.command.dispatch` emits the formatted envelope on the
+``kandra.wire.<command-id>`` logger at ``DEBUG`` right after ``codec.encode``, so any consumer can see the exact URL /
+bytes a command puts on the wire regardless of transport family.
 """
 
 from __future__ import annotations
@@ -18,9 +17,8 @@ _MAX_PREVIEW = 256
 def format_wire(envelope: object) -> str:
     """Render a wire request envelope to a one-line human-readable string.
 
-    Recognises the built-in HTTP and BLE envelopes and falls back to a hex
-    preview for raw ``bytes`` (e.g. loopback) or ``repr`` for anything else, so
-    it works for every transport family without the caller knowing which.
+    Recognises the built-in HTTP and BLE envelopes and falls back to a hex preview for raw ``bytes`` (e.g. loopback) or
+    ``repr`` for anything else, so it works for every transport family without the caller knowing which.
     """
     if isinstance(envelope, HttpRequest):
         line = f"{envelope.method} {envelope.path}{_query(envelope.query)}"

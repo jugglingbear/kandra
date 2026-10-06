@@ -1,16 +1,13 @@
 """Built-in BLE transport backed by ``bleak``.
 
-One :class:`BleTransport` owns one ``BleakClient`` for one physical
-device connection. Channels are declared on the transport at
-construction time: each channel is a (write_uuid, notify_uuid) pair
-that commands address by name (see :class:`~kandra_runtime.ble.BleRequest`).
+One :class:`BleTransport` owns one ``BleakClient`` for one physical device connection. Channels are declared on the
+transport at construction time: each channel is a (write_uuid, notify_uuid) pair that commands address by name (see
+:class:`~kandra_runtime.ble.BleRequest`).
 
-**Framing:** one write produces one notification packet.
-Multi-packet fragmentation / reassembly is the responsibility of the
-user's payload codec, *or* of a future framing wrapper layer. Channels
-are not concurrent-safe at the transport level; each channel has an
-internal lock so two ``request()`` calls on the same channel will
-serialize, but interleaved use is still considered the caller's bug.
+**Framing:** one write produces one notification packet. Multi-packet fragmentation / reassembly is the
+responsibility of the user's payload codec, *or* of a future framing wrapper layer. Channels are not concurrent-safe at
+the transport level; each channel has an internal lock so two ``request()`` calls on the same channel will serialize,
+but interleaved use is still considered the caller's bug.
 """
 
 from __future__ import annotations
@@ -85,12 +82,10 @@ class BleTransport:
 
     Args:
         address: BLE peripheral address (MAC on Linux/Windows; UUID on macOS).
-        channels: Mapping of channel name to ``(write_uuid, notify_uuid)``.
-            Channel names match the per-command ``ble.channel:`` field
-            in the manifest.
-        client_factory: Optional callable that builds the underlying
-            BLE client from the address. Defaults to ``bleak.BleakClient``.
-            Inject a fake here for unit tests.
+        channels: Mapping of channel name to ``(write_uuid, notify_uuid)``. Channel names match the per-command
+            ``ble.channel:`` field in the manifest.
+        client_factory: Optional callable that builds the underlying BLE client from the address. Defaults to
+            ``bleak.BleakClient``. Inject a fake here for unit tests.
         connect_timeout: Seconds to wait for ``connect()`` before giving up.
     """
 
@@ -115,8 +110,8 @@ class BleTransport:
                 raise ValueError(f"channel {name!r}: both UUIDs must be non-empty")
         self._address = address
         self._channels: dict[str, tuple[str, str]] = dict(channels)
-        # Reverse index: notify_uuid -> channel name (so the notify callback
-        # can route incoming bytes to the right queue).
+        # Reverse index: notify_uuid -> channel name (so the notify callback can route incoming bytes to the right
+        # queue).
         self._notify_to_channel: dict[str, str] = {
             notify_uuid: name for name, (_, notify_uuid) in self._channels.items()
         }
@@ -139,9 +134,8 @@ class BleTransport:
     ) -> BleTransport:
         """Build a transport from a persisted :class:`~kandra_runtime.identity.BleIdentity`.
 
-        Equivalent to ``BleTransport(identity.address, channels=...)``
-        — broken out as a classmethod so generated clients can stay
-        identity-agnostic.
+        Equivalent to ``BleTransport(identity.address, channels=...)`` — broken out as a classmethod so generated
+        clients can stay identity-agnostic.
         """
         from kandra_runtime.identity import BleIdentity
 
@@ -206,8 +200,8 @@ class BleTransport:
         """Write ``envelope.payload`` to the channel and await one notification.
 
         Raises:
-            TransportNotOpenError: if called before :meth:`open` (or after close).
-            TransportError: on unknown channel name or bleak failure.
+            TransportNotOpenError: if called before :meth:`open` (or after close). TransportError: on unknown channel
+            name or bleak failure.
         """
         if self._client is None or not self._client.is_connected:
             raise TransportNotOpenError("BleTransport.request() called before open()")
@@ -219,8 +213,7 @@ class BleTransport:
         write_uuid, _notify_uuid = pair
         queue = self._queues[envelope.channel]
         lock = self._locks[envelope.channel]
-        # Serialize per-channel; concurrent requests on one channel would
-        # interleave responses ambiguously.
+        # Serialize per-channel; concurrent requests on one channel would interleave responses ambiguously.
         async with lock:
             # Drain any stray notifications that arrived between requests.
             while not queue.empty():
@@ -231,22 +224,19 @@ class BleTransport:
                 raise  # adapter classified a stale bond mid-session; preserve the type
             except Exception as exc:
                 raise TransportError(f"BLE write_gatt_char({write_uuid!r}) failed: {exc}") from exc
-            # Per-call timeout is enforced by the dispatcher (Command.timeout);
-            # here we just block until the notification arrives or the task
-            # is cancelled.
+            # Per-call timeout is enforced by the dispatcher (Command.timeout); here we just block until the
+            # notification arrives or the task is cancelled.
             return await queue.get()
 
     def subscribe(self, envelope: BleRequest) -> AsyncIterator[bytes]:
         """Yield notifications from ``envelope.channel`` until the iterator closes.
 
-        The channel's notify characteristic is already subscribed in
-        :meth:`open`; this drains that channel's notification queue as packets
-        arrive. Use a channel for *either* request/response *or* subscribe, not
-        both — they share one queue.
+        The channel's notify characteristic is already subscribed in :meth:`open`; this drains that channel's
+        notification queue as packets arrive. Use a channel for *either* request/response *or* subscribe, not both —
+        they share one queue.
 
         Raises:
-            TransportNotOpenError: if called before :meth:`open`.
-            TransportError: on an unknown channel name.
+            TransportNotOpenError: if called before :meth:`open`. TransportError: on an unknown channel name.
         """
 
         async def _stream() -> AsyncIterator[bytes]:
@@ -289,8 +279,7 @@ def _default_client_factory(address: str) -> _BleakLike:
     """Lazy import of bleak so the runtime module imports cheaply."""
     from bleak import BleakClient
 
-    # bleak's signatures differ from the minimal _BleakLike protocol
-    # in irrelevant ways (extra **kwargs, broader char-specifier types);
-    # the runtime only ever calls them with str char specifiers and
-    # positional args, so the cast is safe.
+    # bleak's signatures differ from the minimal _BleakLike protocol in irrelevant ways (extra **kwargs, broader
+    # char-specifier types); the runtime only ever calls them with str char specifiers and positional args, so the cast
+    # is safe.
     return cast(_BleakLike, BleakClient(address))

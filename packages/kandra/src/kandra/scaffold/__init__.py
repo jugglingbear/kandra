@@ -1,16 +1,13 @@
 """SDK scaffolding wizard (``kandra create-sdk``).
 
-The scaffold renders a minimal Poetry project that uses kandra +
-kandra-runtime. The generated project's manifest passes
-``kandra validate`` out of the box; commands, codecs, and adapters are
-stubs that the user fills in.
+The scaffold renders a minimal Poetry project that uses kandra + kandra-runtime. The generated project's manifest passes
+``kandra validate`` out of the box; commands, codecs, and adapters are stubs that the user fills in.
 
 Public entry points:
 
-* :func:`run_wizard` — interactive questionary-based prompt that returns
-  an :class:`Answers` instance.
-* :func:`load_answers` — load an :class:`Answers` instance from a YAML
-  file (for ``--non-interactive`` mode and tests).
+* :func:`run_wizard` — interactive questionary-based prompt that returns an :class:`Answers` instance.
+* :func:`load_answers` — load an :class:`Answers` instance from a YAML file (for ``--non-interactive`` mode and
+  tests).
 * :func:`render` — render an :class:`Answers` to a target directory.
 """
 

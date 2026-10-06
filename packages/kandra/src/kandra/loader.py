@@ -17,8 +17,8 @@ _yaml = YAML(typ="safe", pure=True)
 class LoaderError(Exception):
     """Raised when a manifest cannot be loaded or validated.
 
-    The message is intended for end-user (SDK author) consumption — it
-    should make the problem locatable without requiring a stack trace.
+    The message is intended for end-user (SDK author) consumption — it should make the problem locatable without
+    requiring a stack trace.
     """
 
 
@@ -54,9 +54,7 @@ def _parse_yaml(text: str, origin: str) -> dict[str, Any]:
     if data is None:
         raise LoaderError(f"{origin}: manifest is empty")
     if not isinstance(data, dict):
-        raise LoaderError(
-            f"{origin}: top-level manifest must be a mapping, got {type(data).__name__}"
-        )
+        raise LoaderError(f"{origin}: top-level manifest must be a mapping, got {type(data).__name__}")
     return data
 
 

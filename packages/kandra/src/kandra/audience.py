@@ -1,17 +1,15 @@
 """Audience profiles: repo-level IP-isolation policy + per-file resolution.
 
-Two layers cooperate to decide which source files may appear in a generated
-SDK:
+Two layers cooperate to decide which source files may appear in a generated SDK:
 
-1. ``audience_profiles.yaml`` — the repo-level policy. Declares the build
-   *profiles* (each with an ``include_audience`` set and a ``deny_substrings``
-   leakage denylist) and a **static** path -> audience-tags map. It sits next
-   to the manifest so InfoSec has a single auditable file.
-2. Per-file ``# kandra-audience:`` header — an in-file override that may
-   *narrow* (never *widen*) the YAML grant for a single file.
+1. ``audience_profiles.yaml`` — the repo-level policy. Declares the build *profiles* (each with an
+   ``include_audience`` set and a ``deny_substrings`` leakage denylist) and a **static** path -> audience-tags map. It
+   sits next to the manifest so InfoSec has a single auditable file.
+2. Per-file ``# kandra-audience:`` header — an in-file override that may *narrow* (never *widen*) the YAML grant
+   for a single file.
 
-The default audience for any file not listed in the YAML map is ``internal`` —
-authors must consciously opt a file into a wider audience.
+The default audience for any file not listed in the YAML map is ``internal`` — authors must consciously opt a file into
+a wider audience.
 """
 
 from __future__ import annotations
@@ -37,8 +35,8 @@ AUDIENCE_PROFILES_FILENAME = "audience_profiles.yaml"
 # A file not listed in the profiles map defaults to internal-only.
 DEFAULT_AUDIENCE: tuple[str, ...] = ("internal",)
 
-# Glob metacharacters are rejected in the static path map: a rename must make an
-# entry stop matching (falling to default-internal), never silently re-match.
+# Glob metacharacters are rejected in the static path map: a rename must make an entry stop matching (falling to
+# default-internal), never silently re-match.
 _GLOB_CHARS = frozenset("*?[]")
 
 # `# kandra-audience: tag1, tag2` — matched only on comment lines.
@@ -51,8 +49,7 @@ _AUDIENCE_TAG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 class AudienceError(Exception):
     """Raised when an audience profile fails to load or a file cannot resolve.
 
-    The message targets the SDK author: it names the offending file / profile
-    and explains the rule that was violated.
+    The message targets the SDK author: it names the offending file / profile and explains the rule that was violated.
     """
 
 
@@ -73,9 +70,8 @@ class AudienceProfile(_ProfileModel):
 class AudienceProfiles(_ProfileModel):
     """Repo-level audience policy loaded from ``audience_profiles.yaml``.
 
-    ``files`` is a static path -> audience-tags map. Keys are paths relative to
-    the directory holding the profiles file (the same base the manifest's
-    ``source_roots`` resolve against). Files absent from the map default to
+    ``files`` is a static path -> audience-tags map. Keys are paths relative to the directory holding the profiles file
+    (the same base the manifest's ``source_roots`` resolve against). Files absent from the map default to
     :data:`DEFAULT_AUDIENCE`.
     """
 
@@ -130,8 +126,7 @@ class AudienceProfiles(_ProfileModel):
 def load_audience_profiles(source: str | Path) -> AudienceProfiles:
     """Load and validate an audience-profiles config from a path or YAML string.
 
-    A :class:`~pathlib.Path` is read from disk; any other ``str`` is parsed as
-    YAML text directly.
+    A :class:`~pathlib.Path` is read from disk; any other ``str`` is parsed as YAML text directly.
 
     Args:
         source: Filesystem path to ``audience_profiles.yaml`` or raw YAML text.
@@ -173,8 +168,8 @@ def load_audience_profiles(source: str | Path) -> AudienceProfiles:
 def parse_audience_header(source_text: str) -> list[str] | None:
     """Extract the ``# kandra-audience:`` tag list from Python source, if present.
 
-    Only comment lines are matched, so the token appearing inside a docstring or
-    string literal does not count. The first matching comment wins.
+    Only comment lines are matched, so the token appearing inside a docstring or string literal does not count. The
+    first matching comment wins.
 
     Args:
         source_text: The full text of a Python source file.
@@ -195,14 +190,12 @@ def resolve_file_audience(rel_path: str, source_text: str, profiles: AudiencePro
 
     Resolution rules:
 
-    ======================  ===============================  ======================
-    YAML grant              Header                           Effective audience
-    ======================  ===============================  ======================
-    (file not listed)       (absent)                         ``internal`` (default)
-    ``[a, b, c]``           (absent)                         ``[a, b, c]``
-    ``[a, b, c]``           ``# kandra-audience: a``          ``[a]`` (narrowed)
-    ``[a]``                 ``# kandra-audience: b``          **error** (cannot widen)
-    ======================  ===============================  ======================
+    ======================  ===============================  ====================== YAML grant              Header
+    Effective audience ======================  ===============================  ====================== (file not listed)
+    (absent)                         ``internal`` (default) ``[a, b, c]``           (absent) ``[a, b, c]`` ``[a, b, c]``
+    ``# kandra-audience: a``          ``[a]`` (narrowed) ``[a]`` ``# kandra-audience: b``          **error** (cannot
+    widen) ======================  ===============================
+    ======================
 
     Args:
         rel_path: POSIX path of the file relative to the profiles-file directory.
