@@ -1,5 +1,15 @@
 {
   "editor.wordWrap": "wordWrapColumn",
   "editor.wordWrapColumn": 120,
-  "editor.rulers": [120]
+  "editor.rulers": [120],
+  "python.analysis.extraPaths": [
+    "examples/hello_world/src",
+    "examples/hello_world/dist",
+    "examples/pneumatic_bear_poker/src",
+    "examples/pneumatic_bear_poker/dist",
+    "dist"
+  ],
+  "python.analysis.typeCheckingMode": "strict",
+  "python-envs.defaultEnvManager": "ms-python.python:poetry",
+  "python-envs.defaultPackageManager": "ms-python.python:poetry"
 }
