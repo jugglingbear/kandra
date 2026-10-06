@@ -23,7 +23,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
+import sys
 
 from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
 from kandra_runtime import PlatformDirsJsonStore
@@ -47,6 +49,21 @@ DEFAULT_URL = "http://localhost:8080"
 def _log(step: str, message: str) -> None:
     """Print a labelled lifecycle-phase line so each step is visible as it runs."""
     print(f"[{step}] {message}")
+
+
+def _enable_wire_trace() -> None:
+    """Show each command's on-the-wire request, indented under its lifecycle line.
+
+    The runtime logs the encoded envelope on ``kandra.wire.<command-id>`` at DEBUG;
+    we route that family-agnostic trace (HTTP URL + body, BLE channel + bytes, ...)
+    to stdout with a 4-space indent so it reads as a continuation of the step above.
+    """
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("    %(message)s"))
+    logger = logging.getLogger("kandra.wire")
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
 
 
 async def first_run(url: str) -> None:
@@ -120,6 +137,7 @@ async def main() -> None:
     """Run enrollment once if no identity is saved, then drive a command."""
     args = _parse_args()
 
+    _enable_wire_trace()
     store = PlatformDirsJsonStore(app_name=APP_NAME)
     _log("STORE", f"identities file: {store.path}")
     if args.reset:
@@ -133,7 +151,8 @@ async def main() -> None:
         _log("PHASE", f"no saved identity {SAVED_NAME!r} -- running discover + enroll")
         await first_run(args.url)
     else:
-        _log("PHASE", f"reusing saved identity {SAVED_NAME!r} -- skipping discovery")
+        _log("PHASE", f"reusing saved identity {SAVED_NAME!r} -- skipping discover + enroll")
+        _log("ENROLL", "reusing saved credentials -- no login needed (clear with --reset)")
 
     await subsequent_run(args.url)
 

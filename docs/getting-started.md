@@ -83,6 +83,7 @@ You should see each lifecycle phase logged, ending in a successful deploy:
 [SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
 [CONNECT] reopening device from saved identity 'grizzly' ...
 [DEPLOY] sending poker.deploy(pressure_psi=42) ...
+    POST /v1/poker/deploy  {"pressure_psi":42}
 [DEPLOY] accepted: bear poked, delivered_psi=42
 ```
 
@@ -106,7 +107,19 @@ walks the phases every real caller follows — each is a single line in the gene
    a typed [`Result`](concepts/result.md).
 
 Run the demo a second time and it skips straight to step 4 — the saved identity short-circuits discovery and
-enrollment. See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
+enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` login lines:
+
+```text
+[STORE] currently saved: ['grizzly']
+[PHASE] reusing saved identity 'grizzly' -- skipping discover + enroll
+[ENROLL] reusing saved credentials -- no login needed (clear with --reset)
+[CONNECT] reopening device from saved identity 'grizzly' ...
+[DEPLOY] sending poker.deploy(pressure_psi=42) ...
+    POST /v1/poker/deploy  {"pressure_psi":42}
+[DEPLOY] accepted: bear poked, delivered_psi=42
+```
+
+See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
 shortcut that collapses steps 1–4).
 
 ## Resetting the demo
@@ -132,4 +145,3 @@ locations and how to clear a saved identity outside the demo.
   `client.alerts.bear_stirred` [event](concepts/event.md).
 - Build a **pruned, per-audience** SDK by passing `--profile partner_woodland` to `kandra build` — see
   [Audiences & IP Isolation](concepts/audiences.md).
-
