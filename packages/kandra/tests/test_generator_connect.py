@@ -277,10 +277,10 @@ class _FakeEnrollment:
         return self._identity
 
 
-def _make_candidate(transport: str, address: str) -> Any:
+def _make_candidate(transport: str, address: str, advertised_name: str = "fake") -> Any:
     from kandra_runtime import Candidate
 
-    return Candidate(transport=transport, address=address, advertised_name="fake")
+    return Candidate(transport=transport, address=address, advertised_name=advertised_name)
 
 
 async def test_discover_and_connect_uses_saved_identity_when_present(
@@ -391,6 +391,42 @@ async def test_discover_and_connect_single_family_unwraps_to_plain_identity(
         saved = store.load("ble-only")
         assert isinstance(saved, BleIdentity)
         assert saved.address == "AA:BB:CC:DD:EE:FF"
+    finally:
+        await client.aclose()
+
+
+async def test_discover_and_connect_name_targets_specific_candidate(
+    patched_client: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``name`` argument narrows scan results to one candidate by advertised name."""
+    from ble_widget_sdk import BleWidgetClient, TransportId
+    from kandra_runtime import BleIdentity
+
+    store = _make_store(tmp_path)
+
+    async def fake_scan_ble(**_kwargs: Any) -> list[Any]:
+        # Two devices in range; only the second should be enrolled.
+        return [
+            _make_candidate("ble", "AA:AA:AA:AA:AA:AA", advertised_name="Widget-AAA"),
+            _make_candidate("ble", "BB:BB:BB:BB:BB:BB", advertised_name="Widget-BBB"),
+        ]
+
+    monkeypatch.setattr(patched_client, "scan_ble", fake_scan_ble)
+
+    enroll = _FakeEnrollment(BleIdentity(saved_name="kitchen", address="BB:BB:BB:BB:BB:BB", advertised_name="B"))
+    client = await BleWidgetClient.discover_and_connect(
+        "kitchen",
+        enrollment={"ble": enroll},
+        store=store,
+        name="Widget-BBB",
+        transports={TransportId.BLE},
+    )
+    try:
+        assert len(enroll.calls) == 1
+        enrolled_candidate, _saved_name = enroll.calls[0]
+        assert enrolled_candidate.address == "BB:BB:BB:BB:BB:BB"  # matched, not the first candidate
     finally:
         await client.aclose()
 

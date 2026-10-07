@@ -944,6 +944,8 @@ def _render_discover_and_connect(families: list[str]) -> str:
             f'        enrollment_for_{fam} = enrollment_map.get("{fam}")\n'
             f"        if enrollment_for_{fam} is not None:\n"
             f"            candidates = await scan_{fam}(timeout=discovery_timeout)\n"
+            f"            if name is not None:\n"
+            f"                candidates = [_c for _c in candidates if _c.advertised_name == name]\n"
             f"            if not candidates:\n"
             f"                raise EnrollmentError(\n"
             f'                    f"enroll: no {fam.upper()} candidates found "\n'
@@ -967,6 +969,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
         enrollment: "Enrollment | Mapping[str, Enrollment] | None" = None,
         store: "IdentityStore",
         discovery_timeout: float,
+        name: "str | None" = None,
     ) -> "Identity":
         """Scan every discoverable family, enroll, and persist the (possibly composite) identity."""
         if enrollment is None:
@@ -1043,6 +1046,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
         store: "IdentityStore | None" = None,
         discovery_timeout: float = 10.0,
         transports: "Collection[TransportId] | None" = None,
+        name: "str | None" = None,
     ) -> "Any":
         """One-shot connect: load saved identity, or scan + enroll + save on first run.
 
@@ -1073,6 +1077,10 @@ def _render_discover_and_connect(families: list[str]) -> str:
             Per-family scan window in seconds. Default 10.0.
         transports:
             Optional filter passed through to :meth:`connect`.
+        name:
+            Advertised peripheral name to connect to -- e.g. ``name="GoPro 4048"``. Narrows each family's
+            scan results (on top of the manifest's discovery criteria) to the device advertising exactly
+            this name. When omitted, the first candidate is used.
 
         Raises
         ------
@@ -1085,9 +1093,9 @@ def _render_discover_and_connect(families: list[str]) -> str:
 
         Notes
         -----
-        This method takes the *first* candidate returned by each scanner. Devices in noisy environments
-        (multiple cameras on the bench) should call :func:`scan_ble` / :func:`scan_http` directly, pick the
-        one they want, then run the explicit :class:`Enrollment` + :meth:`connect` flow.
+        Without ``name`` this takes the *first* candidate returned by each scanner. In noisy environments
+        (several devices in range) pass ``name`` to target a specific peripheral, or call :func:`scan_ble` /
+        :func:`scan_http` directly for full control over selection.
         """
         if store is None:
             store = PlatformDirsJsonStore(app_name=_DEFAULT_APP_NAME)
@@ -1099,7 +1107,7 @@ def _render_discover_and_connect(families: list[str]) -> str:
             pass
 
         await cls._enroll_and_save(
-            saved_name, enrollment=enrollment, store=store, discovery_timeout=discovery_timeout
+            saved_name, enrollment=enrollment, store=store, discovery_timeout=discovery_timeout, name=name
         )
         return await cls.connect(saved_name, store=store, transports=transports)'''
 
