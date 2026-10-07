@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 
 import aiohttp
 
 from kandra_runtime.errors import TransportError
 from kandra_runtime.scanner import Candidate, Matcher, Scanner, accept_all
+
+_logger = logging.getLogger("kandra.scan")
 
 ProbeCallable = Callable[[aiohttp.ClientSession, str], Awaitable[Candidate | None]]
 """Async probe — receives the session + base URL, returns a :class:`Candidate` or ``None``."""
@@ -26,11 +29,13 @@ ProbeCallable = Callable[[aiohttp.ClientSession, str], Awaitable[Candidate | Non
 def _default_probe(probe_path: str) -> ProbeCallable:
     async def _probe(session: aiohttp.ClientSession, base_url: str) -> Candidate | None:
         url = base_url.rstrip("/") + probe_path
+        _logger.debug("HTTP probe %s", url)
         try:
             async with session.get(url, allow_redirects=True) as resp:
                 if resp.status >= 400:
                     return None
                 advertised_name = resp.headers.get("Server")
+                _logger.debug("HTTP discovered %s (status %s)", base_url, resp.status)
                 return Candidate(
                     transport="http",
                     address=base_url,

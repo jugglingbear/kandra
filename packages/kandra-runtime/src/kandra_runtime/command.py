@@ -21,6 +21,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, cast
 
+from kandra_runtime._logging import NOISE
 from kandra_runtime.codec import RequestT, ResponseT, WireReqT, WireRespT
 from kandra_runtime.errors import CodecError, IdentityStaleError, TransportError, TransportTimeoutError
 from kandra_runtime.result import Classification, ResponseInterpreter, Result
@@ -165,10 +166,10 @@ def _trace_wire(
     command: Command[RequestT, ResponseT, WireReqT, WireRespT],
     envelope: WireReqT,
 ) -> None:
-    """Emit the formatted wire request on ``kandra.wire.<id>`` at DEBUG (no-op if disabled)."""
+    """Emit the formatted wire request on ``kandra.wire.<id>`` at NOISE (no-op if disabled)."""
     logger = logging.getLogger(f"kandra.wire.{command.id}")
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("%s", format_wire(envelope))
+    if logger.isEnabledFor(NOISE):
+        logger.log(NOISE, "%s", format_wire(envelope))
 
 
 def _classify_and_decode(

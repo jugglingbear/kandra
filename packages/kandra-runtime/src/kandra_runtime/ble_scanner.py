@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator, Callable
 from typing import Any, Protocol, cast, runtime_checkable
 
 from kandra_runtime.errors import TransportError
 from kandra_runtime.scanner import Candidate, Matcher, Scanner, accept_all
+
+_logger = logging.getLogger("kandra.scan")
 
 
 @runtime_checkable
@@ -84,6 +87,7 @@ class BleScanner(Scanner):
             if not matcher(candidate):
                 return
             seen.add(address)
+            _logger.debug("BLE discovered %s (%s)", advertised_name or "<unnamed>", address)
             queue.put_nowait(candidate)
 
         try:
@@ -96,6 +100,7 @@ class BleScanner(Scanner):
                 await scanner.start()
             except Exception as exc:
                 raise TransportError(f"BleScanner: failed to start scan: {exc}") from exc
+            _logger.debug("BLE scan started (timeout=%s)", timeout)
             try:
                 while True:
                     if timeout is None:
@@ -107,6 +112,7 @@ class BleScanner(Scanner):
                             return
                     yield candidate
             finally:
+                _logger.debug("BLE scan stopped")
                 with contextlib.suppress(Exception):
                     await scanner.stop()
 

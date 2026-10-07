@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from kandra_runtime.ble import BleRequest
@@ -26,6 +27,8 @@ from kandra_runtime.errors import (
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Mapping
+
+_logger = logging.getLogger("kandra.ble")
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +156,7 @@ class BleTransport:
         if self._client is not None and self._client.is_connected:
             return
         client = self._client_factory(self._address)
+        _logger.debug("BLE connect %s", self._address)
         try:
             await asyncio.wait_for(client.connect(), self._connect_timeout)
         except TimeoutError as exc:
@@ -174,6 +178,7 @@ class BleTransport:
                 await self._cleanup_after_failed_open(client, started=name)
                 raise TransportError(f"BLE start_notify({notify_uuid!r}) on channel {name!r} failed: {exc}") from exc
         self._client = client
+        _logger.debug("BLE connected %s (%d channel(s))", self._address, len(self._channels))
 
     async def close(self) -> None:
         """Unsubscribe from notifications and disconnect."""
@@ -190,6 +195,7 @@ class BleTransport:
             await client.disconnect()
         finally:
             self._client = None
+            _logger.debug("BLE disconnect %s", self._address)
 
     @property
     def is_open(self) -> bool:
@@ -224,6 +230,7 @@ class BleTransport:
                 raise  # adapter classified a stale bond mid-session; preserve the type
             except Exception as exc:
                 raise TransportError(f"BLE write_gatt_char({write_uuid!r}) failed: {exc}") from exc
+            _logger.debug("BLE write %s (%d bytes)", envelope.channel, len(envelope.payload))
             # Per-call timeout is enforced by the dispatcher (Command.timeout); here we just block until the
             # notification arrives or the task is cancelled.
             return await queue.get()
@@ -259,6 +266,7 @@ class BleTransport:
         queue = self._queues[channel_name]
 
         def _on_notify(_sender: int, data: bytearray) -> None:
+            _logger.debug("BLE notify %s (%d bytes)", channel_name, len(data))
             queue.put_nowait(bytes(data))
 
         return _on_notify

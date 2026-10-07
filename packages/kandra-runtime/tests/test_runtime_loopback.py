@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 
 import pytest
@@ -108,6 +109,31 @@ def test_sync_dispatch() -> None:
         asyncio.run(transport.close())
 
     _assert_accepted(result, BumpResponse(value=107))
+
+
+async def test_wire_trace_logs_at_noise_not_debug(caplog: pytest.LogCaptureFixture) -> None:
+    """The encoded-request hexdump is emitted at NOISE (below DEBUG), so DEBUG stays readable."""
+    from kandra_runtime import NOISE
+
+    async def handler(payload: bytes) -> bytes:
+        return payload
+
+    cmd = _bump_command("bump.trace")
+    transport: LoopbackTransport[bytes, bytes] = LoopbackTransport(handler)
+
+    # At DEBUG the trace is suppressed (it logs below DEBUG).
+    with caplog.at_level(logging.DEBUG, logger="kandra.wire.bump.trace"):
+        async with open_transport(transport):
+            await dispatch(cmd, transport, BumpRequest(value=1))
+    assert not [r for r in caplog.records if r.name == "kandra.wire.bump.trace"]
+
+    # At NOISE the trace appears, tagged with the custom level.
+    caplog.clear()
+    with caplog.at_level(NOISE, logger="kandra.wire.bump.trace"):
+        async with open_transport(transport):
+            await dispatch(cmd, transport, BumpRequest(value=1))
+    records = [r for r in caplog.records if r.name == "kandra.wire.bump.trace"]
+    assert records and all(r.levelno == NOISE for r in records)
 
 
 async def test_request_on_closed_transport_yields_transport_failure() -> None:

@@ -1,5 +1,6 @@
 """Kandra runtime: protocols and helpers shipped to generated SDK clients."""
 
+from kandra_runtime._logging import NOISE
 from kandra_runtime.ble import BleChannelCodec, BleRequest
 from kandra_runtime.ble_scanner import BleScanner
 from kandra_runtime.ble_transport import BleTransport
@@ -63,6 +64,7 @@ from kandra_runtime.transport import Subscribable, Transport, open_transport
 from kandra_runtime.wire import format_wire
 
 __all__ = [
+    "NOISE",
     "AlwaysAcceptedResponseInterpreter",
     "BleChannelCodec",
     "BleEnrollment",

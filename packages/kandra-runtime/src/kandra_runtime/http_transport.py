@@ -9,6 +9,7 @@ constructor -- the manifest deliberately does not bake in URLs because the same 
 
 from __future__ import annotations
 
+import logging
 from types import TracebackType
 from typing import TYPE_CHECKING, Self
 from urllib.parse import urljoin
@@ -25,6 +26,8 @@ from kandra_runtime.http import HttpRequest, HttpResponse
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Collection, Mapping
+
+_logger = logging.getLogger("kandra.http")
 
 
 class HttpTransport:
@@ -150,6 +153,7 @@ class HttpTransport:
             raise TransportNotOpenError("HttpTransport.request() called before open()")
         url = urljoin(self._base_url, envelope.path.lstrip("/"))
         headers = {**self._default_headers, **envelope.headers}
+        _logger.debug("HTTP %s %s", envelope.method, url)
         try:
             async with self._session.request(
                 envelope.method,
@@ -164,6 +168,7 @@ class HttpTransport:
                     )
                 body = await resp.read()
                 response_headers = {k: v for k, v in resp.headers.items()}
+                _logger.debug("HTTP response %s (%d bytes)", resp.status, len(body))
                 return HttpResponse(status=resp.status, headers=response_headers, body=body)
         except TimeoutError as exc:
             raise TransportTimeoutError(f"HTTP {envelope.method} {url} timed out") from exc
