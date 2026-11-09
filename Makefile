@@ -175,7 +175,7 @@ build-docs-strict:  ## Build the docs with -W (warnings become errors)
 .PHONY: serve-docs
 serve-docs:  ## Live-reload the docs at http://localhost:8000
 	@echo "🌐 Running local docs server on http://localhost:8000"
-	$(POETRY) run sphinx-autobuild --port 8000 --watch $(PKG_ROOT) $(DOCS_SRC) $(DOCS_OUT)
+	$(POETRY) run sphinx-autobuild --port 8000 --watch $(PKG_ROOT) --watch $(EXAMPLE_MANIFEST) $(DOCS_SRC) $(DOCS_OUT)
 
 .PHONY: docs-dev
 docs-dev: serve-docs  ## Alias for serve-docs

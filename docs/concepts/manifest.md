@@ -34,72 +34,11 @@ stateDiagram-v2
 
 ## Manifest Structure
 
-An abridged manifest looks like this (per-transport wiring blocks are elided; see the full
-[Pneumatic Bear Poker example](https://github.com/jugglingbear/kandra/tree/main/examples/pneumatic_bear_poker) for the
-complete version):
+The complete Pneumatic Bear Poker manifest, included straight from the example so it never drifts from the real file:
 
-```yaml
-schema_version: 1
-
-device:
-  id: pneumatic_bear_poker
-  display_name: Pneumatic Bear Poker
-  firmware_min: "2.4.0"
-  audience: [internal, partner_woodland]
-
-source_roots:
-  # Import roots, relative to this manifest. Dotted paths (handler:, codec:, adapter:) resolve against them:
-  # devices.pneumatic_bear_poker.handlers.poker:Deploy -> src/devices/pneumatic_bear_poker/handlers/poker.py
-  - src
-
-transports:
-  - id: http
-    family: http
-    config: { base_url: "http://192.168.1.1:8080" }
-    # HTTP may omit codec (runtime HttpJsonCodec) and adapter (runtime HttpTransport).
-    # Every other family (BLE, loopback, custom) declares a codec.
-
-commands:
-  - id: poker.deploy
-    handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
-    transports: [http]
-    audience: [internal, partner_woodland]
-    timeout: 5.0
-    idempotent: true   # deploying an already-extended arm is a no-op
-
-  - id: poker.retract
-    handler: devices.pneumatic_bear_poker.handlers.poker:Retract
-    transports: [http]
-    audience: [internal, partner_woodland]
-    timeout: 1.0
-    idempotent: true
-    retries: 2   # safe to re-send on a transient link drop
-
-attributes:
-  # Named device *state* (read / write / subscribe), as opposed to a one-shot
-  # command. Emitted as `client.settings.poke_intensity.read()/.write(v)/.subscribe()`.
-  - id: settings.poke_intensity
-    handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
-    transports: [http]
-    operations: [read, write, subscribe]
-    audience: [internal, partner_woodland]
-
-events:
-  # Stateless emission (subscribe-only). Emitted as
-  # `client.alerts.bear_stirred.subscribe()` (async-only).
-  - id: alerts.bear_stirred
-    handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [http]
-    audience: [internal, partner_woodland]
-
-vendoring:
-  # extra_include takes a file, a whole directory, or a glob (relative to a
-  # source_root) -- for code or assets the static import walker can't discover.
-  extra_include:
-    - devices/pneumatic_bear_poker/handlers/super_important.py  # dynamically imported module
-    - devices/pneumatic_bear_poker/assets/                      # whole directory of runtime data files
-  # Internal bench tooling -- keep it out of every shipped SDK.
-  exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
+```{literalinclude} ../../examples/pneumatic_bear_poker/manifest.yaml
+:language: yaml
+:caption: examples/pneumatic_bear_poker/manifest.yaml
 ```
 
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
@@ -127,9 +66,9 @@ per-operation wiring block is required.
 
 Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
 to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live
-in the referenced handler classes. (Every command, attribute, and event that rides an HTTP or BLE transport also needs
-a per-transport `http:` / `ble:` wiring block — method/path, read/write/subscribe verbs, or a subscribe stream — all
-elided above for brevity; see the full example and the [Attribute](attribute.md) / [Event](event.md) pages.) A
+in the referenced handler classes. Every command, attribute, and event that rides an HTTP or BLE transport also needs
+a per-transport `http:` / `ble:` wiring block — method/path, read/write/subscribe verbs, or a subscribe stream, as in
+the `http:` blocks above (see also the [Attribute](attribute.md) / [Event](event.md) pages). A
 command's wire block may also carry an optional `codec:` (a dotted `module:Class`) that overrides the transport's
 default codec for that one command — the escape hatch when a single transport carries mixed wire formats (see
 [Per-command codec override](codec.md#per-command-codec-override)). Any operation may also declare
@@ -142,8 +81,9 @@ command up to `N` more times before giving up. Non-idempotent commands are never
 surfaces as [`IdentityStaleError`](lifecycle.md#credential-staleness--re-enrollment) for the client's re-enrollment
 path instead. The [state machine](#device-state-machine) above shows how the reference device's flags were chosen.
 
-The optional top-level `discovery:` block (elided above) holds per-family match criteria: `ble:` (name prefix, service
-UUIDs, manufacturer id) and/or `http:` (`base_urls` to probe, `probe_path`, optional `server_header_prefix`). Each
+The optional top-level `discovery:` block (at the end of the example) holds per-family match criteria: `ble:` (name
+prefix, service UUIDs, manufacturer id) and/or `http:` (`base_urls` to probe, `probe_path`, optional
+`server_header_prefix`). Each
 family it declares must match a transport's `family:`, and the generator compiles it into the SDK's `scan_<family>()`
 helpers and default matchers — see [Scanner](scanner.md#matcher).
 
