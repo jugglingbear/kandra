@@ -14,10 +14,7 @@ fictional device whose sole job is to poke bears (pneumatically). It has five co
 
 ## Device State Machine
 
-The Pneumatic Bear Poker tracks two independent things: whether the unit is powered and whether the arm is extended.
-Nothing moves on its own (powering off leaves the arm where it is), and the arm only moves while the unit is powered:
-an arm command sent while unpowered is refused with HTTP 409, which the runtime classifies as `REJECTED`. The manifest
-doesn't model this state — it's firmware behavior — but it is what the commands' `idempotent` flags describe.
+The arm only moves while the unit is powered; arm commands sent while it's off are refused (HTTP 409, `REJECTED`).
 
 ```{mermaid}
 stateDiagram-v2
