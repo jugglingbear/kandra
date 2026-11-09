@@ -189,12 +189,16 @@ The end-to-end happy path for a single command dispatch, against an already-enro
 ```{mermaid}
 sequenceDiagram
     autonumber
-    participant App as Your app
-    participant Client as MyDeviceClient
-    participant Store as IdentityStore
-    participant Transport as HttpTransport
-    participant Codec as HttpJsonCodec
-    participant ResponseInterpreter as DefaultHttpResponseInterpreter
+    box rgba(210,190,154,0.3) Your code
+        participant App as Your app
+    end
+    box rgba(33,126,202,0.3) Kandra
+        participant Client as MyDeviceClient
+        participant Store as IdentityStore
+        participant Transport as HttpTransport
+        participant Codec as HttpJsonCodec
+        participant ResponseInterpreter as DefaultHttpResponseInterpreter
+    end
     participant Device as Real device
 
     App->>Client: connect("my-saved-device")

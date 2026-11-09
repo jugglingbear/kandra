@@ -64,6 +64,10 @@ and consistently formatted.
   class nodeA,nodeB user
   class nodeC,nodeD kandra
   ```
+
+  In sequence diagrams, group participants with `box rgba(210,190,154,0.3) Your code` and
+  `box rgba(33,126,202,0.3) Kandra` (leave external actors such as the device unboxed). Only color a diagram that
+  mixes both authorships.
 - Mermaid label lines often exceed 120 characters; that is acceptable inside the fence. If a
   line-length linter is later added, wrap the block in `<!-- markdownlint-disable MD013 -->` /
   `<!-- markdownlint-enable MD013 -->` directives rather than globally relaxing the limit.
