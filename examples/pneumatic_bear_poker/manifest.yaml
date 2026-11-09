@@ -40,17 +40,17 @@ commands:
         response_codec: json
         expects_response: true
 
-  - id: safety.emergency_retract
-    handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
+  - id: poker.retract
+    handler: devices.pneumatic_bear_poker.handlers.poker:Retract
     transports: [http]
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
-    retries: 2   # safety-critical: re-send on a transient link drop (retracting twice is a no-op)
+    retries: 2   # re-send on a transient link drop (retracting twice is a no-op)
     http:
       http:
         method: POST
-        path: /v1/safety/emergency_retract
+        path: /v1/poker/retract
         body_codec: json
         response_codec: json
         expects_response: true

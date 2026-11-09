@@ -7,7 +7,7 @@ Walks through the four phases a real caller follows after running
     1. DISCOVER -- find a device in range
     2. ENROLL   -- bond / authenticate / capture credentials
     3. SAVE     -- persist the resulting identity so we can skip discovery + enrollment next time
-    4. CONNECT  -- reopen the device by saved name and send a command
+    4. CONNECT  -- reopen the device by saved name, then power on, deploy, and retract the arm
 
 Each phase is one line of code in the generated SDK. The narrative comments are the point: this file doubles as
 the user-facing reference for "what does kandra actually buy me?"
@@ -26,14 +26,18 @@ import asyncio
 import logging
 import os
 import sys
+from typing import TypeVar
 
-from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
-from kandra_runtime import PlatformDirsJsonStore
+from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
+from devices.pneumatic_bear_poker.handlers.power import PowerOnRequest
+from kandra_runtime import NOISE, PlatformDirsJsonStore, Result
 from pneumatic_bear_poker_sdk import (
     PneumaticBearPokerClient,
     http_enrollment,
     scan_http,
 )
+
+T = TypeVar("T")
 
 # The generated SDK's package name; also the identity store's app_name.
 APP_NAME = "pneumatic_bear_poker_sdk"
@@ -54,7 +58,7 @@ def _log(step: str, message: str) -> None:
 def _enable_wire_trace() -> None:
     """Show each command's on-the-wire request, indented under its lifecycle line.
 
-    The runtime logs the encoded envelope on ``kandra.wire.<command-id>`` at DEBUG;
+    The runtime logs the encoded envelope on ``kandra.wire.<command-id>`` at NOISE (below DEBUG);
     we route that family-agnostic trace (HTTP URL + body, BLE channel + bytes, ...)
     to stdout with a 4-space indent so it reads as a continuation of the step above.
     """
@@ -62,7 +66,7 @@ def _enable_wire_trace() -> None:
     handler.setFormatter(logging.Formatter("    %(message)s"))
     logger = logging.getLogger("kandra.wire")
     logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(NOISE)
     logger.propagate = False
 
 
@@ -95,17 +99,31 @@ async def first_run(url: str) -> None:
 
 
 async def subsequent_run(url: str) -> None:
-    """Reopen the device by saved name and drive a command."""
+    """Reopen the device by saved name and drive the arm through one deploy / retract cycle."""
     # `connect()` reads the saved identity, calls `from_identity` on every matching transport, opens each one,
     # and hands back an async context manager that closes them on exit.
     _log("CONNECT", f"reopening device from saved identity {SAVED_NAME!r} ...")
     async with await PneumaticBearPokerClient.connect(SAVED_NAME) as client:
-        _log("DEPLOY", "sending poker.deploy(pressure_psi=42) ...")
-        result = await client.poker.deploy(DeployRequest(pressure_psi=42))
+        # The arm only moves while the unit is powered; power.on is a no-op if it already is.
+        _log("POWER", "sending power.on() ...")
+        _require_accepted("POWER", await client.power.on(PowerOnRequest()), url)
+        _log("POWER", "accepted: unit powered")
 
+        _log("DEPLOY", "sending poker.deploy(pressure_psi=42) ...")
+        deployed = _require_accepted("DEPLOY", await client.poker.deploy(DeployRequest(pressure_psi=42)), url)
+        _log("DEPLOY", f"accepted: arm extended, delivered_psi={deployed.delivered_psi}")
+
+        # Retract so the next run finds the arm back in place (deploy is rejected while already extended).
+        _log("RETRACT", "sending poker.retract() ...")
+        _require_accepted("RETRACT", await client.poker.retract(RetractRequest()), url)
+        _log("RETRACT", "accepted: arm retracted")
+
+
+def _require_accepted(step: str, result: Result[T] | None, url: str) -> T:
+    """Return the decoded payload, or explain the failure and exit."""
     assert result is not None
     if not result.accepted:
-        _log("DEPLOY", f"rejected: {result.classification.name}")
+        _log(step, f"rejected: {result.classification.name} ({result.reason})")
         if result.classification.name == "TRANSPORT_FAILURE":
             # A saved identity pins the address captured at enrollment. If the device has since moved (e.g. a new
             # sim port), that address is dead -- indistinguishable from "device offline", so re-enroll to refresh it.
@@ -114,7 +132,7 @@ async def subsequent_run(url: str) -> None:
             print(f"       hint: clear it and re-enroll with:  {reset_cmd}")
         raise SystemExit(1)
     assert result.data is not None
-    _log("DEPLOY", f"accepted: bear poked, delivered_psi={result.data.delivered_psi}")
+    return result.data
 
 
 def _parse_args() -> argparse.Namespace:
@@ -134,7 +152,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 async def main() -> None:
-    """Run enrollment once if no identity is saved, then drive a command."""
+    """Run enrollment once if no identity is saved, then drive the arm."""
     args = _parse_args()
 
     _enable_wire_trace()

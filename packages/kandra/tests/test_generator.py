@@ -78,7 +78,7 @@ def test_http_enrollment_factory_returns_baked_adapter(sdk_on_path: Path) -> Non
 def test_registry_emits_idempotent_and_retries(sdk_on_path: Path) -> None:
     """``idempotent`` / ``retries`` manifest fields flow into the generated Command(...) entries."""
     registry_src = (sdk_on_path / "registry.py").read_text(encoding="utf-8")
-    assert "idempotent=True" in registry_src  # e.g. safety.emergency_retract
+    assert "idempotent=True" in registry_src  # e.g. poker.retract
     assert "retries=2" in registry_src
 
 

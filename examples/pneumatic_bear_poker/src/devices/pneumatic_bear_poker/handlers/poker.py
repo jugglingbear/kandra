@@ -1,4 +1,4 @@
-"""Operational handler: deploy the pneumatic bear-poking arm."""
+"""Operational handlers: extend and retract the pneumatic bear-poking arm."""
 
 from __future__ import annotations
 
@@ -20,7 +20,26 @@ class DeployResponse:
 
 
 class Deploy:
-    """Deploy the bear-poking arm at the requested pressure."""
+    """Extend the arm at the requested pressure. Rejected while powered off or already extended."""
 
     request = DeployRequest
     response = DeployResponse
+
+
+@dataclass(frozen=True)
+class RetractRequest:
+    """Args for `poker.retract`. No-arg request modeled as an empty struct."""
+
+
+@dataclass(frozen=True)
+class RetractResponse:
+    """Reply from `poker.retract`."""
+
+    retracted: bool
+
+
+class Retract:
+    """Pull the arm back. A no-op when already retracted; rejected while powered off."""
+
+    request = RetractRequest
+    response = RetractResponse

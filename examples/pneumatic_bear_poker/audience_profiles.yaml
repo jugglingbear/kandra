@@ -35,7 +35,6 @@ files:
   src/devices/pneumatic_bear_poker/__init__.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/__init__.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/poker.py: [internal, partner_woodland]
-  src/devices/pneumatic_bear_poker/handlers/safety.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/power.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/settings.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/alerts.py: [internal, partner_woodland]

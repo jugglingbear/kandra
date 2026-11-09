@@ -41,7 +41,7 @@ class PowerOn:
 
 
 class PowerOff:
-    """De-energise the compressor; optionally vent residual pressure first."""
+    """De-energise the compressor; optionally vent residual pressure first. The arm stays where it is."""
 
     request = PowerOffRequest
     response = PowerOffResponse

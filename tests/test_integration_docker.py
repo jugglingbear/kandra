@@ -157,9 +157,9 @@ async def test_step1_discovery_finds_firmware_sim(patched_base_urls: str) -> Non
     assert len(candidates) == 1, f"expected exactly one discovery hit, got {candidates}"
     candidate = candidates[0]
     assert candidate.address == patched_base_urls
-    assert (candidate.advertised_name or "").startswith("PneumaticBearPoker"), (
-        f"Server header did not match prefix: {candidate.advertised_name!r}"
-    )
+    assert (candidate.advertised_name or "").startswith(
+        "PneumaticBearPoker"
+    ), f"Server header did not match prefix: {candidate.advertised_name!r}"
 
 
 async def test_step2_enrollment_obtains_bearer_token(
@@ -171,9 +171,7 @@ async def test_step2_enrollment_obtains_bearer_token(
     from pneumatic_bear_poker_sdk import scan_http
 
     candidate = (await scan_http(timeout=5.0))[0]
-    identity = await HttpEnrollment(login_path="/v1/auth/login").enroll(
-        candidate, saved_name=SAVED_NAME
-    )
+    identity = await HttpEnrollment(login_path="/v1/auth/login").enroll(candidate, saved_name=SAVED_NAME)
     assert identity.transport == "http"
     assert identity.auth_token, "login response did not produce a bearer token"
 
@@ -191,7 +189,7 @@ async def test_step3_saved_identity_is_listable(store_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Command dispatch tests -- one per manifest command (and one extra branch).
+# Command dispatch tests -- the arm/power state machine, plus logs.
 # ---------------------------------------------------------------------------
 
 
@@ -210,54 +208,59 @@ async def client(
 
 
 def _assert_accepted(result: Any, *, attr: str, expected: Any) -> None:
-    assert result is not None and result.accepted, (
-        f"command not accepted: classification={getattr(result, 'classification', None)}"
-    )
+    assert (
+        result is not None and result.accepted
+    ), f"command not accepted: classification={getattr(result, 'classification', None)}"
     assert result.data is not None, "accepted result missing data payload"
     actual = getattr(result.data, attr)
     assert actual == expected, f"{attr}: expected {expected!r}, got {actual!r}"
 
 
-async def test_cmd_poker_deploy_echoes_pressure(client: Any) -> None:
-    """POST /v1/poker/deploy round-trips `pressure_psi` → `delivered_psi`."""
-    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest
-
-    result = await client.poker.deploy(DeployRequest(pressure_psi=42))
-    _assert_accepted(result, attr="delivered_psi", expected=42)
+def _assert_rejected(result: Any) -> None:
+    assert (
+        result is not None and result.classification.name == "REJECTED"
+    ), f"expected REJECTED, got classification={getattr(result, 'classification', None)}"
 
 
-async def test_cmd_safety_emergency_retract_returns_true(client: Any) -> None:
-    """POST /v1/safety/emergency_retract reports `retracted=True`."""
-    from devices.pneumatic_bear_poker.handlers.safety import EmergencyRetractRequest
-
-    result = await client.safety.emergency_retract(EmergencyRetractRequest())
-    _assert_accepted(result, attr="retracted", expected=True)
+# The sim keeps power + arm state for the whole session, so each state-machine test starts and ends in the
+# initial OFF / retracted state. power.off is fire-and-forget in the manifest, so it returns None.
 
 
-async def test_cmd_power_on_returns_powered_true(client: Any) -> None:
-    """POST /v1/power/on flips `powered=True`."""
-    from devices.pneumatic_bear_poker.handlers.power import PowerOnRequest
+async def test_fsm_arm_commands_rejected_while_off(client: Any) -> None:
+    """deploy / retract are refused (HTTP 409 -> REJECTED) until the unit is powered."""
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
 
-    result = await client.power.on(PowerOnRequest())
-    _assert_accepted(result, attr="powered", expected=True)
-
-
-async def test_cmd_power_off_drain_drops_residual_to_zero(client: Any) -> None:
-    """POST /v1/power/off with `drain_pressure=True` leaves no residual psi."""
-    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest
-
-    result = await client.power.off(PowerOffRequest(drain_pressure=True))
-    _assert_accepted(result, attr="powered", expected=False)
-    assert result.data.residual_psi == 0
+    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=42)))
+    _assert_rejected(await client.poker.retract(RetractRequest()))
 
 
-async def test_cmd_power_off_no_drain_retains_residual_psi(client: Any) -> None:
-    """POST /v1/power/off with `drain_pressure=False` keeps a residual ~12 psi."""
-    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest
+async def test_fsm_deploy_retract_cycle(client: Any) -> None:
+    """Power on, extend, refuse a second extend, retract (twice -- the repeat is a no-op), power off."""
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
+    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest, PowerOnRequest
 
-    result = await client.power.off(PowerOffRequest(drain_pressure=False))
-    _assert_accepted(result, attr="powered", expected=False)
-    assert result.data.residual_psi > 0, "expected residual pressure when drain_pressure=False"
+    _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
+    _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=42)), attr="delivered_psi", expected=42)
+    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=42)))
+    _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
+    _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
+    assert await client.power.off(PowerOffRequest(drain_pressure=True)) is None
+
+
+async def test_fsm_power_off_leaves_arm_extended(client: Any) -> None:
+    """Cutting power never moves the arm: it stays extended until powered and retracted."""
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
+    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest, PowerOnRequest
+
+    _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
+    _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=7)), attr="delivered_psi", expected=7)
+    assert await client.power.off(PowerOffRequest(drain_pressure=False)) is None
+    _assert_rejected(await client.poker.retract(RetractRequest()))
+
+    _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
+    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=7)))  # still extended
+    _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
+    assert await client.power.off(PowerOffRequest()) is None
 
 
 async def test_cmd_logs_download_returns_requested_window(client: Any) -> None:

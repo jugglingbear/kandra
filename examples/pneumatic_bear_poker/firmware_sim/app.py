@@ -41,7 +41,6 @@ _VALID_TOKEN = secrets.token_hex(16)
 def create_app() -> Flask:
     """Build and return the configured Flask app."""
     app = Flask(__name__)
-    state = {"poke_intensity": 5}  # the one settable attribute's stored value
 
     # ---- discovery probe --------------------------------------------------
     @app.get("/.well-known/pneumatic-bear-poker")
@@ -58,25 +57,7 @@ def create_app() -> Flask:
         return jsonify({"token": _VALID_TOKEN})
 
     # ---- commands ---------------------------------------------------------
-    @app.post("/v1/poker/deploy")
-    def poker_deploy() -> Response:
-        body = _json_body()
-        pressure = int(body.get("pressure_psi", 0))
-        return jsonify({"delivered_psi": pressure})
-
-    @app.post("/v1/safety/emergency_retract")
-    def safety_retract() -> Response:
-        return jsonify({"retracted": True})
-
-    @app.post("/v1/power/on")
-    def power_on() -> Response:
-        return jsonify({"powered": True})
-
-    @app.post("/v1/power/off")
-    def power_off() -> Response:
-        body = _json_body()
-        drain = bool(body.get("drain_pressure", True))
-        return jsonify({"powered": False, "residual_psi": 0 if drain else 12})
+    _register_power_and_arm(app)
 
     @app.get("/v1/logs")
     def logs_download() -> Response:
@@ -86,6 +67,14 @@ def create_app() -> Flask:
         start = int(since) if since is not None else 0
         lines = tuple(f"line {i}" for i in range(start, start + min(max_lines, 5)))
         return jsonify({"lines": list(lines), "next_sequence": start + len(lines)})
+
+    _register_settings_and_alerts(app)
+    return app
+
+
+def _register_settings_and_alerts(app: Flask) -> None:
+    """Register the `settings.poke_intensity` attribute and `alerts.bear_stirred` event routes."""
+    state = {"poke_intensity": 5}  # the one settable attribute's stored value
 
     # ---- attribute: settings.poke_intensity (read / write / subscribe) ----
     @app.get("/v1/settings/poke_intensity")
@@ -116,13 +105,52 @@ def create_app() -> Flask:
 
         return Response(_stream(), mimetype="text/event-stream")
 
-    return app
+
+def _register_power_and_arm(app: Flask) -> None:
+    """Register the commands that drive the power / arm state machine (docs: Manifest -> Device State Machine)."""
+    # Power and arm position are independent: nothing ever moves the arm except deploy / retract.
+    machine = {"powered": False, "extended": False}
+
+    @app.post("/v1/poker/deploy")
+    def poker_deploy() -> Response:
+        if not machine["powered"]:
+            return _rejected("not powered")
+        if machine["extended"]:
+            return _rejected("already extended")
+        pressure = int(_json_body().get("pressure_psi", 0))
+        machine["extended"] = True
+        return jsonify({"delivered_psi": pressure})
+
+    @app.post("/v1/poker/retract")
+    def poker_retract() -> Response:
+        if not machine["powered"]:
+            return _rejected("not powered")
+        machine["extended"] = False
+        return jsonify({"retracted": True})
+
+    @app.post("/v1/power/on")
+    def power_on() -> Response:
+        machine["powered"] = True
+        return jsonify({"powered": True})
+
+    @app.post("/v1/power/off")
+    def power_off() -> Response:
+        drain = bool(_json_body().get("drain_pressure", True))
+        machine["powered"] = False
+        return jsonify({"powered": False, "residual_psi": 0 if drain else 12})
 
 
 def _json_body() -> dict[str, Any]:
     """Return the request's JSON body as a dict (empty dict if absent)."""
     body = request.get_json(silent=True)
     return body if isinstance(body, dict) else {}
+
+
+def _rejected(reason: str) -> Response:
+    """Refuse a command that is invalid in the current state (HTTP 409, classified REJECTED)."""
+    response = jsonify({"error": reason})
+    response.status_code = 409
+    return response
 
 
 if __name__ == "__main__":

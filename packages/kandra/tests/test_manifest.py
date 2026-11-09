@@ -16,7 +16,7 @@ def test_example_manifest_loads() -> None:
     assert {t.id for t in manifest.transports} == {"http"}
     assert {c.id for c in manifest.commands} == {
         "poker.deploy",
-        "safety.emergency_retract",
+        "poker.retract",
         "power.on",
         "power.off",
         "logs.download",
