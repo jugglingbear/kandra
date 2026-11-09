@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sphinx.application import Sphinx
 
 # Make both packages importable so autodoc can introspect type hints.
 # The editable install also exposes them, but adding the source dirs
@@ -33,27 +37,27 @@ release = "0.0.1"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
-    "myst_parser",                  # Markdown source files
-    "sphinx.ext.autodoc",           # Pull docstrings into pages
-    "sphinx.ext.napoleon",          # Google / NumPy docstring styles
-    "sphinx.ext.intersphinx",       # Cross-link to upstream docs
-    "sphinx.ext.viewcode",          # "[source]" links next to APIs
-    "sphinxcontrib.mermaid",        # ```mermaid fenced blocks
+    "myst_parser",  # Markdown source files
+    "sphinx.ext.autodoc",  # Pull docstrings into pages
+    "sphinx.ext.napoleon",  # Google / NumPy docstring styles
+    "sphinx.ext.intersphinx",  # Cross-link to upstream docs
+    "sphinx.ext.viewcode",  # "[source]" links next to APIs
+    "sphinxcontrib.mermaid",  # ```mermaid fenced blocks
     "sphinxcontrib.autodoc_pydantic",  # Rich Pydantic v2 rendering
-    "sphinx_copybutton",            # Copy-to-clipboard on code blocks
-    "sphinx_design",                # Tabs / cards / grids
+    "sphinx_copybutton",  # Copy-to-clipboard on code blocks
+    "sphinx_design",  # Tabs / cards / grids
 ]
 
 # Markdown extensions (MyST) ------------------------------------------------
 myst_enable_extensions = [
-    "colon_fence",       # ```{note} ...
-    "deflist",           # Definition lists
-    "fieldlist",         # :field: lists
-    "tasklist",          # - [ ] checkboxes
-    "attrs_inline",      # {.class #id} on inline elements
-    "smartquotes",       # Curly quotes
+    "colon_fence",  # ```{note} ...
+    "deflist",  # Definition lists
+    "fieldlist",  # :field: lists
+    "tasklist",  # - [ ] checkboxes
+    "attrs_inline",  # {.class #id} on inline elements
+    "smartquotes",  # Curly quotes
 ]
-myst_heading_anchors = 3            # Auto-generate slug anchors for h1-h3
+myst_heading_anchors = 3  # Auto-generate slug anchors for h1-h3
 
 source_suffix = {
     ".md": "markdown",
@@ -86,8 +90,7 @@ html_js_files = ["force_dark_default.js"]
 
 # Dark Mermaid theme so diagrams stay readable on the default dark background.
 mermaid_init_js = (
-    "mermaid.initialize({startOnLoad:true, theme:'dark', "
-    "themeVariables:{darkMode:true, background:'#131416'}});"
+    "mermaid.initialize({startOnLoad:true, theme:'dark', " "themeVariables:{darkMode:true, background:'#131416'}});"
 )
 
 # -- Autodoc -----------------------------------------------------------------
@@ -97,7 +100,7 @@ autodoc_default_options = {
     "undoc-members": False,
     "member-order": "bysource",
 }
-autodoc_typehints = "description"   # Move type hints into the description body
+autodoc_typehints = "description"  # Move type hints into the description body
 
 # Pydantic autodoc tuning -- show validators + discriminators clearly.
 autodoc_pydantic_model_show_json = False
@@ -134,14 +137,20 @@ intersphinx_timeout = 5
 suppress_warnings: list[str] = []
 
 # -- Mermaid -----------------------------------------------------------------
-mermaid_version = "10.9.0"          # Pinned for reproducible builds
+mermaid_version = "10.9.0"  # Pinned for reproducible builds
 
 
 # -- Extra favicon variants --------------------------------------------------
 # html_favicon takes a single file (the multi-resolution .ico). Append the
 # high-DPI PNG (Apple touch / PWA home screen) and an explicit 32px PNG icon to
 # each page's <head>; pathto() yields the correct relative URL per page depth.
-def _add_favicon_links(_app, _pagename, _templatename, context, _doctree):
+def _add_favicon_links(
+    _app: Sphinx,
+    _pagename: str,
+    _templatename: str,
+    context: dict[str, Any],
+    _doctree: object,
+) -> None:
     pathto = context.get("pathto")
     if not callable(pathto):
         return
@@ -153,5 +162,6 @@ def _add_favicon_links(_app, _pagename, _templatename, context, _doctree):
     )
 
 
-def setup(app):
+def setup(app: Sphinx) -> None:
+    """Register the extra favicon links on every rendered page."""
     app.connect("html-page-context", _add_favicon_links)
