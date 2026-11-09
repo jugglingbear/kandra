@@ -8,7 +8,11 @@ Used by:
   (discover → enroll → save → reconnect → dispatch) over real aiohttp
   against a containerized firmware sim, orchestrated with
   [`testcontainers-python`](https://testcontainers-python.readthedocs.io/).
-- `make integration-test` — runs the marker-gated integration suite.
+- `make test-integration` — runs the marker-gated integration suite.
+
+The sim tracks power and arm position, starting powered off with the arm retracted; deploy / retract are refused with
+HTTP 409 until it is powered on. See the
+[Device State Machine](../../../docs/concepts/manifest.md#device-state-machine) for every command × state outcome.
 
 ## Run the container by hand
 
@@ -22,8 +26,10 @@ Then poke at it:
 ```sh
 curl -i http://localhost:8080/.well-known/pneumatic-bear-poker
 curl -X POST http://localhost:8080/v1/auth/login -d '{}' -H 'Content-Type: application/json'
+curl -X POST http://localhost:8080/v1/power/on -d '{}' -H 'Content-Type: application/json'
 curl -X POST http://localhost:8080/v1/poker/deploy \
      -d '{"pressure_psi": 42}' -H 'Content-Type: application/json'
+curl -X POST http://localhost:8080/v1/poker/retract -d '{}' -H 'Content-Type: application/json'
 ```
 
 ## Run the Flask app without Docker
