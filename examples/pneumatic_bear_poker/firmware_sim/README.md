@@ -12,7 +12,7 @@ Used by:
 
 The sim tracks power and arm position, starting powered off with the arm retracted; deploy / retract are refused with
 HTTP 409 until it is powered on. See the
-[Device State Machine](../../../docs/concepts/manifest.md#device-state-machine) for every command × state outcome.
+[Device State Machine](../../../docs/concepts/manifest.md#device-state-machine) diagram.
 
 ## Run the container by hand
 

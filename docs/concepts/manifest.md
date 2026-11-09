@@ -25,46 +25,12 @@ stateDiagram-v2
     OFF_RETRACTED --> ON_RETRACTED : power.on
     ON_RETRACTED --> OFF_RETRACTED : power.off
     ON_RETRACTED --> ON_EXTENDED : poker.deploy
-    ON_EXTENDED --> ON_EXTENDED : poker.deploy (no-op)
+    ON_EXTENDED --> ON_EXTENDED : poker.deploy
     ON_EXTENDED --> ON_RETRACTED : poker.retract
-    ON_RETRACTED --> ON_RETRACTED : poker.retract (no-op)
+    ON_RETRACTED --> ON_RETRACTED : poker.retract
     ON_EXTENDED --> OFF_EXTENDED : power.off
     OFF_EXTENDED --> ON_EXTENDED : power.on
 ```
-
-```{list-table}
-:header-rows: 1
-
-* - Command
-  - Off, retracted
-  - Off, extended
-  - On, retracted
-  - On, extended
-* - `power.on`
-  - → on, retracted
-  - → on, extended
-  - no-op
-  - no-op
-* - `power.off`
-  - no-op
-  - no-op
-  - → off, retracted
-  - → off, extended
-* - `poker.deploy`
-  - **409** not powered
-  - **409** not powered
-  - → on, extended
-  - no-op (keeps the held pressure)
-* - `poker.retract`
-  - **409** not powered
-  - **409** not powered
-  - no-op
-  - → on, retracted
-```
-
-Every command repeats as a no-op, so all four are `idempotent: true`: re-sending one after a dropped reply leaves the
-device exactly where the first send did. `settings.poke_intensity`, `logs.download`, and `alerts.bear_stirred` work in
-every state.
 
 ## Manifest Structure
 
