@@ -2,16 +2,17 @@
 
 A manifest describes **one device**. A repo can hold any number of manifests side-by-side — typically one per device
 under a shared `src/devices/<device_id>/` tree plus `src/common/` for things like codecs and transports that are reused
-across devices. The generator runs per manifest; building with `--profile <audience>` emits one SDK per (manifest,
-audience) pair, so N devices × M audiences = N × M shipped SDKs from a single source repo.
+across devices. The generator runs per manifest; building with `--profile <profile>` (a build profile from
+`audience_profiles.yaml` that selects one or more audiences) emits one SDK per (manifest, profile) pair, so N devices ×
+M profiles = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
-fictional device whose sole job is to poke bears (pneumatically). It has commands (`poker.deploy`,
+fictional device whose sole job is to poke bears (pneumatically). It has five commands (including `poker.deploy` and
 `safety.emergency_retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
 [event](event.md) (`alerts.bear_stirred`), exposed over HTTP to two audiences: the internal team and the
 `partner_woodland` partner.
 
-A minimal manifest looks like this (see the full
+An abridged manifest looks like this (per-transport wiring blocks are elided; see the full
 [Pneumatic Bear Poker example](https://github.com/jugglingbear/kandra/tree/main/examples/pneumatic_bear_poker) for the
 complete version):
 
@@ -32,7 +33,7 @@ transports:
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
     # HTTP needs no codec (built-in JSON) and no adapter (runtime HttpTransport) --
-    # both are optional here. BLE / serial transports do declare a codec.
+    # both are optional here. Every other family (BLE, loopback, custom) declares a codec.
 
 commands:
   - id: poker.deploy
@@ -80,15 +81,22 @@ vendoring:
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
 
-Each entry under `transports:` names a wire channel. `codec:` is the dotted path to the user-types ↔ wire-envelope
-[codec](codec.md) — **required for every family except HTTP**, which always uses the runtime `HttpJsonCodec` and so
-may omit it. `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime
-default for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class`
-to plug in a custom transport — see
-[Custom transports via the manifest](transport.md#custom-transports-via-the-manifest). An HTTP transport may also
-declare `enrollment: { login_path: /path }`, which the generator bakes into a `<device>_sdk.http_enrollment()` factory
-(and the default for `discover_and_connect`), keeping the device's login endpoint out of caller code — see
-[Enrollment](enrollment.md#declaring-the-http-login-in-the-manifest).
+Each entry under `transports:` declares one wire transport; its `family:` (`http`, `ble`, or `loopback`) decides which
+per-operation wiring block is required.
+
+- `codec:` is the dotted path to the user-types ↔ wire-envelope [codec](codec.md) — **required for every family except
+  HTTP**, which uses the runtime `HttpJsonCodec` and so omits it (a transport-level `codec:` is ignored on HTTP;
+  override it per command instead, below).
+- `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime default
+  for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class` to
+  plug in a custom transport — see
+  [Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
+- `channels:` (BLE only) names `(write, notify)` characteristic UUID pairs; each BLE command selects one by name.
+- `config:` is free-form and currently informational: the SDK gets the device address from discovery or the saved
+  identity at runtime, not from the manifest.
+- `enrollment: { login_path: /path }` (HTTP only, plus an optional `token_field`) is baked into a
+  `<device>_sdk.http_enrollment()` factory (and the default for `discover_and_connect`), keeping the device's login
+  endpoint out of caller code — see [Enrollment](enrollment.md#declaring-the-http-login-in-the-manifest).
 
 Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
 to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live
@@ -104,7 +112,13 @@ A command may declare `idempotent: true` when re-sending it is harmless (the dev
 unlocks `retries: N` — after a *transient* transport failure (a dropped link or a timeout) the runtime re-sends the
 command up to `N` more times before giving up. Non-idempotent commands are never auto-retried, so `retries: N` requires
 `idempotent: true` (the loader rejects the pair otherwise). A stale-credential failure is *not* retried here — it
-surfaces as [`IdentityStaleError`](lifecycle.md) for the client's re-enrollment path instead.
+surfaces as [`IdentityStaleError`](lifecycle.md#credential-staleness--re-enrollment) for the client's re-enrollment
+path instead.
+
+The optional top-level `discovery:` block (elided above) holds per-family match criteria: `ble:` (name prefix, service
+UUIDs, manufacturer id) and/or `http:` (`base_urls` to probe, `probe_path`, optional `server_header_prefix`). Each
+family it declares must match a transport's `family:`, and the generator compiles it into the SDK's `scan_<family>()`
+helpers and default matchers — see [Scanner](scanner.md#matcher).
 
 The `vendoring` block tunes the import-closure walker. Each `extra_include` / `exclude` entry is a path relative to a
 `source_root` and may be a single **file**, a whole **directory**, or a **glob** — never a dotted class name.
