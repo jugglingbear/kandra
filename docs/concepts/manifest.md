@@ -32,7 +32,7 @@ transports:
   - id: http
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
-    # HTTP needs no codec (built-in JSON) and no adapter (runtime HttpTransport) --
+    # HTTP needs no codec (runtime HttpJsonCodec) and no adapter (runtime HttpTransport) --
     # both are optional here. Every other family (BLE, loopback, custom) declares a codec.
 
 commands:
