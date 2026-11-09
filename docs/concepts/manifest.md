@@ -8,7 +8,7 @@ M profiles = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
 fictional device whose sole job is to poke bears (pneumatically). It has five commands (including `poker.deploy` and
-`safety.emergency_retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
+`poker.retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
 [event](event.md) (`alerts.bear_stirred`), exposed over HTTP to two audiences: the internal team and the
 `partner_woodland` partner.
 
@@ -34,8 +34,8 @@ transports:
   - id: http
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
-    # HTTP needs no codec (runtime HttpJsonCodec) and no adapter (runtime HttpTransport) --
-    # both are optional here. Every other family (BLE, loopback, custom) declares a codec.
+    # HTTP may omit codec (runtime HttpJsonCodec) and adapter (runtime HttpTransport).
+    # Every other family (BLE, loopback, custom) declares a codec.
 
 commands:
   - id: poker.deploy
@@ -45,8 +45,8 @@ commands:
     timeout: 5.0
     idempotent: false
 
-  - id: safety.emergency_retract
-    handler: devices.pneumatic_bear_poker.handlers.safety:EmergencyRetract
+  - id: poker.retract
+    handler: devices.pneumatic_bear_poker.handlers.poker:Retract
     transports: [http]
     audience: [internal, partner_woodland]
     timeout: 1.0
@@ -118,7 +118,7 @@ unlocks `retries: N` — after a *transient* transport failure (a dropped link o
 command up to `N` more times before giving up. Non-idempotent commands are never auto-retried, so `retries: N` requires
 `idempotent: true` (the loader rejects the pair otherwise). A stale-credential failure is *not* retried here — it
 surfaces as [`IdentityStaleError`](lifecycle.md#credential-staleness--re-enrollment) for the client's re-enrollment
-path instead.
+path instead. The reference device's [state machine](#device-state-machine) shows how its flags were chosen.
 
 The optional top-level `discovery:` block (elided above) holds per-family match criteria: `ble:` (name prefix, service
 UUIDs, manufacturer id) and/or `http:` (`base_urls` to probe, `probe_path`, optional `server_header_prefix`). Each
@@ -131,3 +131,56 @@ The `vendoring` block tunes the import-closure walker. Each `extra_include` / `e
 runtime assets), and `exclude` drops files from the shipped SDK. The generator honors these during a `--profile`
 (vendoring) build; a plain `kandra build` imports from `source_roots` and ignores them. See
 [Audiences & IP Isolation](audiences.md).
+
+## Device State Machine
+
+The manifest doesn't model device state — that's firmware behavior — but the reference device's state machine is what
+its `idempotent` flags describe. The Pneumatic Bear Poker tracks two independent things: whether the unit is powered and
+whether the arm is extended. Nothing moves on its own (powering off leaves the arm where it is), and a command that is
+invalid in the current state is refused with HTTP 409, which the runtime classifies as `REJECTED`.
+
+```{mermaid}
+stateDiagram-v2
+    [*] --> OFF_RETRACTED
+    OFF_RETRACTED --> ON_RETRACTED : power.on
+    ON_RETRACTED --> OFF_RETRACTED : power.off
+    ON_RETRACTED --> ON_EXTENDED : poker.deploy
+    ON_EXTENDED --> ON_RETRACTED : poker.retract
+    ON_EXTENDED --> OFF_EXTENDED : power.off
+    OFF_EXTENDED --> ON_EXTENDED : power.on
+```
+
+```{list-table}
+:header-rows: 1
+
+* - Command
+  - Off, retracted
+  - Off, extended
+  - On, retracted
+  - On, extended
+* - `power.on`
+  - → on, retracted
+  - → on, extended
+  - no-op
+  - no-op
+* - `power.off`
+  - no-op
+  - no-op
+  - → off, retracted
+  - → off, extended
+* - `poker.deploy`
+  - **409** not powered
+  - **409** not powered
+  - → on, extended
+  - **409** already extended
+* - `poker.retract`
+  - **409** not powered
+  - **409** not powered
+  - no-op
+  - → on, retracted
+```
+
+`poker.retract`, `power.on`, and `power.off` repeat as no-ops, so they are `idempotent: true`. `poker.deploy` is
+`idempotent: false`: re-sending a deploy that already landed comes back `REJECTED` ("already extended"), so an automatic
+retry would report a success as a failure. `settings.poke_intensity`, `logs.download`, and `alerts.bear_stirred` work in
+every state.

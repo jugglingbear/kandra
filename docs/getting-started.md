@@ -71,7 +71,7 @@ PYTHONPATH="examples/pneumatic_bear_poker/dist:examples/pneumatic_bear_poker/src
   poetry run python examples/pneumatic_bear_poker/demo.py --url http://127.0.0.1:48080
 ```
 
-You should see each lifecycle phase logged, ending in a successful deploy:
+You should see each lifecycle phase logged, ending in a power-on / deploy / retract cycle:
 
 ```text
 [STORE] identities file: ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
@@ -83,13 +83,19 @@ You should see each lifecycle phase logged, ending in a successful deploy:
 [ENROLL] credentials captured
 [SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
 [CONNECT] reopening device from saved identity 'grizzly' ...
+[POWER] sending power.on() ...
+    POST /v1/power/on  {}
+[POWER] accepted: unit powered
 [DEPLOY] sending poker.deploy(pressure_psi=42) ...
     POST /v1/poker/deploy  {"pressure_psi":42}
-[DEPLOY] accepted: bear poked, delivered_psi=42
+[DEPLOY] accepted: arm extended, delivered_psi=42
+[RETRACT] sending poker.retract() ...
+    POST /v1/poker/retract  {}
+[RETRACT] accepted: arm retracted
 ```
 
-That last line is the round trip: your Python `DeployRequest(pressure_psi=42)` went out over HTTP, and the device's
-`DeployResponse(delivered_psi=42)` came back — decoded and wrapped in a `Result`.
+The `[DEPLOY]` lines are the round trip: your Python `DeployRequest(pressure_psi=42)` went out over HTTP, and the
+device's `DeployResponse(delivered_psi=42)` came back — decoded and wrapped in a `Result`.
 
 ## What just happened
 
@@ -104,8 +110,10 @@ walks the phases every real caller follows — each is a single line in the gene
    above), so next time you skip discovery and enrollment entirely.
 4. **Connect** — `PneumaticBearPokerClient.connect("grizzly")` reloads the saved identity, opens the transport,
    and returns an async context manager.
-5. **Dispatch** — `await client.poker.deploy(...)` encodes the request, sends it, classifies the response, and returns
-   a typed [`Result`](concepts/result.md).
+5. **Dispatch** — `await client.power.on(...)`, `client.poker.deploy(...)`, and `client.poker.retract(...)` each
+   encode the request, send it, classify the response, and return a typed [`Result`](concepts/result.md). The device
+   refuses to move the arm while unpowered or to deploy an already-extended arm (see its
+   [state machine](concepts/manifest.md#device-state-machine)), so the demo powers on first and retracts at the end.
 
 Run the demo a second time and it skips straight to step 4 — the saved identity short-circuits discovery and
 enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` login lines:
@@ -115,9 +123,15 @@ enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` 
 [PHASE] reusing saved identity 'grizzly' -- skipping discover + enroll
 [ENROLL] reusing saved credentials -- no login needed (clear with --reset)
 [CONNECT] reopening device from saved identity 'grizzly' ...
+[POWER] sending power.on() ...
+    POST /v1/power/on  {}
+[POWER] accepted: unit powered
 [DEPLOY] sending poker.deploy(pressure_psi=42) ...
     POST /v1/poker/deploy  {"pressure_psi":42}
-[DEPLOY] accepted: bear poked, delivered_psi=42
+[DEPLOY] accepted: arm extended, delivered_psi=42
+[RETRACT] sending poker.retract() ...
+    POST /v1/poker/retract  {}
+[RETRACT] accepted: arm retracted
 ```
 
 See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
@@ -141,7 +155,7 @@ locations and how to clear a saved identity outside the demo.
 - Read the [manifest](concepts/manifest.md) you just built from — commands, attributes, events, and discovery are all
   declared there.
 - Skim the [Architecture](concepts/architecture.md) and [Lifecycle](concepts/lifecycle.md) concept pages.
-- Explore the rest of the generated client: `client.safety.emergency_retract()`, the
+- Explore the rest of the generated client: the `client.power.off()` and `client.logs.download()` commands, the
   `client.settings.poke_intensity` [attribute](concepts/attribute.md) (read / write / subscribe), and the
   `client.alerts.bear_stirred` [event](concepts/event.md).
 - Build a **pruned, per-audience** SDK by passing `--profile partner_woodland` to `kandra build` — see
