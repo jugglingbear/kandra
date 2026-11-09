@@ -52,6 +52,12 @@ flowchart TB
 
     usercode -. uses .-> client
     usercode -. imports .-> rt_enroll
+
+    classDef user fill:#d2be9a,stroke:#8a7650,color:#1a1a1a
+    classDef kandra fill:#217eca,stroke:#14548a,color:#ffffff
+    class manifest,handlers,usercode user
+    class loader,validator,generator,client,scanners,transports,registry kandra
+    class rt_identity,rt_scanner,rt_enroll,rt_transport,rt_codec,rt_result kandra
 ```
 
 The split exists so the **runtime never sees your manifest** — generated SDKs ship with only the runtime as a

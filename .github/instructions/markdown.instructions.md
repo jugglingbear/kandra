@@ -54,6 +54,16 @@ and consistently formatted.
 ### Mermaid diagrams
 
 - Diagrams render via `sphinxcontrib-mermaid` — use a fenced ` ```mermaid ` block.
+- **Color-code authorship** to match the home-page image legend: user-authored nodes (manifest, handlers, codecs,
+  app code) are bone tan; Kandra-supplied or generated nodes (generator, generated SDK, runtime) are Kandra blue.
+  In flowcharts, declare and apply these classes:
+
+  ```text
+  classDef user fill:#d2be9a,stroke:#8a7650,color:#1a1a1a
+  classDef kandra fill:#217eca,stroke:#14548a,color:#ffffff
+  class nodeA,nodeB user
+  class nodeC,nodeD kandra
+  ```
 - Mermaid label lines often exceed 120 characters; that is acceptable inside the fence. If a
   line-length linter is later added, wrap the block in `<!-- markdownlint-disable MD013 -->` /
   `<!-- markdownlint-enable MD013 -->` directives rather than globally relaxing the limit.
