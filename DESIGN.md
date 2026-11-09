@@ -58,8 +58,9 @@ resulting *behavior*, this file records the *why*.
   caller decides. *Why:* "send once, observe the truth" is the default, not a test-mode flag.
 
 - **Fire-and-forget is a manifest flag.** `expects_response: false` (per transport) means: send, swallow a
-  `TransportTimeoutError` as success, skip `codec.decode`, return `None`. The handler's `response` must be `None`
-  (enforced at build time). *Why:* replaces a hand-maintained allow-list with a flag the generator and runtime both see.
+  `TransportTimeoutError` as success, skip `codec.decode`, return `None`, so the handler's `response` type goes unused
+  (not currently enforced at build time). *Why:* replaces a hand-maintained allow-list with a flag the generator and
+  runtime both see.
 
 - **BLE: one transport per physical connection, named channels per command.** Channels are `(write, notify)` UUID
   pairs on the transport; commands name the channel they ride. End users never see UUIDs. *Why:* one transport per
