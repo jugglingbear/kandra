@@ -235,13 +235,13 @@ async def test_fsm_arm_commands_rejected_while_off(client: Any) -> None:
 
 
 async def test_fsm_deploy_retract_cycle(client: Any) -> None:
-    """Power on, extend, refuse a second extend, retract (twice -- the repeat is a no-op), power off."""
+    """Power on, extend (twice), retract (twice), power off -- each repeat is a no-op."""
     from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
     from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest, PowerOnRequest
 
     _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
     _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=42)), attr="delivered_psi", expected=42)
-    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=42)))
+    _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=42)), attr="delivered_psi", expected=42)
     _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
     _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
     assert await client.power.off(PowerOffRequest(drain_pressure=True)) is None
@@ -258,7 +258,8 @@ async def test_fsm_power_off_leaves_arm_extended(client: Any) -> None:
     _assert_rejected(await client.poker.retract(RetractRequest()))
 
     _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
-    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=7)))  # still extended
+    # Still extended at 7 psi, so this deploy is a no-op that reports the held pressure.
+    _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=99)), attr="delivered_psi", expected=7)
     _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
     assert await client.power.off(PowerOffRequest()) is None
 

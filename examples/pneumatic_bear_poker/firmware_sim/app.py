@@ -109,17 +109,16 @@ def _register_settings_and_alerts(app: Flask) -> None:
 def _register_power_and_arm(app: Flask) -> None:
     """Register the commands that drive the power / arm state machine (docs: Manifest -> Device State Machine)."""
     # Power and arm position are independent: nothing ever moves the arm except deploy / retract.
-    machine = {"powered": False, "extended": False}
+    machine = {"powered": False, "extended": False, "held_psi": 0}
 
     @app.post("/v1/poker/deploy")
     def poker_deploy() -> Response:
         if not machine["powered"]:
             return _rejected("not powered")
-        if machine["extended"]:
-            return _rejected("already extended")
-        pressure = int(_json_body().get("pressure_psi", 0))
-        machine["extended"] = True
-        return jsonify({"delivered_psi": pressure})
+        if not machine["extended"]:
+            machine["held_psi"] = int(_json_body().get("pressure_psi", 0))
+            machine["extended"] = True
+        return jsonify({"delivered_psi": machine["held_psi"]})
 
     @app.post("/v1/poker/retract")
     def poker_retract() -> Response:

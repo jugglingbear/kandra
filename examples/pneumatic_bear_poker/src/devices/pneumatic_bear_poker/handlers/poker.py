@@ -20,7 +20,7 @@ class DeployResponse:
 
 
 class Deploy:
-    """Extend the arm at the requested pressure. Rejected while powered off or already extended."""
+    """Extend the arm at the requested pressure. A no-op when already extended; rejected while powered off."""
 
     request = DeployRequest
     response = DeployResponse

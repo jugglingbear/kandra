@@ -113,7 +113,7 @@ async def subsequent_run(url: str) -> None:
         deployed = _require_accepted("DEPLOY", await client.poker.deploy(DeployRequest(pressure_psi=42)), url)
         _log("DEPLOY", f"accepted: arm extended, delivered_psi={deployed.delivered_psi}")
 
-        # Retract so the next run finds the arm back in place (deploy is rejected while already extended).
+        # Retract so the next run finds the arm back in place.
         _log("RETRACT", "sending poker.retract() ...")
         _require_accepted("RETRACT", await client.poker.retract(RetractRequest()), url)
         _log("RETRACT", "accepted: arm retracted")

@@ -31,7 +31,7 @@ commands:
     transports: [http]
     audience: [internal, partner_woodland]
     timeout: 5.0
-    idempotent: false
+    idempotent: true   # deploying an already-extended arm is a no-op
     http:
       http:
         method: POST
