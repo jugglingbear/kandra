@@ -13,6 +13,8 @@ device:
   audience: [internal, partner_woodland]
 
 source_roots:
+  # Import roots, relative to this manifest. Dotted paths (handler:, codec:, adapter:) resolve against them:
+  # devices.pneumatic_bear_poker.handlers.poker:Deploy -> src/devices/pneumatic_bear_poker/handlers/poker.py
   - src
 
 transports:

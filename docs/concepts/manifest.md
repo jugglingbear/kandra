@@ -26,6 +26,8 @@ device:
   audience: [internal, partner_woodland]
 
 source_roots:
+  # Import roots, relative to this manifest. Dotted paths (handler:, codec:, adapter:) resolve against them:
+  # devices.pneumatic_bear_poker.handlers.poker:Deploy -> src/devices/pneumatic_bear_poker/handlers/poker.py
   - src
 
 transports:
@@ -80,6 +82,9 @@ vendoring:
 
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
+
+`source_roots:` also bounds what an SDK can contain: every handler, codec, and adapter must live under a source root
+or the build fails, and a `--profile` build vendors only files from under the roots.
 
 Each entry under `transports:` declares one wire transport; its `family:` (`http`, `ble`, or `loopback`) decides which
 per-operation wiring block is required.
