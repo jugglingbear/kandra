@@ -1,7 +1,7 @@
 """Human-readable, transport-agnostic rendering of a wire request envelope.
 
 Used for lightweight wire tracing: :func:`~kandra_runtime.command.dispatch` emits the formatted envelope on the
-``kandra.wire.<command-id>`` logger at ``DEBUG`` right after ``codec.encode``, so any consumer can see the exact URL /
+``kandra.wire.<command-id>`` logger at ``NOISE`` right after ``codec.encode``, so any consumer can see the exact URL /
 bytes a command puts on the wire regardless of transport family.
 """
 
