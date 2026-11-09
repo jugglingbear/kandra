@@ -1,8 +1,7 @@
-# Example manifest for the fictional Pneumatic Bear Poker -- a device that pokes
-# bears, pneumatically. This is Kandra's reference example: it wires real
-# handler/codec classes (under src/) over HTTP and drives the full lifecycle in
-# demo.py against the firmware_sim/. See the Getting Started guide in
-# the docs for a step-by-step walkthrough.
+# Example manifest for the fictional Pneumatic Bear Poker, a device that pokes bears, pneumatically. This is
+# Kandra's reference example: it wires real handler/codec classes (under examples/pneumatic_bear_poker/src/) over
+# HTTP, and examples/pneumatic_bear_poker/demo.py drives the full lifecycle against the simulator in
+# examples/pneumatic_bear_poker/firmware_sim/. See docs/getting-started.md for a step-by-step walkthrough.
 
 schema_version: 1
 
@@ -13,8 +12,9 @@ device:
   audience: [internal, partner_woodland]
 
 source_roots:
-  # Import roots, relative to this manifest. Dotted paths (handler:, codec:, adapter:) resolve against them:
-  # devices.pneumatic_bear_poker.handlers.poker:Deploy -> src/devices/pneumatic_bear_poker/handlers/poker.py
+  # Import roots, relative to this manifest. Dotted paths (handler:, codec:, adapter:) resolve against them, e.g.
+  # devices.pneumatic_bear_poker.handlers.poker:Deploy is
+  # examples/pneumatic_bear_poker/src/devices/pneumatic_bear_poker/handlers/poker.py
   - src
 
 transports:
@@ -148,7 +148,8 @@ vendoring:
   # Internal bench tooling -- keep it out of every shipped SDK.
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 
-# Discovery criteria the generator bakes into `scanners.py` so callers
+# Discovery criteria the generator bakes into the SDK's scanners module
+# (examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/scanners.py) so callers
 # can run `await scan_http(timeout=5)` without supplying their own matcher.
 # At least one per-family block must be present, and each declared family
 # must match a transport listed above (cross-validated by the manifest loader).
