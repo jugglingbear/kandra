@@ -61,7 +61,8 @@ There is no discovery or enrollment lifecycle here — just the minimal shape of
 The reference device: HTTP commands, a settable attribute, an event, a discovery probe, and a Flask firmware simulator
 you can run locally. It drives the entire credential lifecycle end to end, so it is the device used throughout
 [Getting Started](getting-started.md). Reach for it when you want to see how a generated client actually connects to and
-talks to a device.
+talks to a device. Its arm follows a small power / arm
+[state machine](concepts/manifest.md#device-state-machine), so commands can come back `REJECTED` while it is powered off.
 
 ## opengopro — a realistic manifest shape
 

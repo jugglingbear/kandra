@@ -112,8 +112,8 @@ walks the phases every real caller follows — each is a single line in the gene
    and returns an async context manager.
 5. **Dispatch** — `await client.power.on(...)`, `client.poker.deploy(...)`, and `client.poker.retract(...)` each
    encode the request, send it, classify the response, and return a typed [`Result`](concepts/result.md). The device
-   refuses to move the arm while unpowered or to deploy an already-extended arm (see its
-   [state machine](concepts/manifest.md#device-state-machine)), so the demo powers on first and retracts at the end.
+   refuses to move the arm while unpowered (see its [state machine](concepts/manifest.md#device-state-machine)), so
+   the demo powers on first; it retracts at the end so the next run starts from the same state.
 
 Run the demo a second time and it skips straight to step 4 — the saved identity short-circuits discovery and
 enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` login lines:
