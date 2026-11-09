@@ -28,6 +28,7 @@ generator emits a self-contained SDK package.
 | `schemas/` | Generated `manifest.schema.json` (regenerated from the pydantic models). |
 | `scripts/` | Repo tooling (e.g. `release.py`). |
 | `temp/` | Scratch / throwaway files (git-ignored). |
+| `DESIGN.md` | Load-bearing design decisions and their rationale (not published to the docs site). |
 
 ### Three-layer architecture (keep strictly separated)
 
@@ -64,6 +65,8 @@ Kandra's headline feature is **white-label / IP-isolated SDKs**. Treat this as a
 
 ## Core Conventions
 
+- **Design decisions.** Read [`DESIGN.md`](DESIGN.md) before changing runtime protocols, the manifest schema, or
+  generator output. It records the load-bearing rules and why they exist.
 - **Async-first.** The runtime and dispatch are async; sync callers use the generated `SyncClient`
   wrapper (`asyncio.run` per call) or `dispatch_sync`. Don't add blocking I/O to async paths.
 - **Code-first, not schema-first.** Python classes are the source of truth; the YAML manifest is

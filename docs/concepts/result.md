@@ -123,5 +123,3 @@ Three reasons:
 3. **Five-way branch.** "Rejected" and "device fault" and "transport
    failed" deserve different recovery logic. A single exception
    hierarchy forces awkward `isinstance` chains.
-
-The model is Kandra's own result envelope — see the [Design Review](../design-review.md) for the design history.

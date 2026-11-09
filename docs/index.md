@@ -46,7 +46,6 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 motivation
 getting-started
 examples
-design-review
 ```
 
 ```{toctree}

@@ -163,6 +163,4 @@ transports wire it up as follows:
   - Replays a scripted `subscribe_handler` — deterministic push for unit tests.
 ```
 
-Bulk **byte downloads** (`stream()`) remain deferred until a feature consumes them — see the
-[Design Review](../design-review.md) for the rationale.
-
+Bulk **byte downloads** (`stream()`) remain deferred: the protocol grows a method only once a real feature consumes it.

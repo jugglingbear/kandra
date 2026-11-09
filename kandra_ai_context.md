@@ -55,7 +55,7 @@ omits it) — the guide would close that gap.
 | **M10** — credential lifecycle | ✅ Done ("Just shipped") | See §4. |
 | **M11** — codegen enrollment helpers | 🟡 Candidate (likely skip) | Superseded by `discover_and_connect()`. Keep only if a declarative `enrollment:` block proves it shrinks the adapter constructor. |
 | **M12** — generated-SDK device reference (docs) | 📋 Planned | `kandra build --docs` emits a Markdown (primary) + optional single-file HTML device reference from the **pruned** profile (audience-scoped, leak-free). Do **not** reinvent `autodoc`/`pdoc` for the Python API. |
-| **M99** — strip roadmap breadcrumbs | 📋 Planned, **do last** | Remove `M<n>` / "slice 9x" from source/test docstrings + example comments. Keep milestone numbers only in `roadmap.html` and `docs/design-review.md`. |
+| **M99** — strip roadmap breadcrumbs | 📋 Planned, **do last** | Remove `M<n>` / "slice 9x" from source/test docstrings + example comments. Keep milestone numbers only in `roadmap.html`. |
 
 **Loose ends — both RESOLVED:**
 - `idempotent` / `retries` command fields: now wired end-to-end (retries re-send up to N
