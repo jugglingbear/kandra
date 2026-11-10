@@ -12,5 +12,11 @@
   ],
   "python.analysis.typeCheckingMode": "strict",
   "python-envs.defaultEnvManager": "ms-python.python:poetry",
-  "python-envs.defaultPackageManager": "ms-python.python:poetry"
+  "python-envs.defaultPackageManager": "ms-python.python:poetry",
+  "yaml.schemas": {
+    "./schemas/manifest.schema.json": [
+      "examples/*/manifest.yaml",
+      "packages/kandra/tests/fixtures/*/manifest.yaml"
+    ]
+  }
 }
