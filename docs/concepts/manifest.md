@@ -7,10 +7,27 @@ across devices. The generator runs per manifest; building with `--profile <profi
 (manifest, profile) pair, so N devices × M profiles = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
-fictional device whose sole job is to poke bears (pneumatically). It has six commands (including `poker.deploy` and
-`poker.retract`) and one settable [attribute](attribute.md) (`settings.poke_intensity`), exposed over HTTP to two
-audiences: the internal team and the `partner_woodland` partner. One command, the bench-testing `poker.overdrive`, is
-internal-only, so the partner's SDK never contains it (see [Audiences & IP Isolation](audiences.md)).
+fictional device whose sole job is to poke bears (pneumatically). It talks HTTP over Wi-Fi and is built for two
+[audiences](audiences.md): the internal team (`internal`) and an outside partner (`partner_woodland`).
+
+**Commands**
+
+- `poker.deploy` — extend the arm (100 psi max). *Audience:* internal, partner_woodland
+- `poker.retract` — pull the arm back. *Audience:* internal, partner_woodland
+- `poker.overdrive` — extend the arm past 100 psi, for bench testing. *Audience:* **internal only** — never in the
+  partner's SDK
+- `power.on` — power up the compressor. *Audience:* internal, partner_woodland
+- `power.off` — power down the compressor. *Audience:* internal, partner_woodland
+- `logs.download` — pull the device's log buffer. *Audience:* internal, partner_woodland.
+  *[Capability](capabilities.md):* `diagnostics` — once you run a capability probe, the client refuses it on devices the
+  probe says lack diagnostics
+
+**Attributes**
+
+- `settings.poke_intensity` — read or write the poke level (0–11). *Audience:* internal, partner_woodland
+
+*Audience* decides what goes into an SDK when it's built; *capability* decides what a connected device supports at run
+time.
 
 ## Device State Machine
 
