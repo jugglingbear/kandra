@@ -1,4 +1,4 @@
-# Capability Negotiation
+# Capabilities
 
 Not every device supports every operation the SDK knows about — firmware variants, hardware tiers, or a half-finished
 prototype may expose only a subset. **Capability negotiation** lets a client learn what the *connected* device actually

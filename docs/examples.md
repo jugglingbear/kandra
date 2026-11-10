@@ -72,5 +72,5 @@ A dual-transport manifest (BLE **and** HTTP) modeled on the real
 `shutter.start` / `shutter.stop` commands ride
 a BLE TLV codec *and* an HTTP/JSON path, showing how a single logical command is wired to two different wire formats.
 This example is **manifest-only** — it demonstrates wiring (custom codecs, per-transport blocks, dual transports) and is
-not paired with buildable handler code, so read it alongside [The Manifest](concepts/manifest.md) rather than building
+not paired with buildable handler code, so read it alongside [Manifest](concepts/manifest.md) rather than building
 it.

@@ -110,7 +110,7 @@ survive verbatim. Relative imports (`from . import x`) are left untouched becaus
 ```{note}
 `vendoring.extra_include` and `vendoring.exclude` in the manifest tune the closure walk itself &mdash; force-adding a
 dynamically imported module or a directory of runtime assets, or dropping internal bench tooling. See
-[The Manifest](manifest.md) for the field shapes.
+[Manifest](manifest.md) for the field shapes.
 ```
 
 ## The leakage scan

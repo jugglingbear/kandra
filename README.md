@@ -27,7 +27,7 @@ Full documentation — concepts, architecture and sequence diagrams, API referen
 
 - [Why Kandra?](https://jugglingbear.github.io/kandra/motivation.html) — the problem it solves and how a build works.
 - [Architecture](https://jugglingbear.github.io/kandra/concepts/architecture.html) — the runtime / generator split.
-- [The manifest](https://jugglingbear.github.io/kandra/concepts/manifest.html) — the YAML wiring format.
+- [Manifest](https://jugglingbear.github.io/kandra/concepts/manifest.html) — the YAML wiring format.
 
 ---
 

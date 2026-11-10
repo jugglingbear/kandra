@@ -1,4 +1,4 @@
-# The Manifest
+# Manifest
 
 A manifest describes **one device**. A repo can hold any number of manifests side-by-side — typically one per device
 under a shared `src/devices/<device_id>/` tree plus `src/common/` for things like codecs and transports that are reused
