@@ -95,4 +95,5 @@ discovery:
     base_urls:
       - "http://10.5.5.9:8080"
     probe_path: "/gopro/camera/state"
+    # TODO: confirm during integration testing that a real camera sends this Server header; drop it if not.
     server_header_prefix: "GoPro"
