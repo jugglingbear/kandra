@@ -20,8 +20,8 @@ class TransportSpec:
     transport_id: str  # e.g. "ble" / "http" — value of the TransportId enum member
     enum_member: str  # e.g. "BLE" / "HTTP" — name of the enum member
     family: Literal["loopback", "http", "ble"] | None
-    # Codec import is only meaningful for transports without family-paired built-in codecs (loopback / unknown family).
-    # HTTP and BLE transports use HttpJsonCodec / BLE codec from kandra_runtime instead.
+    # User codec named on the transport: the default for every command on it. None only for an HTTP transport, which
+    # then uses the runtime HttpJsonCodec.
     codec_import: str | None
     codec_alias: str | None
     # BLE channels declared on this transport: (channel_name, write_uuid, notify_uuid). Empty for non-BLE families. Used
@@ -242,13 +242,15 @@ class TransportId(str, Enum):
 '''
 
 
-def _render_runtime_imports(transports: list[TransportSpec], needs_http_codec: bool) -> str:
+def _render_runtime_imports(transports: list[TransportSpec]) -> str:
     """Compute the ``from kandra_runtime import ...`` block for the registry."""
     lines = ["from kandra_runtime import Command"]
-    if needs_http_codec:
-        http_names = ["HttpJsonCodec"]
-        if any(t.family == "http" and t.interpreter_alias is None for t in transports):
-            http_names.append("default_http_interpreter")
+    http_names: list[str] = []
+    if any(t.family == "http" and t.codec_alias is None for t in transports):
+        http_names.append("HttpJsonCodec")
+    if any(t.family == "http" and t.interpreter_alias is None for t in transports):
+        http_names.append("default_http_interpreter")
+    if http_names:
         lines.append(f"from kandra_runtime import {', '.join(http_names)}")
     if any(t.family == "ble" for t in transports):
         lines.append("from kandra_runtime import BleChannelCodec")
@@ -277,9 +279,6 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
     r"""Emit the ``registry.py`` module mapping command ids to per-transport ``Command``\ s."""
     import_lines = _registry_import_lines(commands, transports)
 
-    # Determine if any HTTP-family transports are used (then we need HttpJsonCodec imported from kandra_runtime).
-    needs_http_codec = any(t.family == "http" for t in transports)
-
     entries: list[str] = []
     transport_lookup = {t.transport_id: t for t in transports}
     for c in commands:
@@ -289,7 +288,7 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
             per_transport_lines.append(_render_command_entry(c, t))
         entries.append(f'    "{c.command_id}": {{\n' + "\n".join(per_transport_lines) + "\n    },")
 
-    runtime_imports = _render_runtime_imports(transports, needs_http_codec)
+    runtime_imports = _render_runtime_imports(transports)
 
     imports_block = "\n".join(import_lines)
     entries_block = "\n".join(entries)
@@ -329,7 +328,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         timeout = wire.timeout if wire.timeout is not None else c.timeout
         timeout_arg = f"timeout={timeout}, " if timeout is not None else ""
         expects = "True" if wire.expects_response else "False"
-        codec_class = wire.codec_alias or "HttpJsonCodec"
+        codec_class = wire.codec_alias or t.codec_alias or "HttpJsonCodec"
         return (
             f"{indent}TransportId.{t.enum_member}: Command(\n"
             f'{indent}    id="{c.command_id}",\n'

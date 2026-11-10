@@ -120,7 +120,8 @@ Kandra never interprets the strings. Capabilities are **per-command**, and the m
 ### Per-command codec override (implemented mid-session)
 Commands can specify a `codec:` (dotted `module:Class`) that overrides the transport default
 for that command only — needed because e.g. Open GoPro has different request/response bodies
-per command.
+per command. A transport-level `codec:` is the default for every command on it in every family, HTTP
+included (HTTP falls back to `HttpJsonCodec` when omitted; before Nov 2026 it was silently ignored on HTTP).
 The user rejected introducing a short-lived limitation: **spec + docs + implement now**,
 don't stub it on the roadmap.
 

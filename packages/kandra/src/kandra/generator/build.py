@@ -285,11 +285,7 @@ def _build_profile_sdk(
 
 
 def _transport_entry_modules(manifest: Manifest, used_transport_ids: set[str]) -> frozenset[str]:
-    """Return the user modules the generated SDK imports for used transports (codec, adapter, interpreter).
-
-    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor for the codec); every other user class a used
-    transport names must be part of the closure.
-    """
+    """Return the user modules the generated SDK imports for used transports (codec, adapter, interpreter)."""
     modules: set[str] = set()
     for t in manifest.transports:
         if t.id in used_transport_ids:
@@ -498,10 +494,7 @@ def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
 def _transport_entry_points(t: Transport) -> list[tuple[str, str]]:
     """Collect ``(module, label)`` for the user classes a transport names: codec, adapter, and interpreter."""
     eps: list[tuple[str, str]] = []
-    # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not an entry point the generator resolves.
-    if t.family != "http" and t.codec is not None:
-        eps.append((t.codec.split(":")[0], f"transport {t.id!r} codec"))
-    for kind, dotted in (("adapter", t.adapter), ("interpreter", t.interpreter)):
+    for kind, dotted in (("codec", t.codec), ("adapter", t.adapter), ("interpreter", t.interpreter)):
         if dotted is not None:
             eps.append((dotted.split(":")[0], f"transport {t.id!r} {kind}"))
     return eps
@@ -518,32 +511,16 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
             adapter_alias = f"_Adapter_{_sanitize(t.id)}"
             adapter_import = f"from {a_module} import {a_class} as {adapter_alias}"
         interpreter_import, interpreter_alias = _wire_interpreter(t)
-        # HTTP uses the built-in HttpJsonCodec from kandra_runtime (parameterized per-command from the http: blocks), so
-        # the manifest's transport.codec is optional and ignored here. BLE imports the user's payload codec and wraps it
-        # per-command with BleChannelCodec; loopback / unknown family import the user's codec and wire it positionally
-        # as (request, response).
-        if t.family == "http":
-            specs.append(
-                TransportSpec(
-                    transport_id=t.id,
-                    enum_member=_enum_member(t.id),
-                    family=t.family,
-                    codec_import=None,
-                    codec_alias=None,
-                    adapter_import=adapter_import,
-                    adapter_alias=adapter_alias,
-                    interpreter_import=interpreter_import,
-                    interpreter_alias=interpreter_alias,
-                    enrollment_login_path=(t.enrollment.login_path if t.enrollment is not None else None),
-                    enrollment_token_field=(t.enrollment.token_field if t.enrollment is not None else None),
-                )
-            )
-            continue
-        # Non-HTTP families require a codec (enforced by Transport validation).
-        assert t.codec is not None
-        module_path, class_name = t.codec.split(":")
-        _import_attr(module_path, class_name, what=f"transport {t.id!r} codec")
-        alias = f"_Codec_{_sanitize(t.id)}"
+        # A transport's codec is the default for every command on it (a per-command `codec:` overrides it); only HTTP
+        # may omit it and fall back to the runtime HttpJsonCodec. BLE wraps it per command in BleChannelCodec; loopback
+        # / unknown families construct it positionally as (request, response).
+        codec_import: str | None = None
+        codec_alias: str | None = None
+        if t.codec is not None:
+            module_path, class_name = t.codec.split(":")
+            _import_attr(module_path, class_name, what=f"transport {t.id!r} codec")
+            codec_alias = f"_Codec_{_sanitize(t.id)}"
+            codec_import = f"from {module_path} import {class_name} as {codec_alias}"
         channels: tuple[tuple[str, str, str], ...] = ()
         if t.family == "ble":
             channels = tuple((name, spec.write, spec.notify) for name, spec in t.channels.items())
@@ -552,13 +529,15 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                 transport_id=t.id,
                 enum_member=_enum_member(t.id),
                 family=t.family,
-                codec_import=f"from {module_path} import {class_name} as {alias}",
-                codec_alias=alias,
+                codec_import=codec_import,
+                codec_alias=codec_alias,
                 channels=channels,
                 adapter_import=adapter_import,
                 adapter_alias=adapter_alias,
                 interpreter_import=interpreter_import,
                 interpreter_alias=interpreter_alias,
+                enrollment_login_path=(t.enrollment.login_path if t.enrollment is not None else None),
+                enrollment_token_field=(t.enrollment.token_field if t.enrollment is not None else None),
             )
         )
     return specs

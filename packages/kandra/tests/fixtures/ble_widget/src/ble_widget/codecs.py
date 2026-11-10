@@ -1,13 +1,12 @@
-"""Payload codecs for the BLE+HTTP fixture device.
+"""Payload codec for the BLE+HTTP fixture device.
 
-``JsonCodec`` backs the HTTP transport; ``FrameCodec`` (length-prefixed JSON over
-bytes) backs the BLE transport and exercises the generator's ``BleChannelCodec``
-wrapping path. Both satisfy ``kandra_runtime.Codec[Req, Resp, bytes, bytes]``.
+``FrameCodec`` (length-prefixed JSON over bytes) backs the BLE transport and exercises the generator's
+``BleChannelCodec`` wrapping path; the HTTP transport uses the runtime ``HttpJsonCodec``. It satisfies
+``kandra_runtime.Codec[Req, Resp, bytes, bytes]``.
 """
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import struct
 from dataclasses import asdict, is_dataclass
@@ -21,23 +20,6 @@ ResponseT = TypeVar("ResponseT")
 _LENGTH_FMT = "!H"  # big-endian uint16
 _HEADER_BYTES = struct.calcsize(_LENGTH_FMT)
 _MAX_PAYLOAD = (1 << 16) - 1
-
-
-class JsonCodec(Generic[RequestT, ResponseT]):
-    """Encode/decode a dataclass request/response pair as JSON bytes."""
-
-    def __init__(self, request_type: type[RequestT], response_type: type[ResponseT]) -> None:
-        """Bind the codec to a specific request/response type pair."""
-        self._request_type = request_type
-        self._response_type = response_type
-
-    def encode(self, request: RequestT) -> bytes:
-        """Serialize a dataclass request to JSON bytes."""
-        return json.dumps(dataclasses.asdict(request)).encode("utf-8")  # type: ignore[call-overload]
-
-    def decode(self, payload: bytes) -> ResponseT:
-        """Parse JSON bytes and construct the response dataclass."""
-        return self._response_type(**json.loads(payload.decode("utf-8")))
 
 
 class FrameCodec(Generic[RequestT, ResponseT]):

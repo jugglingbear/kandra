@@ -26,6 +26,10 @@ resulting *behavior*, this file records the *why*.
   interchangeable (`GET /status` ≠ `POST /status`) and cannot be derived from a request dataclass. All four verbs are
   supported; there is no "send everything as POST" mode.
 
+- **A transport's `codec:` is the default for every command on it, in every family.** A per-command `codec:`
+  overrides it; only HTTP may omit it (built-in `HttpJsonCodec`). *Why:* a device whose whole API uses one non-JSON
+  format declares it once, and a codec named in the manifest is never silently ignored.
+
 - **Channels are BLE-only.** `channels:` / `channel:` are rejected on HTTP by the validator. *Why:* method + path
   already discriminate HTTP commands.
 

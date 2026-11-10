@@ -17,7 +17,9 @@ transports:
 {%- for t in transports %}
   - id: {{ t.id }}
     adapter: {{ t.adapter }}
+  {%- if t.family != "http" %}
     codec: {{ t.codec }}
+  {%- endif %}
     family: {{ t.family }}
   {%- if t.family == "ble" %}
     channels:

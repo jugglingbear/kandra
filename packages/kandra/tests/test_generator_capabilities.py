@@ -98,7 +98,6 @@ _CAP_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        codec: __PKG__.h:Shutter
         family: http
     commands:
       - id: camera.shutter
@@ -224,7 +223,7 @@ def test_no_capabilities_means_no_machinery(tmp_path: Path) -> None:
         device: { id: __SLUG__, display_name: D, audience: [internal] }
         source_roots: [src]
         transports:
-          - { id: http, codec: __PKG__.h:Shutter, family: http }
+          - { id: http, family: http }
         commands:
           - id: camera.shutter
             handler: __PKG__.h:Shutter

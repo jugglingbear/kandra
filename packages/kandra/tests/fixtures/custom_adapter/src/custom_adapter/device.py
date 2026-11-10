@@ -1,6 +1,6 @@
 """Single-module device wiring a custom transport adapter.
 
-Bundles the handler, codec, and a custom transport adapter so the fixture
+Bundles the handler and a custom transport adapter so the fixture
 manifest can reference one module. ``CustomHttpTransport`` is a thin subclass of
 the runtime :class:`~kandra_runtime.HttpTransport`; it exists to prove the
 manifest ``adapter:`` field is honored (the generated factory calls
@@ -9,15 +9,9 @@ manifest ``adapter:`` field is honored (the generated factory calls
 
 from __future__ import annotations
 
-import dataclasses
-import json
 from dataclasses import dataclass
-from typing import Generic, TypeVar
 
 from kandra_runtime import HttpTransport
-
-RequestT = TypeVar("RequestT")
-ResponseT = TypeVar("ResponseT")
 
 
 @dataclass(frozen=True)
@@ -39,23 +33,6 @@ class Ping:
 
     request = PingRequest
     response = PingResponse
-
-
-class JsonCodec(Generic[RequestT, ResponseT]):
-    """Trivial JSON dataclass codec (declared for the transport; HTTP uses the runtime codec)."""
-
-    def __init__(self, request_type: type[RequestT], response_type: type[ResponseT]) -> None:
-        """Bind to a request/response type pair."""
-        self._request_type = request_type
-        self._response_type = response_type
-
-    def encode(self, request: RequestT) -> bytes:
-        """Serialize a dataclass request to JSON bytes."""
-        return json.dumps(dataclasses.asdict(request)).encode("utf-8")  # type: ignore[call-overload]
-
-    def decode(self, payload: bytes) -> ResponseT:
-        """Parse JSON bytes into the response dataclass."""
-        return self._response_type(**json.loads(payload.decode("utf-8")))
 
 
 class CustomHttpTransport(HttpTransport):

@@ -27,7 +27,6 @@ transports:
 
   - id: http
     family: http
-    codec: ble_widget.codecs:JsonCodec
 
 commands:
   - id: widget.ping

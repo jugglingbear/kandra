@@ -67,9 +67,9 @@ source root or the build fails, and a `--profile` build vendors only files from 
 Each entry under `transports:` declares one wire transport; its `family:` (`http`, `ble`, or `loopback`) decides which
 per-operation wiring block is required.
 
-- `codec:` is the dotted path to the user-types ↔ wire-envelope [codec](codec.md) — **required for every family except
-  HTTP**, which uses the runtime `HttpJsonCodec` and so omits it (a transport-level `codec:` is ignored on HTTP;
-  override it per command instead, below).
+- `codec:` is the dotted path to the user-types ↔ wire-envelope [codec](codec.md) used by every command on the
+  transport — **required for every family except HTTP**, which falls back to the runtime `HttpJsonCodec` when it's
+  omitted. A command can override it with its own `codec:` (below).
 - `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime default
   for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class` to
   plug in a custom transport — see

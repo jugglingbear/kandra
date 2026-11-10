@@ -129,7 +129,6 @@ _HTTP_EVENT_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        codec: __PKG__.ev:Ping
         family: http
     events:
       - id: sensor.blip
@@ -242,7 +241,6 @@ _MIXED_MANIFEST = dedent(
     source_roots: [src]
     transports:
       - id: http
-        codec: __PKG__.ev:Ping
         family: http
       - id: ble
         codec: __PKG__.ev:StubBleCodec

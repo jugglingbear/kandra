@@ -27,7 +27,7 @@ transports:
     family: http
     # No `codec` needed: HTTP commands are JSON-encoded by the runtime's built-in
     # HttpJsonCodec. You only write your own codec for a custom wire format (e.g.
-    # a BLE TLV codec) -- see the pneumatic_bear_poker example.
+    # a BLE TLV codec) -- see the opengopro example.
 
 commands:
   # Emitted as `client.greeting.hello(...)`. The `<namespace>.<method>` id maps

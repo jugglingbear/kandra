@@ -131,8 +131,8 @@ class BleChannelSpec(_ManifestModel):
 class Transport(_ManifestModel):
     """A wire transport (BLE / HTTP / serial / etc.) plus its codec.
 
-    ``codec`` is required for every family except HTTP: HTTP commands are JSON-encoded by the runtime ``HttpJsonCodec``,
-    so an HTTP transport may omit ``codec`` entirely.
+    ``codec`` is the default for every command on the transport (a per-command ``codec:`` overrides it). It is required
+    for every family except HTTP, which falls back to the runtime ``HttpJsonCodec`` when ``codec`` is omitted.
 
     The optional ``family`` field tags the transport for cross-validation: when set, commands riding this transport must
     supply the matching per-transport block (``http:`` for ``family=http``, ``ble:`` for ``family=ble``). Loopback /
@@ -145,7 +145,8 @@ class Transport(_ManifestModel):
     adapter: str | None = None
     """Dotted path to a custom transport class; omit for the runtime default (HttpTransport / BleTransport)."""
     codec: str | None = None
-    """Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec)."""
+    """Dotted path to the wire codec used by every command on this transport. Required for every family except HTTP,
+    which defaults to the built-in ``HttpJsonCodec``; a custom HTTP codec is constructed like ``HttpJsonCodec``."""
     interpreter: str | None = None
     """Dotted path (``module:Class``) to a ``ResponseInterpreter`` that classifies every reply on this transport; it is
     constructed with no arguments. Omit for the family default (HTTP: status codes; BLE / loopback: always accepted)."""
@@ -198,11 +199,11 @@ class HttpCommandSpec(_ManifestModel):
     path: str = Field(min_length=1)
     """Request path (e.g. ``/v1/poker/deploy``)."""
     codec: str | None = None
-    """Dotted path (``module:Class``) to a per-command codec that overrides the built-in ``HttpJsonCodec`` for
-    this command only -- use it when one command's wire format differs from the rest of the transport (a binary
-    or plain-text body). It is constructed like ``HttpJsonCodec`` (method / path / request + response types /
-    ``query_from_request``), so the simplest override subclasses ``HttpJsonCodec`` and overrides ``decode``. Omit
-    to use the JSON default."""
+    """Dotted path (``module:Class``) to a per-command codec that overrides the transport's codec (or the built-in
+    ``HttpJsonCodec``) for this command only -- use it when one command's wire format differs from the rest of the
+    transport (a binary or plain-text body). It is constructed like ``HttpJsonCodec`` (method / path / request +
+    response types / ``query_from_request``), so the simplest override subclasses ``HttpJsonCodec`` and overrides
+    ``decode``. Omit to use the transport default."""
     query_from_request: bool = False
     """When true, request fields go on the query string instead of the JSON body."""
     expects_response: bool = True

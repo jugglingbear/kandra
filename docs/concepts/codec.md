@@ -34,9 +34,10 @@ A codec is generic in four types so it can sit precisely between any request/res
 ```
 
 End users rarely touch all four parameters. HTTP/JSON commands need no codec at all — the generator wires the runtime's
-`HttpJsonCodec` from your `http:` block. For any other wire format you write a **payload codec**: a plain
-`Codec[Req, Resp, bytes, bytes]` that turns your dataclasses into `bytes` and back, which the generator adapts to the
-transport family (see below).
+`HttpJsonCodec` from your `http:` block. For any other wire format you write your own: for HTTP, a subclass of
+`HttpJsonCodec` that builds the request and parses the response; for BLE and custom families, a **payload codec** — a
+plain `Codec[Req, Resp, bytes, bytes]` that turns your dataclasses into `bytes` and back, which the generator adapts to
+the transport family (see below).
 
 ## How It Composes
 
@@ -53,7 +54,8 @@ flowchart LR
 ## What you write per family
 
 For most commands you write no codec at all — the generator instantiates the runtime codecs below from the manifest.
-What you *may* write is a **payload codec**: a plain `Codec[Req, Resp, bytes, bytes]` for BLE or custom families, or a
+What you *may* write is a codec named on the transport (`codec:`), which every command on it uses — an HTTP codec for
+a device whose API isn't JSON, or a payload codec `Codec[Req, Resp, bytes, bytes]` for BLE or custom families — or a
 per-command `codec:` override for a one-off wire format (see below).
 
 ```{list-table}
@@ -63,8 +65,10 @@ per-command `codec:` override for a one-off wire format (see below).
   - Runtime codec (generator-instantiated)
   - What you write
 * - HTTP
-  - `HttpJsonCodec`, built from the `http:` block (`method` / `path`) and your handler's types
-  - Nothing — omit `codec:` and use plain dataclasses
+  - `HttpJsonCodec` (or the transport's `codec:`), built from the `http:` block (`method` / `path`) and your
+    handler's types
+  - Nothing for JSON — omit `codec:`. For another format, an `HttpJsonCodec` subclass named in the transport's
+    `codec:`
 * - BLE
   - `BleChannelCodec`, which wraps your payload codec with the manifest's `ble.channel`
   - A payload codec `Codec[Req, Resp, bytes, bytes]` (dataclass ↔ `bytes`)
@@ -78,9 +82,9 @@ isn't plain JSON — custom binary framing, TLV, protobuf, and the like.
 
 ## Per-command codec override
 
-The table above is the default: every command on a transport shares one codec — HTTP's `HttpJsonCodec`, or the BLE
-transport's payload codec. When a *single* transport must carry more than one wire format, a command's per-transport
-wire block may name its own `codec:`, a dotted `module:Class` reference into your source tree:
+The table above is the default: every command on a transport shares the transport's codec — its `codec:`, or for HTTP
+the built-in `HttpJsonCodec` when that's omitted. When a *single* transport must carry more than one wire format, a
+command's per-transport wire block may name its own `codec:`, a dotted `module:Class` reference into your source tree:
 
 ```yaml
 commands:
@@ -94,7 +98,8 @@ commands:
         codec: devices.cam.codecs:RawBodyCodec   # returns raw bytes, not JSON
 ```
 
-- **HTTP.** The override replaces the built-in `HttpJsonCodec` for that one command. It is constructed with the same
+- **HTTP.** The override replaces the transport's codec (the built-in `HttpJsonCodec` unless the transport names one)
+  for that one command. It is constructed with the same
   arguments (`method`, `path`, request/response types, `query_from_request`), so the usual pattern is to subclass
   `HttpJsonCodec` and override `decode` (e.g. to return raw bytes or parse a non-JSON body). Because a codec builds
   the whole `HttpRequest`, header quirks live here too.

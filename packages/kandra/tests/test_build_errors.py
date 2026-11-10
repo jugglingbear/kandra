@@ -43,7 +43,7 @@ def _project(
         "schema_version: 1\n"
         "device:\n  id: mini\n  display_name: Mini\n  audience: [internal, partner]\n"
         f"source_roots: {source_roots}\n"
-        "transports:\n  - id: http\n    codec: k.c:C\n"
+        "transports:\n  - id: http\n"
         f"{adapter_line}"
         "    family: http\n"
         "commands:\n"

@@ -17,7 +17,6 @@ transports:
   - id: http
     family: http
     adapter: custom_adapter.device:CustomHttpTransport
-    codec: custom_adapter.device:JsonCodec
 
 commands:
   - id: widget.ping
