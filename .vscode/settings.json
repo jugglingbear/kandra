@@ -18,5 +18,19 @@
       "examples/*/manifest.yaml",
       "packages/kandra/tests/fixtures/*/manifest.yaml"
     ]
+  },
+  // Agent file ops confined to the scratch temp/ dir run without approval; "rm" stays gated outside temp/ by the
+  // false rule below (false rules win).
+  "chat.tools.terminal.autoApprove": {
+    "rm": true,
+    "/^rm\\b(?!(?:\\s+-[a-zA-Z]+)*(?:\\s+temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*)+\\s*$)/": false,
+    "/^mkdir(?:\\s+-p)?(?:\\s+temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*)+\\s*$/": true,
+    "/^touch(?:\\s+temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*)+\\s*$/": true,
+    "/^cp(?:\\s+-(?![a-zA-Z]*[tT])[a-zA-Z]+)*(?:\\s+(?!-)[^\\s;&|<>'\"`$\\\\]+)+\\s+temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*\\s*$/": true,
+    "/^mv(?:\\s+-[a-zA-Z]+)*(?:\\s+temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*)+\\s*$/": true,
+    "/^cat\\s+>>?\\s*temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*\\s+<<-?\\s*'[A-Za-z_]+'\\s*(?:$|\\n)/": true,
+    "/^printf\\s+'[^']*'\\s+>>?\\s*temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*\\s*$/": true,
+    "/^git\\s+(?:--no-pager\\s+)?show\\s+[^\\s;&|<>'\"`$\\\\]+\\s+>\\s*temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*\\s*$/": true,
+    "/^git\\s+checkout-index\\s+-a\\s+--prefix=temp\\/(?:(?!\\.\\.)[^\\s;&|<>'\"`$\\\\])*\\s*$/": true
   }
 }
