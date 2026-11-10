@@ -86,9 +86,9 @@ wire block may name its own `codec:`, a dotted `module:Class` reference into you
 commands:
   - id: media.download
     handler: devices.cam.handlers.media:Download
-    transports: [http]
+    transports: [wifi]
     http:
-      http:
+      wifi:
         method: GET
         path: /videos/{id}
         codec: devices.cam.codecs:RawBodyCodec   # returns raw bytes, not JSON

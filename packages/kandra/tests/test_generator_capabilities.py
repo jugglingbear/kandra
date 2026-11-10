@@ -381,7 +381,7 @@ async def test_example_logs_download_gated_by_diagnostics(tmp_path: Path) -> Non
             return HttpResponse(status=200, body=json.dumps({"lines": ["boot"], "next_sequence": 1}).encode())
 
         async with open_transport(LoopbackTransport(_logs)) as t:
-            client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
+            client = PneumaticBearPokerClient(transports={TransportId.WIFI: t})
             # Ungated before discovery.
             assert (await client.logs.download(DownloadLogsRequest())).accepted
             # A device whose probe lacks "diagnostics" cannot download logs.
@@ -391,4 +391,3 @@ async def test_example_logs_download_gated_by_diagnostics(tmp_path: Path) -> Non
             # A diagnostics-capable device can.
             await client.discover_capabilities(StaticCapabilityProbe("diagnostics"))
             assert (await client.logs.download(DownloadLogsRequest())).accepted
-

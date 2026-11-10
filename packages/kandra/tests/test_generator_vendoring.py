@@ -100,7 +100,7 @@ async def test_vendored_partner_sdk_dispatches_without_source_roots(tmp_path: Pa
 
         transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(echo)
         async with open_transport(transport) as t:
-            client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
+            client = PneumaticBearPokerClient(transports={TransportId.WIFI: t})
             result = await client.poker.deploy(DeployRequest(pressure_psi=21))
         assert result is not None
         assert result.accepted

@@ -1,6 +1,6 @@
-# Example manifest for the fictional Pneumatic Bear Poker, a device that pokes bears, pneumatically. This is
-# Kandra's reference example: it wires real handler/codec classes (under examples/pneumatic_bear_poker/src/) over
-# HTTP, and examples/pneumatic_bear_poker/demo.py drives the full lifecycle against the simulator in
+# Example manifest for the fictional Pneumatic Bear Poker, a device that pokes bears, pneumatically. This is Kandra's
+# reference example: it wires real handler/codec classes (under examples/pneumatic_bear_poker/src/) over HTTP, and
+# examples/pneumatic_bear_poker/demo.py drives the full lifecycle against the simulator in
 # examples/pneumatic_bear_poker/firmware_sim/. See docs/getting-started.md for a step-by-step walkthrough.
 
 schema_version: 1
@@ -18,130 +18,133 @@ source_roots:
   - src
 
 transports:
-  - id: http
+  - id: wifi   # HTTP over the device's Wi-Fi; each operation's http: block is keyed by this id
     family: http
     config: { base_url: "http://192.168.1.1:8080" }
     # HTTP may omit codec (runtime HttpJsonCodec) and adapter (runtime HttpTransport).
-    # The generated SDK bakes this into http_enrollment(); the device's auth
-    # endpoint stays out of caller code (credentials still injected at runtime).
+    # The generated SDK bakes this into http_enrollment(); the device's auth endpoint stays out of caller code
+    # (credentials still injected at runtime).
     enrollment: { login_path: /v1/auth/login }
 
 commands:
+  # Extend the arm at the requested pressure. A no-op when already extended; rejected while powered off.
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
-    transports: [http]
+    transports: [wifi]
     audience: [internal, partner_woodland]
     timeout: 5.0
     idempotent: true   # deploying an already-extended arm is a no-op
     http:
-      http:
+      wifi:
         method: POST
         path: /v1/poker/deploy
         body_codec: json
         response_codec: json
         expects_response: true
 
+  # Pull the arm back. A no-op when already retracted; rejected while powered off.
   - id: poker.retract
     handler: devices.pneumatic_bear_poker.handlers.poker:Retract
-    transports: [http]
+    transports: [wifi]
     audience: [internal, partner_woodland]
     timeout: 1.0
     idempotent: true
     retries: 2   # re-send on a transient link drop (retracting twice is a no-op)
     http:
-      http:
+      wifi:
         method: POST
         path: /v1/poker/retract
         body_codec: json
         response_codec: json
         expects_response: true
 
+  # Energise the compressor and bring the air rail up to standby pressure. The arm only moves while powered.
   - id: power.on
     handler: devices.pneumatic_bear_poker.handlers.power:PowerOn
-    transports: [http]
+    transports: [wifi]
     audience: [internal, partner_woodland]
     timeout: 10.0
     idempotent: true
     http:
-      http:
+      wifi:
         method: POST
         path: /v1/power/on
         body_codec: json
         response_codec: json
         expects_response: true
 
+  # De-energise the compressor, optionally venting residual line pressure first. The arm stays where it is.
   - id: power.off
     handler: devices.pneumatic_bear_poker.handlers.power:PowerOff
-    transports: [http]
+    transports: [wifi]
     audience: [internal, partner_woodland]
     timeout: 10.0
     idempotent: true
     http:
-      http:
+      wifi:
         method: POST
         path: /v1/power/off
         body_codec: json
         response_codec: json
-        # Fire-and-forget: cutting its own power rail drops the HTTP reply
-        # mid-flight, so we don't wait for an ACK we'll never see.
+        # Fire-and-forget: cutting its own power rail drops the HTTP reply mid-flight, so we don't wait for an ACK
+        # we'll never see.
         expects_response: false
 
+  # Pull the device's rolling log buffer.
   - id: logs.download
     handler: devices.pneumatic_bear_poker.handlers.diagnostics:DownloadLogs
-    # HTTP only -- BLE's MTU and notify-based framing makes pulling a
-    # multi-kilobyte log buffer over BLE a bad idea.
-    transports: [http]
+    transports: [wifi]  # BLE is too slow to send logs
     audience: [internal, partner_woodland]
     timeout: 30.0
     idempotent: true
-    # Gated: only firmware built with the diagnostics package exposes the log
-    # buffer. `await client.discover_capabilities(probe)` marks it unavailable on
-    # devices whose probe doesn't report the "diagnostics" tag (fails locally
-    # with CapabilityUnavailableError instead of on the wire).
+    # Gated: only firmware built with the diagnostics package exposes the log buffer. Once a caller runs
+    # `await client.discover_capabilities(probe)`, a device whose probe doesn't report the "diagnostics" tag fails
+    # locally with CapabilityUnavailableError instead of on the wire. How tags and probes work:
+    # docs/concepts/capabilities.md.
     capabilities: [diagnostics]
     http:
-      http:
+      wifi:
         method: GET
         path: /v1/logs
         body_codec: json
         response_codec: json
-        # GET with a body is legal in JSON-RPC-style APIs but messy;
-        # ask the generator to lift request fields onto the query string.
+        # GET with a body is legal in JSON-RPC-style APIs but messy; ask the generator to lift request fields onto the
+        # query string.
         query_from_request: true
         expects_response: true
 
-# Attributes are named device *state* (read / write / subscribe), as opposed to
-# commands (one-shot actions). The generator emits a namespaced sub-object:
-# `client.settings.poke_intensity.read() / .write(v) / .subscribe()`.
+# Attributes are named device *state* (read / write / subscribe), as opposed to commands (one-shot actions). The
+# generator emits a namespaced sub-object: `client.settings.poke_intensity.read() / .write(v) / .subscribe()`.
 attributes:
+  # How hard the arm pokes, on a 0-11 scale: read it, write it, or subscribe to changes.
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
-    transports: [http]
+    transports: [wifi]
     operations: [read, write, subscribe]
     audience: [internal, partner_woodland]
     http:
-      http:
+      wifi:
         # Explicit verbs, exactly like commands: read via GET, write via PUT.
         read: { method: GET, path: /v1/settings/poke_intensity }
         write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
-        # Native server-sent-events stream (no polling). `mode: poll` would
-        # require an explicit `interval` — polling is never a silent default.
+        # Native server-sent-events stream (no polling). `mode: poll` would require an explicit `interval` -- polling is
+        # never a silent default.
         subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
 
-# Events are stateless device emissions (subscribe-only), distinct from an
-# attribute subscribe (which streams changes of a stored value). The generator
-# emits `client.alerts.bear_stirred.subscribe()` (async-only).
+# Events are stateless device emissions (subscribe-only), distinct from an attribute subscribe (which streams changes of
+# a stored value). The generator emits `client.alerts.bear_stirred.subscribe()` (async-only).
 events:
+  # Emitted whenever the bear shifts in its sleep.
   - id: alerts.bear_stirred
     handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [http]
+    transports: [wifi]
     audience: [internal, partner_woodland]
     http:
-      http: { mode: sse, path: /v1/alerts/bear_stirred/events }
+      wifi: { mode: sse, path: /v1/alerts/bear_stirred/events }
 
 vendoring:
-  # extra_include takes a file, a whole directory, or a glob (relative to a
-  # source_root) -- for code or assets the static import walker can't discover.
+  # extra_include takes a file, a whole directory, or a glob (relative to a source_root) -- for code or assets the
+  # static import walker can't discover.
   extra_include:
     - devices/pneumatic_bear_poker/handlers/super_important.py  # dynamically imported module
     - devices/pneumatic_bear_poker/assets/  # whole directory of runtime data files
@@ -149,14 +152,12 @@ vendoring:
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 
 # Discovery criteria the generator bakes into the SDK's scanners module
-# (examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/scanners.py) so callers
-# can run `await scan_http(timeout=5)` without supplying their own matcher.
-# At least one per-family block must be present, and each declared family
-# must match a transport listed above (cross-validated by the manifest loader).
+# (examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/scanners.py) so callers can run
+# `await scan_http(timeout=5)` without supplying their own matcher. At least one per-family block must be present, and
+# each declared family must match a transport listed above (cross-validated by the manifest loader).
 discovery:
   http:
-    # Probe these hosts in parallel; the first one whose
-    # `/.well-known/pneumatic-bear-poker` returns 200 wins.
+    # Probe these hosts in parallel; the first one whose `/.well-known/pneumatic-bear-poker` returns 200 wins.
     base_urls:
       - "http://192.168.1.1:8080"
       - "http://pneumatic-bear-poker.local:8080"

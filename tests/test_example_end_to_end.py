@@ -177,7 +177,7 @@ async def test_full_lifecycle_discover_enroll_save_reconnect_dispatch(
         "_TRANSPORT_FACTORIES",
         (
             (
-                TransportId.HTTP,
+                TransportId.WIFI,
                 "http",
                 lambda ident: _FakeHttpTransport.from_identity(ident),
             ),
@@ -211,7 +211,7 @@ async def test_discover_and_connect_uses_baked_enrollment(
     monkeypatch.setattr(
         client_mod,
         "_TRANSPORT_FACTORIES",
-        ((TransportId.HTTP, "http", lambda ident: _FakeHttpTransport.from_identity(ident)),),
+        ((TransportId.WIFI, "http", lambda ident: _FakeHttpTransport.from_identity(ident)),),
     )
 
     # The real baked factory would POST a login; swap in a network-free adapter so the

@@ -65,11 +65,11 @@ block. Every declared operation must be wired on every transport the attribute r
 attributes:
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
-    transports: [http]
+    transports: [wifi]
     operations: [read, write, subscribe]
     audience: [internal, partner_woodland]
     http:
-      http:
+      wifi:
         read:  { method: GET, path: /v1/settings/poke_intensity }
         write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
         subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }

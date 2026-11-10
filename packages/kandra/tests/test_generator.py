@@ -126,7 +126,7 @@ async def test_generated_sdk_async_dispatch(sdk_on_path: Path) -> None:
 
     transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(_http_echo_deploy)
     async with open_transport(transport) as t:
-        client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
+        client = PneumaticBearPokerClient(transports={TransportId.WIFI: t})
         result = await client.poker.deploy(DeployRequest(pressure_psi=42))
     assert result is not None
     assert result.accepted
@@ -145,7 +145,7 @@ def test_generated_sync_client_dispatch(sdk_on_path: Path) -> None:
     transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(_http_echo_deploy)
     asyncio.run(transport.open())
     try:
-        client = SyncPneumaticBearPokerClient(transports={TransportId.HTTP: transport})
+        client = SyncPneumaticBearPokerClient(transports={TransportId.WIFI: transport})
         result = client.poker.deploy(DeployRequest(pressure_psi=7))
     finally:
         asyncio.run(transport.close())
@@ -166,7 +166,7 @@ async def test_non_accepted_result_fires_hook_and_returns_envelope(sdk_on_path: 
     captured: list[str] = []
     transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(faulting)
     async with open_transport(transport) as t:
-        client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
+        client = PneumaticBearPokerClient(transports={TransportId.WIFI: t})
         client.on_non_accepted = captured.append
         result = await client.poker.deploy(DeployRequest(pressure_psi=1))
     assert result is not None
@@ -188,7 +188,7 @@ async def test_ignore_failures_suppresses_hook_but_not_result(sdk_on_path: Path)
     captured: list[str] = []
     transport: LoopbackTransport[HttpRequest, HttpResponse] = LoopbackTransport(rejecting)
     async with open_transport(transport) as t:
-        client = PneumaticBearPokerClient(transports={TransportId.HTTP: t})
+        client = PneumaticBearPokerClient(transports={TransportId.WIFI: t})
         client.on_non_accepted = captured.append
         with client.ignore_failures():
             result = await client.poker.deploy(DeployRequest(pressure_psi=999))
