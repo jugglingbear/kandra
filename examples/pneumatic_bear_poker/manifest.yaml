@@ -114,10 +114,7 @@ commands:
     audience: [internal, partner_woodland]
     timeout: 30.0
     idempotent: true
-    # Gated: only firmware built with the diagnostics package exposes the log buffer. Once a caller runs
-    # `await client.discover_capabilities(probe)`, a device whose probe doesn't report the "diagnostics" tag fails
-    # locally with CapabilityUnavailableError instead of on the wire. How tags and probes work:
-    # docs/concepts/capabilities.md.
+    # Only devices that support diagnostics can run this command. See docs/concepts/capabilities.md.
     capabilities: [diagnostics]
     http:
       wifi:
