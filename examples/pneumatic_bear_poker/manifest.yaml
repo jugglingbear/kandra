@@ -113,34 +113,20 @@ commands:
         query_from_request: true
         expects_response: true
 
-# Attributes are named device *state* (read / write / subscribe), as opposed to commands (one-shot actions). The
-# generator emits a namespaced sub-object: `client.settings.poke_intensity.read() / .write(v) / .subscribe()`.
+# Attributes are named device *state* (read / write), as opposed to commands (one-shot actions). The generator emits a
+# namespaced sub-object: `client.settings.poke_intensity.read() / .write(v)`.
 attributes:
-  # How hard the arm pokes, on a 0-11 scale: read it, write it, or subscribe to changes.
+  # How hard the arm pokes, on a 0-11 scale: read it or write it.
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
     transports: [wifi]
-    operations: [read, write, subscribe]
+    operations: [read, write]
     audience: [internal, partner_woodland]
     http:
       wifi:
         # Explicit verbs, exactly like commands: read via GET, write via PUT.
         read: { method: GET, path: /v1/settings/poke_intensity }
         write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
-        # Native server-sent-events stream (no polling). `mode: poll` would require an explicit `interval` -- polling is
-        # never a silent default.
-        subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
-
-# Events are stateless device emissions (subscribe-only), distinct from an attribute subscribe (which streams changes of
-# a stored value). The generator emits `client.alerts.bear_stirred.subscribe()` (async-only).
-events:
-  # Emitted whenever the bear shifts in its sleep.
-  - id: alerts.bear_stirred
-    handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
-    transports: [wifi]
-    audience: [internal, partner_woodland]
-    http:
-      wifi: { mode: sse, path: /v1/alerts/bear_stirred/events }
 
 vendoring:
   # extra_include takes a file, a whole directory, or a glob (relative to a source_root) -- for code or assets the

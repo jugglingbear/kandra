@@ -11,8 +11,13 @@ methods:
 ```python
 level = await client.settings.poke_intensity.read()          # Result[PokeIntensity] | None
 await client.settings.poke_intensity.write(PokeIntensity(9))  # Result[...] | None
-async for update in client.settings.poke_intensity.subscribe():
+async for update in client.settings.poke_intensity.subscribe():  # only if `subscribe` is declared
     print(update.data)                                        # one Result per change
+```
+
+```{note}
+The Pneumatic Bear Poker reference example declares only `read` and `write`. `subscribe` is shown on this page for
+completeness; a dedicated push-updates example is on the roadmap.
 ```
 
 ## Handler Contract
@@ -26,13 +31,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PokeIntensity:
-    """How hard the arm pokes, on a 0–11 scale."""
+    """How hard the arm pokes, on a 0-11 scale."""
 
     level: int
 
 
 class PokeIntensitySetting:
-    """`settings.poke_intensity` — read / write / subscribe the poke level."""
+    """`settings.poke_intensity` -- read / write the poke level."""
 
     value = PokeIntensity
 ```
@@ -66,13 +71,14 @@ attributes:
   - id: settings.poke_intensity
     handler: devices.pneumatic_bear_poker.handlers.settings:PokeIntensitySetting
     transports: [wifi]
-    operations: [read, write, subscribe]
+    operations: [read, write]
     audience: [internal, partner_woodland]
     http:
       wifi:
         read:  { method: GET, path: /v1/settings/poke_intensity }
         write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
-        subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
+        # To also push changes, add `subscribe` to `operations` and wire it, e.g.:
+        # subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
 ```
 
 Verbs are **explicit**, never inferred — a device that "writes" via `GET /setting?option=9` sets `method: GET` with

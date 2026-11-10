@@ -37,7 +37,6 @@ files:
   src/devices/pneumatic_bear_poker/handlers/poker.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/power.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/settings.py: [internal, partner_woodland]
-  src/devices/pneumatic_bear_poker/handlers/alerts.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/diagnostics.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/super_important.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/assets/poke_profiles.json: [internal, partner_woodland]

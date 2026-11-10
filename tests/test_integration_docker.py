@@ -325,7 +325,7 @@ async def test_auth_stale_token_recovers_by_re_enrolling(patched_base_urls: str,
 
 
 # ---------------------------------------------------------------------------
-# Attribute + event dispatch tests.
+# Attribute dispatch tests.
 # ---------------------------------------------------------------------------
 
 
@@ -342,17 +342,3 @@ async def test_attr_poke_intensity_read_write(client: Any) -> None:
 
     reread = await client.settings.poke_intensity.read()
     assert reread.data == PokeIntensity(level=9)
-
-
-async def test_attr_poke_intensity_subscribe_streams_updates(client: Any) -> None:
-    """SSE /v1/settings/poke_intensity/events yields a finite stream of decoded values."""
-    results = [r async for r in client.settings.poke_intensity.subscribe()]
-    assert len(results) == 3
-    assert all(r.accepted and r.data is not None for r in results)
-
-
-async def test_event_bear_stirred_subscribe_streams_emissions(client: Any) -> None:
-    """SSE /v1/alerts/bear_stirred/events yields the device's stirred emissions."""
-    results = [r async for r in client.alerts.bear_stirred.subscribe()]
-    assert all(r.accepted and r.data is not None for r in results)
-    assert [r.data.magnitude for r in results] == [17, 42, 99]

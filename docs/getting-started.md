@@ -169,11 +169,10 @@ locations and how to clear a saved identity outside the demo.
 
 ## Next steps
 
-- Read the [manifest](concepts/manifest.md) you just built from — commands, attributes, events, and discovery are all
+- Read the [manifest](concepts/manifest.md) you just built from — commands, attributes, and discovery are all
   declared there.
 - Skim the [Architecture](concepts/architecture.md) and [Lifecycle](concepts/lifecycle.md) concept pages.
-- Explore the rest of the generated client: the `client.power.off()` and `client.logs.download()` commands, the
-  `client.settings.poke_intensity` [attribute](concepts/attribute.md) (read / write / subscribe), and the
-  `client.alerts.bear_stirred` [event](concepts/event.md).
+- Explore the rest of the generated client: the `client.power.off()` and `client.logs.download()` commands, and the
+  `client.settings.poke_intensity` [attribute](concepts/attribute.md) (read / write).
 - Build a **pruned, per-audience** SDK by passing `--profile partner_woodland` to `kandra build` — see
   [Audiences & IP Isolation](concepts/audiences.md).

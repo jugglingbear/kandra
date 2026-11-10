@@ -16,6 +16,11 @@ async for stir in client.alerts.bear_stirred.subscribe():
     print(stir.data.magnitude)   # one Result per emission
 ```
 
+```{note}
+The Pneumatic Bear Poker reference example doesn't declare any events; the `alerts.bear_stirred` snippets on this page
+are illustrative. A dedicated push-updates example is on the roadmap.
+```
+
 ## Handler Contract
 
 An event handler is a plain class declaring a single `payload` type — the shape of each emission. There is no method
@@ -49,7 +54,7 @@ uses, minus the read/write ops:
 ```yaml
 events:
   - id: alerts.bear_stirred
-    handler: devices.pneumatic_bear_poker.handlers.alerts:BearStirredAlert
+    handler: devices.bear_monitor.handlers.alerts:BearStirredAlert
     transports: [wifi]
     audience: [internal, partner_woodland]
     http:

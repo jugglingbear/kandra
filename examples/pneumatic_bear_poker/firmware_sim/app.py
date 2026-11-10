@@ -17,10 +17,8 @@ Run in Docker::
 
 from __future__ import annotations
 
-import json
 import os
 import secrets
-from collections.abc import Iterator
 from typing import Any
 
 from flask import Flask, jsonify, request
@@ -29,10 +27,6 @@ from flask.wrappers import Response
 VERSION = "2.4.1"
 SERVER_HEADER = f"PneumaticBearPoker/{VERSION}"
 """Matches the manifest's ``discovery.http.server_header_prefix``."""
-
-_SSE_TICKS = 3  # finite SSE streams so subscribe() demos terminate cleanly
-_BEAR_STIR_MAGNITUDES = (17, 42, 99)
-
 
 # Regenerated on every start, so restarting the sim invalidates previously saved tokens (-> HTTP 401).
 _VALID_TOKEN = secrets.token_hex(16)
@@ -72,15 +66,14 @@ def create_app() -> Flask:
         lines = tuple(f"line {i}" for i in range(start, start + min(max_lines, 5)))
         return jsonify({"lines": list(lines), "next_sequence": start + len(lines)})
 
-    _register_settings_and_alerts(app)
+    _register_settings(app)
     return app
 
 
-def _register_settings_and_alerts(app: Flask) -> None:
-    """Register the `settings.poke_intensity` attribute and `alerts.bear_stirred` event routes."""
-    state = {"poke_intensity": 5}  # the one settable attribute's stored value
+def _register_settings(app: Flask) -> None:
+    """Register the `settings.poke_intensity` attribute routes (read / write)."""
+    state = {"poke_intensity": 5}
 
-    # ---- attribute: settings.poke_intensity (read / write / subscribe) ----
     @app.get("/v1/settings/poke_intensity")
     def read_poke_intensity() -> Response:
         return jsonify({"level": state["poke_intensity"]})
@@ -89,25 +82,6 @@ def _register_settings_and_alerts(app: Flask) -> None:
     def write_poke_intensity() -> Response:
         state["poke_intensity"] = int(_json_body().get("level", 0))
         return jsonify({"level": state["poke_intensity"]})  # echoed value is the write-ack
-
-    @app.get("/v1/settings/poke_intensity/events")
-    def poke_intensity_events() -> Response:
-        # Finite SSE stream: emit a few incrementing values, then close.
-        def _stream() -> Iterator[str]:
-            base = state["poke_intensity"]
-            for i in range(_SSE_TICKS):
-                yield f"data: {json.dumps({'level': base + i})}\n\n"
-
-        return Response(_stream(), mimetype="text/event-stream")
-
-    # ---- event: alerts.bear_stirred (subscribe-only SSE) ------------------
-    @app.get("/v1/alerts/bear_stirred/events")
-    def bear_stirred_events() -> Response:
-        def _stream() -> Iterator[str]:
-            for magnitude in _BEAR_STIR_MAGNITUDES:
-                yield f"data: {json.dumps({'magnitude': magnitude})}\n\n"
-
-        return Response(_stream(), mimetype="text/event-stream")
 
 
 def _register_power_and_arm(app: Flask) -> None:

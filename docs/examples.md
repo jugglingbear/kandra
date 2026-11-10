@@ -58,7 +58,7 @@ There is no discovery or enrollment lifecycle here — just the minimal shape of
 
 ## pneumatic_bear_poker — the full walkthrough
 
-The reference device: HTTP commands, a settable attribute, an event, a discovery probe, and a Flask firmware simulator
+The reference device: HTTP commands, a settable attribute, a discovery probe, and a Flask firmware simulator
 you can run locally. It drives the entire credential lifecycle end to end, so it is the device used throughout
 [Getting Started](getting-started.md). Reach for it when you want to see how a generated client actually connects to and
 talks to a device. Its arm follows a small power / arm

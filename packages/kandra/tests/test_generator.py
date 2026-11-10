@@ -92,8 +92,7 @@ def test_handler_docstrings_flow_into_generated_sdk(sdk_on_path: Path) -> None:
     assert deploy_doc.startswith("Extend the arm at the requested pressure.")
     assert "Invokes `poker.deploy`." in deploy_doc
     assert (inspect.getdoc(client._SyncPokerNamespace.deploy) or "").startswith("Extend the arm")
-    assert (inspect.getdoc(client._SettingsPokeIntensityAttribute) or "").startswith("`settings.poke_intensity` —")
-    assert (inspect.getdoc(client._AlertsBearStirredEvent) or "").startswith("`alerts.bear_stirred` —")
+    assert (inspect.getdoc(client._SettingsPokeIntensityAttribute) or "").startswith("`settings.poke_intensity` --")
 
 
 def test_docstring_helper_escapes_and_wraps() -> None:

@@ -8,13 +8,13 @@ M profiles = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
 fictional device whose sole job is to poke bears (pneumatically). It has five commands (including `poker.deploy` and
-`poker.retract`), one settable [attribute](attribute.md) (`settings.poke_intensity`), and one
-[event](event.md) (`alerts.bear_stirred`), exposed over HTTP to two audiences: the internal team and the
-`partner_woodland` partner.
+`poker.retract`) and one settable [attribute](attribute.md) (`settings.poke_intensity`), exposed over HTTP to two
+audiences: the internal team and the `partner_woodland` partner.
 
 ## Device State Machine
 
-The arm only moves while the unit is powered; arm commands sent while it's off are refused (HTTP 409, `REJECTED`).
+The Pneumatic Bear Poker's arm only moves while the unit is powered; arm commands sent while it's off are refused (HTTP
+409, `REJECTED`).
 
 ```{mermaid}
 stateDiagram-v2
