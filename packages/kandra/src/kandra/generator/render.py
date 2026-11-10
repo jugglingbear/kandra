@@ -43,8 +43,6 @@ class HttpCommandWire:
 
     method: Literal["GET", "POST", "PUT", "DELETE"]
     path: str
-    body_codec: Literal["json", "none"]
-    response_codec: Literal["json", "none"]
     query_from_request: bool
     expects_response: bool
     timeout: float | None

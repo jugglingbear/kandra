@@ -75,8 +75,6 @@ per-operation wiring block is required.
   plug in a custom transport — see
   [Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
 - `channels:` (BLE only) names `(write, notify)` characteristic UUID pairs; each BLE command selects one by name.
-- `config:` is free-form and currently informational: the SDK gets the device address from discovery or the saved
-  identity at runtime, not from the manifest.
 - `enrollment: { login_path: /path }` (HTTP only, plus an optional `token_field`) is baked into a
   `<device>_sdk.http_enrollment()` factory (and the default for `discover_and_connect`), keeping the device's login
   endpoint out of caller code — see [Enrollment](enrollment.md#declaring-the-http-login-in-the-manifest).

@@ -342,22 +342,6 @@
           "title": "Idempotent",
           "type": "boolean"
         },
-        "opcode": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Reserved: protocol opcode (not yet wired).",
-          "title": "Opcode"
-        },
         "retries": {
           "default": 0,
           "description": "Auto-retry budget after a transient transport failure. Requires ``idempotent: true``.",
@@ -569,16 +553,6 @@
       "additionalProperties": false,
       "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via ``GET`` (e.g. ``GET /setting?option=9``) sets\n``method: GET`` with ``query_from_request: true``, exactly like a command.",
       "properties": {
-        "body_codec": {
-          "default": "json",
-          "description": "How the request body is encoded (``none`` = no body). Currently informational.",
-          "enum": [
-            "json",
-            "none"
-          ],
-          "title": "Body Codec",
-          "type": "string"
-        },
         "method": {
           "default": "GET",
           "description": "HTTP verb for this attribute operation.",
@@ -602,16 +576,6 @@
           "description": "When true, request fields go on the query string instead of the JSON body.",
           "title": "Query From Request",
           "type": "boolean"
-        },
-        "response_codec": {
-          "default": "json",
-          "description": "How the response body is decoded (``none`` = don't decode). Currently informational.",
-          "enum": [
-            "json",
-            "none"
-          ],
-          "title": "Response Codec",
-          "type": "string"
         },
         "timeout": {
           "anyOf": [
@@ -737,16 +701,6 @@
       "additionalProperties": false,
       "description": "Per-(command, http-transport) wire-format and behavior block.",
       "properties": {
-        "body_codec": {
-          "default": "json",
-          "description": "How the request body is encoded (``none`` = no body). Currently informational.",
-          "enum": [
-            "json",
-            "none"
-          ],
-          "title": "Body Codec",
-          "type": "string"
-        },
         "codec": {
           "anyOf": [
             {
@@ -788,16 +742,6 @@
           "description": "When true, request fields go on the query string instead of the JSON body.",
           "title": "Query From Request",
           "type": "boolean"
-        },
-        "response_codec": {
-          "default": "json",
-          "description": "How the response body is decoded (``none`` = don't decode). Currently informational.",
-          "enum": [
-            "json",
-            "none"
-          ],
-          "title": "Response Codec",
-          "type": "string"
         },
         "timeout": {
           "anyOf": [
@@ -968,12 +912,6 @@
           "default": null,
           "description": "Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec).",
           "title": "Codec"
-        },
-        "config": {
-          "additionalProperties": true,
-          "description": "Free-form runtime config (currently informational; base URL etc. are supplied at runtime).",
-          "title": "Config",
-          "type": "object"
         },
         "enrollment": {
           "anyOf": [

@@ -140,7 +140,7 @@ _HTTP_ATTR_MANIFEST = dedent(
         http:
           http:
             read: { method: GET, path: /v1/settings/level }
-            write: { method: PUT, path: /v1/settings/level, body_codec: json }
+            write: { method: PUT, path: /v1/settings/level }
             subscribe: { mode: sse, path: /v1/settings/level/events }
     """
 ).lstrip()
@@ -250,7 +250,6 @@ def test_attribute_mixed_operations_shapes(tmp_path: Path) -> None:
     sync_tick = client_src.split("class _SyncAlertsTickAttribute:", 1)[1]
     assert "def read(" not in sync_tick.split("class ", 1)[0]
     assert "def write(" not in sync_tick.split("class ", 1)[0]
-
 
 
 # ---------------------------------------------------------------------------
@@ -488,4 +487,3 @@ def test_attribute_profile_build_vendors_handler(tmp_path: Path) -> None:
     # ...and the handler module is actually vendored under _internal/.
     assert internal_dir.is_dir()
     assert any(p.name == "attr.py" for p in internal_dir.rglob("*.py"))
-

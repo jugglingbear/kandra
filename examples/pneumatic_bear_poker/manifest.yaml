@@ -20,7 +20,6 @@ source_roots:
 transports:
   - id: wifi   # HTTP over the device's Wi-Fi; each operation's http: block is keyed by this id
     family: http
-    config: { base_url: "http://192.168.1.1:8080" }
     # HTTP may omit codec (runtime HttpJsonCodec) and adapter (runtime HttpTransport).
     # The generated SDK bakes this into http_enrollment(); the device's auth endpoint stays out of caller code
     # (credentials still injected at runtime).
@@ -38,8 +37,6 @@ commands:
       wifi:
         method: POST
         path: /v1/poker/deploy
-        body_codec: json
-        response_codec: json
         expects_response: true
 
   # Pull the arm back. A no-op when already retracted; rejected while powered off.
@@ -54,8 +51,6 @@ commands:
       wifi:
         method: POST
         path: /v1/poker/retract
-        body_codec: json
-        response_codec: json
         expects_response: true
 
   # Bench testing only: extend the arm like poker.deploy, but without its 100 psi ceiling.
@@ -71,8 +66,6 @@ commands:
       wifi:
         method: POST
         path: /v1/poker/overdrive
-        body_codec: json
-        response_codec: json
         expects_response: true
 
   # Energise the compressor and bring the air rail up to standby pressure. The arm only moves while powered.
@@ -86,8 +79,6 @@ commands:
       wifi:
         method: POST
         path: /v1/power/on
-        body_codec: json
-        response_codec: json
         expects_response: true
 
   # De-energise the compressor, optionally venting residual line pressure first. The arm stays where it is.
@@ -101,8 +92,6 @@ commands:
       wifi:
         method: POST
         path: /v1/power/off
-        body_codec: json
-        response_codec: json
         # Fire-and-forget: cutting its own power rail drops the HTTP reply mid-flight, so we don't wait for an ACK
         # we'll never see.
         expects_response: false
@@ -120,8 +109,6 @@ commands:
       wifi:
         method: GET
         path: /v1/logs
-        body_codec: json
-        response_codec: json
         # GET with a body is legal in JSON-RPC-style APIs but messy; ask the generator to lift request fields onto the
         # query string.
         query_from_request: true
@@ -140,7 +127,7 @@ attributes:
       wifi:
         # Explicit verbs, exactly like commands: read via GET, write via PUT.
         read: { method: GET, path: /v1/settings/poke_intensity }
-        write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
+        write: { method: PUT, path: /v1/settings/poke_intensity }
 
   # What the device is doing right now: power, arm position, and line pressure.
   - id: device.status

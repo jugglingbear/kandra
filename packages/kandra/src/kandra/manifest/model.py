@@ -8,7 +8,7 @@ dotted paths and resolved at generation time.
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
@@ -148,8 +148,6 @@ class Transport(_ManifestModel):
     """Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec)."""
     family: Literal["loopback", "http", "ble"] | None = None
     """Transport family; drives cross-validation and which per-command block (``http:`` / ``ble:``) is required."""
-    config: dict[str, Any] = Field(default_factory=dict)
-    """Free-form runtime config (currently informational; base URL etc. are supplied at runtime)."""
     channels: dict[IdentifierStr, BleChannelSpec] = Field(default_factory=dict)
     """BLE only: named (write, notify) characteristic pairs; commands pick one via ``ble.<id>.channel``."""
     auth: TransportAuth | None = None
@@ -202,10 +200,6 @@ class HttpCommandSpec(_ManifestModel):
     or plain-text body). It is constructed like ``HttpJsonCodec`` (method / path / request + response types /
     ``query_from_request``), so the simplest override subclasses ``HttpJsonCodec`` and overrides ``decode``. Omit
     to use the JSON default."""
-    body_codec: Literal["json", "none"] = "json"
-    """How the request body is encoded (``none`` = no body). Currently informational."""
-    response_codec: Literal["json", "none"] = "json"
-    """How the response body is decoded (``none`` = don't decode). Currently informational."""
     query_from_request: bool = False
     """When true, request fields go on the query string instead of the JSON body."""
     expects_response: bool = True
@@ -259,8 +253,6 @@ class Command(_ManifestModel):
     """Transport ids this command may ride; each must be defined under ``transports:``."""
     audience: list[AudienceTag] = Field(min_length=1)
     """Audiences allowed to call this command (a subset of the device audience)."""
-    opcode: int | str | None = None
-    """Reserved: protocol opcode (not yet wired)."""
     capabilities: list[str] = Field(default_factory=list)
     """Capability tags gating this command; the client refuses it on devices that lack them."""
     idempotent: bool = False
@@ -321,10 +313,6 @@ class HttpAttributeOp(_ManifestModel):
     """HTTP verb for this attribute operation."""
     path: str = Field(min_length=1)
     """Request path."""
-    body_codec: Literal["json", "none"] = "json"
-    """How the request body is encoded (``none`` = no body). Currently informational."""
-    response_codec: Literal["json", "none"] = "json"
-    """How the response body is decoded (``none`` = don't decode). Currently informational."""
     query_from_request: bool = False
     """When true, request fields go on the query string instead of the JSON body."""
     timeout: float | None = Field(default=None, gt=0)

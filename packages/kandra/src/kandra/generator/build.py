@@ -593,8 +593,6 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
             http_wires[tid] = HttpCommandWire(
                 method=spec.method,
                 path=spec.path,
-                body_codec=spec.body_codec,
-                response_codec=spec.response_codec,
                 query_from_request=spec.query_from_request,
                 expects_response=spec.expects_response,
                 timeout=spec.timeout,
@@ -759,8 +757,6 @@ def _attribute_http_wire(op: str, spec: HttpAttributeSpec) -> HttpCommandWire:
         return HttpCommandWire(
             method="GET",
             path=sub.path,
-            body_codec="none",
-            response_codec="json",
             query_from_request=False,
             expects_response=True,
             timeout=sub.timeout,
@@ -770,8 +766,6 @@ def _attribute_http_wire(op: str, spec: HttpAttributeSpec) -> HttpCommandWire:
     return HttpCommandWire(
         method=http_op.method,
         path=http_op.path,
-        body_codec=http_op.body_codec,
-        response_codec=http_op.response_codec,
         query_from_request=http_op.query_from_request,
         expects_response=True,
         timeout=http_op.timeout,
@@ -865,8 +859,6 @@ def _event_op_spec(event: Event, payload_alias: str, payload_import: str) -> Com
         tid: HttpCommandWire(
             method="GET",
             path=spec.path,
-            body_codec="none",
-            response_codec="json",
             query_from_request=False,
             expects_response=True,
             timeout=spec.timeout,

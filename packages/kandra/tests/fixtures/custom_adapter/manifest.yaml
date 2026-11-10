@@ -18,7 +18,6 @@ transports:
     family: http
     adapter: custom_adapter.device:CustomHttpTransport
     codec: custom_adapter.device:JsonCodec
-    config: { base_url: "http://127.0.0.1:8080" }
 
 commands:
   - id: widget.ping
@@ -29,6 +28,4 @@ commands:
       http:
         method: POST
         path: /v1/ping
-        body_codec: json
-        response_codec: json
         expects_response: true

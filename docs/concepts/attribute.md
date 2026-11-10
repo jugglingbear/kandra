@@ -76,7 +76,7 @@ attributes:
     http:
       wifi:
         read:  { method: GET, path: /v1/settings/poke_intensity }
-        write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
+        write: { method: PUT, path: /v1/settings/poke_intensity }
         # To also push changes, add `subscribe` to `operations` and wire it, e.g.:
         # subscribe: { mode: sse, path: /v1/settings/poke_intensity/events }
 ```
