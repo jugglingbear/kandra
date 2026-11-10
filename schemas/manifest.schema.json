@@ -948,6 +948,19 @@
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Id",
           "type": "string"
+        },
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dotted path (``module:Class``) to a ``ResponseInterpreter`` that classifies every reply on this transport; it is\nconstructed with no arguments. Omit for the family default (HTTP: status codes; BLE / loopback: always accepted).",
+          "title": "Interpreter"
         }
       },
       "required": [

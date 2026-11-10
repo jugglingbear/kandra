@@ -61,8 +61,8 @@ The complete Pneumatic Bear Poker manifest, included straight from the example s
 What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
 else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
 
-`source_roots:` also bounds what an SDK can contain: every handler, codec, and adapter must live under a source root
-or the build fails, and a `--profile` build vendors only files from under the roots.
+`source_roots:` also bounds what an SDK can contain: every handler, codec, adapter, and interpreter must live under a
+source root or the build fails, and a `--profile` build vendors only files from under the roots.
 
 Each entry under `transports:` declares one wire transport; its `family:` (`http`, `ble`, or `loopback`) decides which
 per-operation wiring block is required.
@@ -74,6 +74,10 @@ per-operation wiring block is required.
   for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class` to
   plug in a custom transport — see
   [Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
+- `interpreter:` (optional) names the class that decides whether each reply on this transport means success: **omit
+  it** for the family default (HTTP status codes; BLE and loopback accept every reply), or point it at your own
+  `package.module:Class` when the device reports errors some other way, such as inside a `200` body — see
+  [Custom interpreters](result.md#custom-interpreters).
 - `channels:` (BLE only) names `(write, notify)` characteristic UUID pairs; each BLE command selects one by name.
 - `enrollment: { login_path: /path }` (HTTP only, plus an optional `token_field`) is baked into a
   `<device>_sdk.http_enrollment()` factory (and the default for `discover_and_connect`), keeping the device's login

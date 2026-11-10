@@ -146,6 +146,9 @@ class Transport(_ManifestModel):
     """Dotted path to a custom transport class; omit for the runtime default (HttpTransport / BleTransport)."""
     codec: str | None = None
     """Dotted path to the wire codec. Required for every family except HTTP (which uses the built-in HttpJsonCodec)."""
+    interpreter: str | None = None
+    """Dotted path (``module:Class``) to a ``ResponseInterpreter`` that classifies every reply on this transport; it is
+    constructed with no arguments. Omit for the family default (HTTP: status codes; BLE / loopback: always accepted)."""
     family: Literal["loopback", "http", "ble"] | None = None
     """Transport family; drives cross-validation and which per-command block (``http:`` / ``ble:``) is required."""
     channels: dict[IdentifierStr, BleChannelSpec] = Field(default_factory=dict)
@@ -155,7 +158,7 @@ class Transport(_ManifestModel):
     enrollment: TransportEnrollment | None = None
     """HTTP only: declarative first-run login endpoint baked into the generated SDK's enrollment adapter."""
 
-    @field_validator("adapter", "codec")
+    @field_validator("adapter", "codec", "interpreter")
     @classmethod
     def _check_paths(cls, value: str | None) -> str | None:
         if value is None:

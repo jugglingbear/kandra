@@ -31,6 +31,10 @@ class TransportSpec:
     # default (HttpTransport / BleTransport).
     adapter_import: str | None = None
     adapter_alias: str | None = None
+    # Optional custom ResponseInterpreter (dotted path). When None, the registry uses the family default
+    # (default_http_interpreter for HTTP, always_accepted_interpreter otherwise).
+    interpreter_import: str | None = None
+    interpreter_alias: str | None = None
     # Declarative HTTP enrollment (login_path/token_field) baked into a generated `http_enrollment()` factory; None when
     # the transport declares no enrollment.
     enrollment_login_path: str | None = None
@@ -242,36 +246,36 @@ def _render_runtime_imports(transports: list[TransportSpec], needs_http_codec: b
     """Compute the ``from kandra_runtime import ...`` block for the registry."""
     lines = ["from kandra_runtime import Command"]
     if needs_http_codec:
-        lines.append("from kandra_runtime import HttpJsonCodec, default_http_interpreter")
+        http_names = ["HttpJsonCodec"]
+        if any(t.family == "http" and t.interpreter_alias is None for t in transports):
+            http_names.append("default_http_interpreter")
+        lines.append(f"from kandra_runtime import {', '.join(http_names)}")
     if any(t.family == "ble" for t in transports):
         lines.append("from kandra_runtime import BleChannelCodec")
-    # BLE and non-http families both use the always-accepted interpreter since BLE has no universal protocol-level
-    # status code and loopback/custom families don't either.
-    if any(t.family != "http" for t in transports):
+    # BLE and non-http families both default to the always-accepted interpreter since BLE has no universal
+    # protocol-level status code and loopback/custom families don't either.
+    if any(t.family != "http" and t.interpreter_alias is None for t in transports):
         lines.append("from kandra_runtime import always_accepted_interpreter")
     return "\n".join(lines)
 
 
+def _registry_import_lines(commands: list[CommandSpec], transports: list[TransportSpec]) -> list[str]:
+    """Collect the distinct user import lines the registry needs, in first-seen order.
+
+    Transport codecs (non-family transports) and interpreters come first, then each command's request/response aliases
+    and per-command codec overrides.
+    """
+    candidates: list[str | None] = [line for t in transports for line in (t.codec_import, t.interpreter_import)]
+    for c in commands:
+        candidates += [c.request_import, c.response_import]
+        wires: tuple[HttpCommandWire | BleCommandWire, ...] = (*c.http_wires.values(), *c.ble_wires.values())
+        candidates += [wire.codec_import for wire in wires]
+    return list(dict.fromkeys(line for line in candidates if line))
+
+
 def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]) -> str:
     r"""Emit the ``registry.py`` module mapping command ids to per-transport ``Command``\ s."""
-    # Collect distinct import lines for user-supplied codecs (non-family transports) and per-command request/response
-    # aliases.
-    seen: set[str] = set()
-    import_lines: list[str] = []
-    for t in transports:
-        if t.codec_import and t.codec_import not in seen:
-            seen.add(t.codec_import)
-            import_lines.append(t.codec_import)
-    for c in commands:
-        for line in (c.request_import, c.response_import):
-            if line not in seen:
-                seen.add(line)
-                import_lines.append(line)
-        wires: tuple[HttpCommandWire | BleCommandWire, ...] = (*c.http_wires.values(), *c.ble_wires.values())
-        for wire in wires:
-            if wire.codec_import and wire.codec_import not in seen:
-                seen.add(wire.codec_import)
-                import_lines.append(wire.codec_import)
+    import_lines = _registry_import_lines(commands, transports)
 
     # Determine if any HTTP-family transports are used (then we need HttpJsonCodec imported from kandra_runtime).
     needs_http_codec = any(t.family == "http" for t in transports)
@@ -318,6 +322,8 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         behavior_kwargs.append(f"retries={c.retries}")
     behavior = "".join(f"{kw}, " for kw in behavior_kwargs)
     behavior_trailing = "".join(f", {kw}" for kw in behavior_kwargs)
+    family_default = "default_http_interpreter" if t.family == "http" else "always_accepted_interpreter"
+    interpreter = f"{t.interpreter_alias}()" if t.interpreter_alias else family_default
     if t.family == "http":
         wire = c.http_wires[t.transport_id]
         timeout = wire.timeout if wire.timeout is not None else c.timeout
@@ -334,7 +340,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f"{indent}        response_type={c.response_alias},\n"
             f"{indent}        query_from_request={wire.query_from_request},\n"
             f"{indent}    ),\n"
-            f"{indent}    interpreter=default_http_interpreter,\n"
+            f"{indent}    interpreter={interpreter},\n"
             f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
         )
@@ -356,19 +362,19 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
             f'{indent}        channel="{ble_wire.channel}",\n'
             f"{indent}        payload_codec={payload_codec},\n"
             f"{indent}    ),\n"
-            f"{indent}    interpreter=always_accepted_interpreter,\n"
+            f"{indent}    interpreter={interpreter},\n"
             f"{indent}    {timeout_arg}{behavior}expects_response={expects},\n"
             f"{indent}),"
         )
-    # Loopback / unknown family: use the user-supplied codec from the manifest plus the always-accepted interpreter (the
-    # user's codec is responsible for raising CodecError on bad data; classification is meaningless here).
+    # Loopback / unknown family: use the user-supplied codec from the manifest plus the transport's interpreter
+    # (always-accepted by default: the user's codec is responsible for raising CodecError on bad data).
     timeout_arg = f", timeout={c.timeout}" if c.timeout is not None else ""
     assert t.codec_alias is not None
     return (
         f"{indent}TransportId.{t.enum_member}: Command(\n"
         f'{indent}    id="{c.command_id}",\n'
         f"{indent}    codec={t.codec_alias}({c.request_alias}, {c.response_alias}),\n"
-        f"{indent}    interpreter=always_accepted_interpreter{timeout_arg}{behavior_trailing},\n"
+        f"{indent}    interpreter={interpreter}{timeout_arg}{behavior_trailing},\n"
         f"{indent}),"
     )
 

@@ -105,11 +105,43 @@ The runtime ships a sensible default for HTTP (`default_http_interpreter`) keyed
   - ANOMALOUS
 ```
 
-The generator wires the interpreter by transport family: `default_http_interpreter` for HTTP (the status-code rules
-above), and `always_accepted_interpreter` for BLE / loopback — there the codec itself flags a bad response by raising
-`CodecError` (which surfaces as `ANOMALOUS`). A custom rule — say an HTTP device with a vendor error envelope like
-`{"status": "ok", "result_generic": -42}` — means implementing the `ResponseInterpreter` protocol directly. The
-manifest has no per-command interpreter field today.
+Unless the manifest says otherwise, the generator wires the family default: `default_http_interpreter` for HTTP (the
+status-code rules above), and `always_accepted_interpreter` for BLE / loopback — there the codec itself flags a bad
+response by raising `CodecError` (which surfaces as `ANOMALOUS`).
+
+### Custom Interpreters
+
+When a device reports failure some other way — an HTTP device that answers `200` with `{"ok": false, "error": "busy"}`,
+or a BLE reply carrying a status byte — write a class that implements the protocol above and name it on the transport:
+
+```yaml
+transports:
+  - id: wifi
+    family: http
+    interpreter: mydevice.interpreters:EnvelopeInterpreter
+```
+
+```python
+import json
+
+from kandra_runtime import Classification, ClassificationVerdict, HttpResponse
+
+
+class EnvelopeInterpreter:
+    """Read the device's own ok/error envelope instead of trusting the HTTP status alone."""
+
+    def classify(self, response: HttpResponse) -> ClassificationVerdict:
+        if response.status >= 500:
+            return ClassificationVerdict(Classification.DEVICE_FAULT, reason=f"HTTP {response.status}")
+        body = json.loads(response.body or b"{}")
+        if response.status >= 400 or body.get("ok") is False:
+            return ClassificationVerdict(Classification.REJECTED, reason=body.get("error", f"HTTP {response.status}"))
+        return ClassificationVerdict(Classification.ACCEPTED)
+```
+
+The class is constructed with no arguments and classifies every reply on that transport — commands, attribute
+operations, and events alike. Like a handler or codec it lives under a `source_roots` path, so a `--profile` build
+vendors it with the rest of the SDK. There is no per-command override yet.
 
 ## Why an Envelope, Not Exceptions?
 

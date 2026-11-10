@@ -46,7 +46,7 @@ from kandra.generator.render import (
 )
 from kandra.leakage import assert_no_leakage
 from kandra.loader import load_manifest
-from kandra.manifest import Attribute, Command, Event, Manifest
+from kandra.manifest import Attribute, Command, Event, Manifest, Transport
 from kandra.manifest.model import BleCommandSpec, HttpAttributeSpec, HttpCommandSpec
 from kandra.vendor import internal_prefix, rewrite_imports, vendor_closure
 
@@ -213,7 +213,7 @@ def _build_profile_sdk(
     used_transport_ids = {tid for cmd in surviving for tid in cmd.transports}
     used_transport_ids |= {tid for attr in surviving_attrs for tid in attr.transports}
     used_transport_ids |= {tid for event in surviving_events for tid in event.transports}
-    entry_modules |= _transport_codec_entry_modules(manifest, used_transport_ids)
+    entry_modules |= _transport_entry_modules(manifest, used_transport_ids)
 
     closure = walk_closure(
         entry_modules,
@@ -284,20 +284,16 @@ def _build_profile_sdk(
     )
 
 
-def _transport_codec_entry_modules(manifest: Manifest, used_transport_ids: set[str]) -> frozenset[str]:
-    """Return codec modules the generated registry imports for used non-HTTP transports.
+def _transport_entry_modules(manifest: Manifest, used_transport_ids: set[str]) -> frozenset[str]:
+    """Return the user modules the generated SDK imports for used transports (codec, adapter, interpreter).
 
-    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor); BLE and loopback/unknown transports import
-    the user's codec, so its module must be part of the closure.
+    HTTP transports use the runtime's ``HttpJsonCodec`` (nothing to vendor for the codec); every other user class a used
+    transport names must be part of the closure.
     """
     modules: set[str] = set()
     for t in manifest.transports:
-        if t.id not in used_transport_ids:
-            continue
-        if t.family != "http" and t.codec is not None:
-            modules.add(t.codec.split(":")[0])
-        if t.adapter is not None:
-            modules.add(t.adapter.split(":")[0])
+        if t.id in used_transport_ids:
+            modules.update(module for module, _ in _transport_entry_points(t))
     return frozenset(modules)
 
 
@@ -366,10 +362,14 @@ def _check_entry_files_survive(
 
 
 def _rewrite_transport_spec(spec: TransportSpec, tops: frozenset[str], prefix: str) -> TransportSpec:
-    """Rewrite a transport spec's codec import to the vendored ``_internal`` namespace."""
-    if spec.codec_import is None:
-        return spec
-    return replace(spec, codec_import=_rewrite_import_line(spec.codec_import, tops, prefix))
+    """Rewrite a transport spec's codec and interpreter imports to the vendored ``_internal`` namespace."""
+    return replace(
+        spec,
+        codec_import=None if spec.codec_import is None else _rewrite_import_line(spec.codec_import, tops, prefix),
+        interpreter_import=(
+            None if spec.interpreter_import is None else _rewrite_import_line(spec.interpreter_import, tops, prefix)
+        ),
+    )
 
 
 def _rewrite_command_spec(spec: CommandSpec, tops: frozenset[str], prefix: str) -> CommandSpec:
@@ -488,12 +488,19 @@ def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
         if e.handler is not None:
             eps.append((e.handler.split(":")[0], f"event {e.id!r} handler"))
     for t in manifest.transports:
-        # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not an entry point the generator resolves
-        # -- mirror _transport_codec_entry_modules.
-        if t.family != "http" and t.codec is not None:
-            eps.append((t.codec.split(":")[0], f"transport {t.id!r} codec"))
-        if t.adapter is not None:
-            eps.append((t.adapter.split(":")[0], f"transport {t.id!r} adapter"))
+        eps.extend(_transport_entry_points(t))
+    return eps
+
+
+def _transport_entry_points(t: Transport) -> list[tuple[str, str]]:
+    """Collect ``(module, label)`` for the user classes a transport names: codec, adapter, and interpreter."""
+    eps: list[tuple[str, str]] = []
+    # HTTP ignores the manifest codec (built-in HttpJsonCodec), so it is not an entry point the generator resolves.
+    if t.family != "http" and t.codec is not None:
+        eps.append((t.codec.split(":")[0], f"transport {t.id!r} codec"))
+    for kind, dotted in (("adapter", t.adapter), ("interpreter", t.interpreter)):
+        if dotted is not None:
+            eps.append((dotted.split(":")[0], f"transport {t.id!r} {kind}"))
     return eps
 
 
@@ -507,6 +514,7 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
             _import_attr(a_module, a_class, what=f"transport {t.id!r} adapter")
             adapter_alias = f"_Adapter_{_sanitize(t.id)}"
             adapter_import = f"from {a_module} import {a_class} as {adapter_alias}"
+        interpreter_import, interpreter_alias = _wire_interpreter(t)
         # HTTP uses the built-in HttpJsonCodec from kandra_runtime (parameterized per-command from the http: blocks), so
         # the manifest's transport.codec is optional and ignored here. BLE imports the user's payload codec and wraps it
         # per-command with BleChannelCodec; loopback / unknown family import the user's codec and wire it positionally
@@ -521,6 +529,8 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                     codec_alias=None,
                     adapter_import=adapter_import,
                     adapter_alias=adapter_alias,
+                    interpreter_import=interpreter_import,
+                    interpreter_alias=interpreter_alias,
                     enrollment_login_path=(t.enrollment.login_path if t.enrollment is not None else None),
                     enrollment_token_field=(t.enrollment.token_field if t.enrollment is not None else None),
                 )
@@ -544,9 +554,23 @@ def _resolve_transports(manifest: Manifest) -> list[TransportSpec]:
                 channels=channels,
                 adapter_import=adapter_import,
                 adapter_alias=adapter_alias,
+                interpreter_import=interpreter_import,
+                interpreter_alias=interpreter_alias,
             )
         )
     return specs
+
+
+def _wire_interpreter(t: Transport) -> tuple[str | None, str | None]:
+    """Resolve a transport's optional ``interpreter:`` to ``(import_line, alias)``, or ``(None, None)`` if unset."""
+    if t.interpreter is None:
+        return None, None
+    module_path, class_name = t.interpreter.split(":")
+    cls = _import_attr(module_path, class_name, what=f"transport {t.id!r} interpreter")
+    if not callable(getattr(cls, "classify", None)):
+        raise BuildError(f"transport {t.id!r} interpreter {t.interpreter!r} has no classify(response) method")
+    alias = f"_Interp_{_sanitize(t.id)}"
+    return f"from {module_path} import {class_name} as {alias}", alias
 
 
 def _wire_codec(codec: str | None, cmd_id: str, tid: str, entry_modules: set[str]) -> tuple[str | None, str | None]:

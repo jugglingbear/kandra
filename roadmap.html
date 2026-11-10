@@ -135,6 +135,31 @@
         <p class="why">Design detail lives in
           <a href="docs/concepts/lifecycle.md"><code>docs/concepts/lifecycle.md</code></a>.</p>
       </div>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M17</span> &mdash; Manifest-wired response interpreters</h3>
+          <span class="badge progress">In progress</span>
+        </header>
+        <p class="why">Every reply is classified by a <code>ResponseInterpreter</code>, and device-specific rules are
+          meant to live in one the SDK author writes &mdash; but the manifest couldn&rsquo;t name one, so the generated
+          SDK always used the family default (HTTP status codes; BLE / loopback: always accepted). A device that reports
+          an error inside a <code>200</code> body or a BLE reply was misclassified as <code>ACCEPTED</code>.</p>
+
+        <h4>Shipped</h4>
+        <ul class="scope">
+          <li>A transport-level <code>interpreter: package.module:Class</code> that the generator import-checks, vendors
+            like a codec, and uses for every operation on that transport; omit it for the family default.</li>
+        </ul>
+
+        <h4>Remaining</h4>
+        <ul class="scope">
+          <li>A per-operation override in the <code>http:</code> / <code>ble:</code> block (like <code>codec:</code>)
+            for a command whose reply format differs from the rest of the transport.</li>
+        </ul>
+        <p class="why">Design detail lives in
+          <a href="docs/concepts/result.md"><code>docs/concepts/result.md</code></a>.</p>
+      </div>
     </section>
 
     <section class="tier">
