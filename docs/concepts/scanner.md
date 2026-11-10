@@ -73,16 +73,16 @@ sequenceDiagram
 
     App->>Scanner: snapshot_scan(timeout=5)
     par Parallel probes
-        Scanner->>DevA: GET /.well-known/<id>
-        Scanner->>DevB: GET /.well-known/<id>
-        Scanner->>DevC: GET /.well-known/<id>
+        Scanner->>DevA: GET <probe_path>
+        Scanner->>DevB: GET <probe_path>
+        Scanner->>DevC: GET <probe_path>
     end
-    DevA-->>Scanner: 200 OK + identifying body
-    DevB-->>Scanner: 404 Not Found
+    DevA-->>Scanner: 200 OK + matching Server header
+    DevB-->>Scanner: 200 OK + some other Server header
     Note over Scanner,DevC: Times out silently
 
     Scanner->>Scanner: matcher(DevA) -> True
-    Scanner->>Scanner: matcher(DevB) -> False (no body)
+    Scanner->>Scanner: matcher(DevB) -> False (wrong Server header)
     Scanner-->>App: [Candidate(DevA)]
 ```
 

@@ -507,9 +507,9 @@ class HttpDiscoverySpec(_ManifestModel):
     """
 
     base_urls: list[str] = Field(min_length=1)
-    """URLs to probe in parallel; the first whose ``probe_path`` returns 200 wins."""
+    """URLs to probe in parallel; every one whose ``probe_path`` answers (status < 400) and matches is a candidate."""
     probe_path: str = Field(default="/", min_length=1)
-    """Path probed to confirm a device (e.g. ``/.well-known/...``)."""
+    """Path probed to confirm a device (e.g. ``/v1/status``). Must answer without a login."""
     server_header_prefix: str | None = Field(default=None, min_length=1)
     """Optional: require the probe response's ``Server`` header to start with this."""
 

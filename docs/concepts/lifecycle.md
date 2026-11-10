@@ -91,7 +91,7 @@ sequenceDiagram
     rect rgb(240, 248, 255)
     note over App,Device: Phase 1-3: First-time setup (once per device)
     App->>Scanner: scan_http(timeout=5)
-    Scanner->>Device: probe /.well-known/<id>
+    Scanner->>Device: GET <probe_path>
     Device-->>Scanner: 200 OK + Server header
     Scanner-->>App: [Candidate]
     App->>Enroll: enroll(candidate, saved_name="kitchen")

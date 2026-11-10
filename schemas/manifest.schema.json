@@ -826,7 +826,7 @@
       "description": "Probe-list configuration for HTTP discovery.\n\nUnlike BLE, HTTP discovery has nothing to listen for \u2014 the scanner must be told which URLs to probe. ``base_urls``\nis therefore required whenever this sub-block is present.",
       "properties": {
         "base_urls": {
-          "description": "URLs to probe in parallel; the first whose ``probe_path`` returns 200 wins.",
+          "description": "URLs to probe in parallel; every one whose ``probe_path`` answers (status < 400) and matches is a candidate.",
           "items": {
             "type": "string"
           },
@@ -836,7 +836,7 @@
         },
         "probe_path": {
           "default": "/",
-          "description": "Path probed to confirm a device (e.g. ``/.well-known/...``).",
+          "description": "Path probed to confirm a device (e.g. ``/v1/status``). Must answer without a login.",
           "minLength": 1,
           "title": "Probe Path",
           "type": "string"
