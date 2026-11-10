@@ -17,6 +17,7 @@ def test_example_manifest_loads() -> None:
     assert {c.id for c in manifest.commands} == {
         "poker.deploy",
         "poker.retract",
+        "poker.overdrive",
         "power.on",
         "power.off",
         "logs.download",

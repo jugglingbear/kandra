@@ -89,7 +89,7 @@ def test_handler_docstrings_flow_into_generated_sdk(sdk_on_path: Path) -> None:
     from pneumatic_bear_poker_sdk import client
 
     deploy_doc = inspect.getdoc(client._PokerNamespace.deploy) or ""
-    assert deploy_doc.startswith("Extend the arm at the requested pressure.")
+    assert deploy_doc.startswith("Extend the arm at the requested pressure (100 psi max).")
     assert "Invokes `poker.deploy`." in deploy_doc
     assert (inspect.getdoc(client._SyncPokerNamespace.deploy) or "").startswith("Extend the arm")
     assert (inspect.getdoc(client._SettingsPokeIntensityAttribute) or "").startswith("`settings.poke_intensity` --")

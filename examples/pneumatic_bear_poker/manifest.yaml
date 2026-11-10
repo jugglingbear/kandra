@@ -27,7 +27,7 @@ transports:
     enrollment: { login_path: /v1/auth/login }
 
 commands:
-  # Extend the arm at the requested pressure. A no-op when already extended; rejected while powered off.
+  # Extend the arm at the requested pressure (100 psi max). A no-op when already extended; rejected while powered off.
   - id: poker.deploy
     handler: devices.pneumatic_bear_poker.handlers.poker:Deploy
     transports: [wifi]
@@ -54,6 +54,23 @@ commands:
       wifi:
         method: POST
         path: /v1/poker/retract
+        body_codec: json
+        response_codec: json
+        expects_response: true
+
+  # Bench testing only: extend the arm like poker.deploy, but without its 100 psi ceiling.
+  - id: poker.overdrive
+    handler: devices.pneumatic_bear_poker.handlers.overdrive:Overdrive
+    transports: [wifi]
+    # IP isolation: only the internal audience gets this command. A `--profile partner_woodland` build prunes it, and
+    # its handler file, from the SDK entirely. See docs/concepts/audiences.md.
+    audience: [internal]
+    timeout: 5.0
+    idempotent: true   # like deploy, a no-op when the arm is already extended
+    http:
+      wifi:
+        method: POST
+        path: /v1/poker/overdrive
         body_codec: json
         response_codec: json
         expects_response: true

@@ -37,12 +37,15 @@ profiles:
       - super_secret
       - dump_internal_registers
       - "@bearcorp.internal"
+      - overdrive                    # the internal-only poker.overdrive command
+      - Overdrive
 
 # Static path -> audience-tags map. Files absent here default to [internal].
 files:
   src/common/codecs/tlv.py:                                  [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/poker.py:        [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/diagnostics.py:  [internal, partner_woodland]
+  # handlers/overdrive.py is absent, so it keeps the default [internal] grant
   # ... every file a partner_woodland command can reach must be granted the tag
 ```
 
@@ -128,6 +131,8 @@ command InfoSec runs before signing off a release:
 $ kandra audit manifest.yaml --profile partner_woodland
 audit profile=partner_woodland include_audience=['partner_woodland']
 
+  + src/devices/pneumatic_bear_poker/handlers/diagnostics.py  [internal, partner_woodland]
+  - src/devices/pneumatic_bear_poker/handlers/overdrive.py  [internal]
   + src/devices/pneumatic_bear_poker/handlers/poker.py  [internal, partner_woodland]
   - src/devices/pneumatic_bear_poker/handlers/super_secret.py  [internal]
 ```
@@ -152,5 +157,6 @@ $ kandra build examples/pneumatic_bear_poker/manifest.yaml --profile internal --
 $ kandra build examples/pneumatic_bear_poker/manifest.yaml --profile partner_woodland --clean
 ```
 
-The partner artifact vendors the reference SDK under `_internal/`, drops the internal-only bench module
-(`super_secret.py`), passes the leakage scan, and imports cleanly with the source tree off the path.
+The partner artifact vendors the reference SDK under `_internal/`, drops the internal-only `poker.overdrive` command
+(no `client.poker.overdrive`, no `overdrive.py`) and the bench module (`super_secret.py`), passes the leakage scan, and
+imports cleanly with the source tree off the path. The internal build keeps both.

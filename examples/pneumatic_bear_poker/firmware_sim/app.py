@@ -34,6 +34,9 @@ _VALID_TOKEN = secrets.token_hex(16)
 # Reachable without a token: discovery and the login that issues one.
 _OPEN_PATHS = frozenset({"/.well-known/pneumatic-bear-poker", "/v1/auth/login"})
 
+# poker.deploy refuses anything higher (HTTP 400); the internal-only poker.overdrive has no ceiling.
+_DEPLOY_CEILING_PSI = 100
+
 
 def create_app() -> Flask:
     """Build and return the configured Flask app."""
@@ -86,17 +89,16 @@ def _register_settings(app: Flask) -> None:
 
 def _register_power_and_arm(app: Flask) -> None:
     """Register the commands that drive the power / arm state machine (docs: Manifest -> Device State Machine)."""
-    # Power and arm position are independent: nothing ever moves the arm except deploy / retract.
+    # Power and arm position are independent: nothing ever moves the arm except deploy / overdrive / retract.
     machine = {"powered": False, "extended": False, "held_psi": 0}
 
     @app.post("/v1/poker/deploy")
     def poker_deploy() -> Response:
-        if not machine["powered"]:
-            return _rejected("not powered")
-        if not machine["extended"]:
-            machine["held_psi"] = int(_json_body().get("pressure_psi", 0))
-            machine["extended"] = True
-        return jsonify({"delivered_psi": machine["held_psi"]})
+        return _extend(machine, _DEPLOY_CEILING_PSI)
+
+    @app.post("/v1/poker/overdrive")
+    def poker_overdrive() -> Response:
+        return _extend(machine, None)
 
     @app.post("/v1/poker/retract")
     def poker_retract() -> Response:
@@ -117,6 +119,19 @@ def _register_power_and_arm(app: Flask) -> None:
         return jsonify({"powered": False, "residual_psi": 0 if drain else 12})
 
 
+def _extend(machine: dict[str, Any], ceiling_psi: int | None) -> Response:
+    """Extend the arm (deploy / overdrive): refused while unpowered, a no-op when already extended."""
+    if not machine["powered"]:
+        return _rejected("not powered")
+    if not machine["extended"]:
+        pressure = int(_json_body().get("pressure_psi", 0))
+        if ceiling_psi is not None and pressure > ceiling_psi:
+            return _rejected(f"{pressure} psi exceeds the {ceiling_psi} psi ceiling", status=400)
+        machine["held_psi"] = pressure
+        machine["extended"] = True
+    return jsonify({"delivered_psi": machine["held_psi"]})
+
+
 def _require_token() -> Response | None:
     """Refuse any request without the current bearer token (HTTP 401), except discovery and login."""
     if request.path in _OPEN_PATHS or request.headers.get("Authorization") == f"Bearer {_VALID_TOKEN}":
@@ -132,10 +147,10 @@ def _json_body() -> dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
-def _rejected(reason: str) -> Response:
-    """Refuse a command that is invalid in the current state (HTTP 409, classified REJECTED)."""
+def _rejected(reason: str, *, status: int = 409) -> Response:
+    """Refuse a command (409 = invalid in the current state, 400 = bad argument); both classify as REJECTED."""
     response = jsonify({"error": reason})
-    response.status_code = 409
+    response.status_code = status
     return response
 
 

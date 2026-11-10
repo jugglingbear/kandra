@@ -50,6 +50,9 @@ def test_internal_profile_vendors_full_tree(tmp_path: Path) -> None:
     assert (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "super_important.py").is_file()
     # Assets copied verbatim.
     assert (internal / "devices" / "pneumatic_bear_poker" / "assets" / "poke_profiles.json").is_file()
+    # The internal-only command and its handler ship in the internal build.
+    assert (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "overdrive.py").is_file()
+    assert "def overdrive(" in (result.package_path / "client.py").read_text(encoding="utf-8")
 
 
 def test_partner_profile_prunes_internal_only_files(tmp_path: Path) -> None:
@@ -58,6 +61,9 @@ def test_partner_profile_prunes_internal_only_files(tmp_path: Path) -> None:
     # Excluded bench tooling and internal-default files must be absent.
     assert not (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "super_secret.py").exists()
     assert not (internal / "common" / "codecs" / "json.py").exists()
+    # The internal-only command is pruned from the client, and its handler file isn't vendored.
+    assert not (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "overdrive.py").exists()
+    assert "overdrive" not in (result.package_path / "client.py").read_text(encoding="utf-8")
     # Granted partner files present.
     assert (internal / "devices" / "pneumatic_bear_poker" / "handlers" / "poker.py").is_file()
 
@@ -69,6 +75,7 @@ def test_partner_profile_output_has_no_forbidden_substrings(tmp_path: Path) -> N
             text = path.read_text(encoding="utf-8")
             assert "super_secret" not in text
             assert "dump_internal_registers" not in text
+            assert "overdrive" not in text.lower()
 
 
 def test_vendored_registry_imports_point_at_internal(tmp_path: Path) -> None:

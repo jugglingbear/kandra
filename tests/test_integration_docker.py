@@ -264,6 +264,21 @@ async def test_fsm_power_off_leaves_arm_extended(client: Any) -> None:
     assert await client.power.off(PowerOffRequest()) is None
 
 
+async def test_fsm_overdrive_bypasses_deploy_ceiling(client: Any) -> None:
+    """deploy refuses more than 100 psi (HTTP 400 -> REJECTED); the internal-only overdrive does not."""
+    from devices.pneumatic_bear_poker.handlers.overdrive import OverdriveRequest
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
+    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest, PowerOnRequest
+
+    _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
+    _assert_rejected(await client.poker.deploy(DeployRequest(pressure_psi=150)))
+    _assert_accepted(
+        await client.poker.overdrive(OverdriveRequest(pressure_psi=150)), attr="delivered_psi", expected=150
+    )
+    _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
+    assert await client.power.off(PowerOffRequest()) is None
+
+
 async def test_cmd_logs_download_returns_requested_window(client: Any) -> None:
     """GET /v1/logs (query-string-encoded) honours `max_lines` and increments sequence."""
     from devices.pneumatic_bear_poker.handlers.diagnostics import DownloadLogsRequest

@@ -7,9 +7,10 @@ across devices. The generator runs per manifest; building with `--profile <profi
 (manifest, profile) pair, so N devices × M profiles = N × M shipped SDKs from a single source repo.
 
 Kandra ships with example manifests under `examples/`; the primary reference is the **Pneumatic Bear Poker**, a
-fictional device whose sole job is to poke bears (pneumatically). It has five commands (including `poker.deploy` and
+fictional device whose sole job is to poke bears (pneumatically). It has six commands (including `poker.deploy` and
 `poker.retract`) and one settable [attribute](attribute.md) (`settings.poke_intensity`), exposed over HTTP to two
-audiences: the internal team and the `partner_woodland` partner.
+audiences: the internal team and the `partner_woodland` partner. One command, the bench-testing `poker.overdrive`, is
+internal-only, so the partner's SDK never contains it (see [Audiences & IP Isolation](audiences.md)).
 
 ## Device State Machine
 
@@ -21,8 +22,8 @@ stateDiagram-v2
     [*] --> OFF_RETRACTED
     OFF_RETRACTED --> ON_RETRACTED : power.on
     ON_RETRACTED --> OFF_RETRACTED : power.off
-    ON_RETRACTED --> ON_EXTENDED : poker.deploy
-    ON_EXTENDED --> ON_EXTENDED : poker.deploy
+    ON_RETRACTED --> ON_EXTENDED : poker.deploy / overdrive
+    ON_EXTENDED --> ON_EXTENDED : poker.deploy / overdrive
     ON_EXTENDED --> ON_RETRACTED : poker.retract
     ON_RETRACTED --> ON_RETRACTED : poker.retract
     ON_EXTENDED --> OFF_EXTENDED : power.off

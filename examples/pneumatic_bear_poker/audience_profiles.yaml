@@ -18,13 +18,15 @@ profiles:
   partner_woodland:
     description: "Release for Woodland Robotics (external partner)."
     include_audience: [partner_woodland]
-    # These tokens must never appear in the shipped partner tree. The internal
-    # bench module (super_secret) is dropped via vendoring.exclude, so its name
-    # and its register-dump helper should be nowhere in the output.
+    # These tokens must never appear in the shipped partner tree. The internal bench module (super_secret) is dropped
+    # via vendoring.exclude, and the internal-only poker.overdrive command (handlers/overdrive.py) is pruned by
+    # audience, so none of their names should be anywhere in the output.
     deny_substrings:
       - super_secret
       - dump_internal_registers
       - "@bearcorp.internal"
+      - overdrive
+      - Overdrive
 
 # Static path -> audience-tags map. Files absent here default to [internal].
 # Every file reachable from a partner_woodland command must be granted the
@@ -38,6 +40,7 @@ files:
   src/devices/pneumatic_bear_poker/handlers/power.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/settings.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/diagnostics.py: [internal, partner_woodland]
+  # handlers/overdrive.py is deliberately absent: it keeps the default [internal] grant.
   src/devices/pneumatic_bear_poker/handlers/super_important.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/assets/poke_profiles.json: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/assets/pressure_curve.csv: [internal, partner_woodland]
