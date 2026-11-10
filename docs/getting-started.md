@@ -134,6 +134,23 @@ enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` 
 [RETRACT] accepted: arm retracted
 ```
 
+Now restart the simulator and run the demo once more. The sim issues a new token every time it starts, so the saved one
+is rejected (HTTP 401 → [`IdentityStaleError`](concepts/lifecycle.md#credential-staleness--re-enrollment)); the demo's
+`on_stale` hook re-enrolls, saves the fresh token, and retries the command:
+
+```text
+[POWER] sending power.on() ...
+    POST /v1/power/on  {}
+[STALE] saved token for 'grizzly' was rejected -- enrolling again ...
+[DISCOVER] probing http://127.0.0.1:48080 for a Pneumatic Bear Poker ...
+[DISCOVER] found device at http://127.0.0.1:48080
+[ENROLL] running the manifest-declared login and capturing the bearer token ...
+[ENROLL] credentials captured
+[SAVE] identity 'grizzly' written to ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
+    POST /v1/power/on  {}
+[POWER] accepted: unit powered
+```
+
 See [Lifecycle](concepts/lifecycle.md) for the full picture (and the one-call `discover_and_connect()`
 shortcut that collapses steps 1–4).
 

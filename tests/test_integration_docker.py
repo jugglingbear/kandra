@@ -276,6 +276,55 @@ async def test_cmd_logs_download_returns_requested_window(client: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Credential enforcement -- the sim refuses tokens it didn't issue with HTTP 401.
+# ---------------------------------------------------------------------------
+
+
+def _stale_store(store_dir: Path) -> Any:
+    """In-memory store holding the enrolled identity with its token swapped for one the sim never issued."""
+    from kandra_runtime import PlatformDirsJsonStore
+    from kandra_runtime.testing import MemoryIdentityStore
+
+    real = PlatformDirsJsonStore(app_name="pneumatic_bear_poker_sdk", directory=store_dir).load(SAVED_NAME)
+    store = MemoryIdentityStore()
+    store.save(real.model_copy(update={"auth_token": "stale-token"}))
+    return store
+
+
+async def test_auth_stale_token_raises_identity_stale(patched_base_urls: str, store_dir: Path) -> None:
+    """A rejected saved token surfaces as `IdentityStaleError` when no recovery hook is installed."""
+    from devices.pneumatic_bear_poker.handlers.diagnostics import DownloadLogsRequest
+    from kandra_runtime import IdentityStaleError
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient
+
+    async with await PneumaticBearPokerClient.connect(SAVED_NAME, store=_stale_store(store_dir)) as c:
+        with pytest.raises(IdentityStaleError):
+            await c.logs.download(DownloadLogsRequest(max_lines=1))
+
+
+async def test_auth_stale_token_recovers_by_re_enrolling(patched_base_urls: str, store_dir: Path) -> None:
+    """With `on_stale` + `refresh_mid_session`, the client re-enrolls, saves the new token, and retries once."""
+    from devices.pneumatic_bear_poker.handlers.diagnostics import DownloadLogsRequest
+    from kandra_runtime import HttpEnrollment, Identity
+    from pneumatic_bear_poker_sdk import PneumaticBearPokerClient, scan_http
+
+    store = _stale_store(store_dir)
+
+    async def recover(saved_name: str) -> Identity:
+        candidate = (await scan_http(timeout=5.0))[0]
+        identity = await HttpEnrollment(login_path="/v1/auth/login").enroll(candidate, saved_name=saved_name)
+        store.save(identity)
+        return identity
+
+    async with await PneumaticBearPokerClient.connect(
+        SAVED_NAME, store=store, on_stale=recover, refresh_mid_session=True
+    ) as c:
+        result = await c.logs.download(DownloadLogsRequest(max_lines=1))
+    assert result is not None and result.accepted
+    assert store.load(SAVED_NAME).auth_token != "stale-token"
+
+
+# ---------------------------------------------------------------------------
 # Attribute + event dispatch tests.
 # ---------------------------------------------------------------------------
 

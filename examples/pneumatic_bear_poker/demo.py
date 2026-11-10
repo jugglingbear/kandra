@@ -30,7 +30,7 @@ from typing import TypeVar
 
 from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
 from devices.pneumatic_bear_poker.handlers.power import PowerOnRequest
-from kandra_runtime import NOISE, PlatformDirsJsonStore, Result
+from kandra_runtime import NOISE, Identity, PlatformDirsJsonStore, Result
 from pneumatic_bear_poker_sdk import (
     PneumaticBearPokerClient,
     http_enrollment,
@@ -70,8 +70,8 @@ def _enable_wire_trace() -> None:
     logger.propagate = False
 
 
-async def first_run(url: str) -> None:
-    """Discover + enroll + save -- runs once per device."""
+async def first_run(url: str) -> Identity:
+    """Discover + enroll + save -- runs once per device, and again whenever the saved token is rejected."""
     # ---- (1) DISCOVER ------------------------------------------------------
     # `scan_http` uses the manifest's baked-in probe_path + matcher; we pass `base_urls` to aim it at our sim (or
     # real hardware) rather than the manifest's default addresses.
@@ -96,14 +96,22 @@ async def first_run(url: str) -> None:
     store = PlatformDirsJsonStore(app_name=APP_NAME)
     store.save(http_identity)
     _log("SAVE", f"identity {SAVED_NAME!r} written to {store.path}")
+    return http_identity
 
 
 async def subsequent_run(url: str) -> None:
     """Reopen the device by saved name and drive the arm through one deploy / retract cycle."""
+
+    async def recover(saved_name: str) -> Identity:
+        # The sim issues a new token every time it starts, so a token saved before a restart gets HTTP 401.
+        _log("STALE", f"saved token for {saved_name!r} was rejected -- enrolling again ...")
+        return await first_run(url)
+
     # `connect()` reads the saved identity, calls `from_identity` on every matching transport, opens each one,
-    # and hands back an async context manager that closes them on exit.
+    # and hands back an async context manager that closes them on exit. `on_stale` + `refresh_mid_session`
+    # re-enroll and retry the command once if the device rejects the saved credentials.
     _log("CONNECT", f"reopening device from saved identity {SAVED_NAME!r} ...")
-    async with await PneumaticBearPokerClient.connect(SAVED_NAME) as client:
+    async with await PneumaticBearPokerClient.connect(SAVED_NAME, on_stale=recover, refresh_mid_session=True) as client:
         # The arm only moves while the unit is powered; power.on is a no-op if it already is.
         _log("POWER", "sending power.on() ...")
         _require_accepted("POWER", await client.power.on(PowerOnRequest()), url)

@@ -34,13 +34,17 @@ _SSE_TICKS = 3  # finite SSE streams so subscribe() demos terminate cleanly
 _BEAR_STIR_MAGNITUDES = (17, 42, 99)
 
 
-# Single in-memory token; the test only enrolls once per container lifetime.
+# Regenerated on every start, so restarting the sim invalidates previously saved tokens (-> HTTP 401).
 _VALID_TOKEN = secrets.token_hex(16)
+
+# Reachable without a token: discovery and the login that issues one.
+_OPEN_PATHS = frozenset({"/.well-known/pneumatic-bear-poker", "/v1/auth/login"})
 
 
 def create_app() -> Flask:
     """Build and return the configured Flask app."""
     app = Flask(__name__)
+    app.before_request(_require_token)
 
     # ---- discovery probe --------------------------------------------------
     @app.get("/.well-known/pneumatic-bear-poker")
@@ -137,6 +141,15 @@ def _register_power_and_arm(app: Flask) -> None:
         drain = bool(_json_body().get("drain_pressure", True))
         machine["powered"] = False
         return jsonify({"powered": False, "residual_psi": 0 if drain else 12})
+
+
+def _require_token() -> Response | None:
+    """Refuse any request without the current bearer token (HTTP 401), except discovery and login."""
+    if request.path in _OPEN_PATHS or request.headers.get("Authorization") == f"Bearer {_VALID_TOKEN}":
+        return None
+    response = jsonify({"error": "missing or invalid bearer token"})
+    response.status_code = 401
+    return response
 
 
 def _json_body() -> dict[str, Any]:
