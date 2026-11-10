@@ -242,6 +242,53 @@
 
       <div class="card">
         <header>
+          <h3><span class="code-id">M15</span> &mdash; Push-updates example (subscribe &amp; events)</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">Attribute <code>subscribe</code> and events are fully supported (SSE, opt-in polling, BLE
+          notify) but were removed from the Pneumatic Bear Poker to keep the first example approachable &mdash; and
+          its sim only faked a stream anyway. They deserve their own small, honest example.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>A bare-bones example device with one subscribable attribute and one event, plus a sim that pushes
+            <em>real</em> changes (current value first, then one frame per actual change) and closes after a short
+            idle timeout so demos and tests terminate.</li>
+          <li>Show <code>mode: sse</code> and opt-in <code>mode: poll</code> side by side, and the async-only
+            facade.</li>
+          <li>Point the Attribute and Event concept pages at it instead of their current illustrative-only
+            snippets.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M16</span> &mdash; Sync (non-async) generated facade</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">The generated SDK is async-only, so every caller must write <code>await ...</code> and run an
+          event loop. Plenty of consumers &mdash; scripts, notebooks, test rigs, existing sync codebases &mdash;
+          explicitly don&rsquo;t want that. The runtime already has <code>dispatch_sync</code>, and the
+          <code>transport</code> docstring promises a generated <code>SyncClient</code>, but the generator never emits
+          one.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>Investigate emitting a sync twin of each device client (e.g. a <code>&lt;Device&gt;Sync</code> alongside the
+            async class) with the same typed methods minus <code>await</code>, generated from the same operation
+            metadata so the two never drift.</li>
+          <li>Decide the loop strategy: <code>asyncio.run</code> per call (simple, but re-opens the transport each
+            time) vs. a long-lived background loop thread owned by the sync client (keeps the connection open, needs
+            clean <code>close()</code> / context-manager semantics).</li>
+          <li>Work out what sync means for streaming surfaces &mdash; attribute <code>subscribe</code> and events
+            (blocking iterator, callback, or async-only with a clear error).</li>
+          <li>Make it opt-in or opt-out per build (manifest flag or <code>kandra build --sync</code>) so audiences that
+            don&rsquo;t need it get a smaller SDK; fix the <code>transport</code> docstring either way.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
           <h3><span class="code-id">M99</span> &mdash; Strip roadmap breadcrumbs</h3>
           <span class="badge planned">Planned</span>
         </header>
