@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import inspect
 import os
 import re
 import shutil
@@ -627,6 +628,7 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
                 capabilities=tuple(cmd.capabilities),
                 idempotent=cmd.idempotent,
                 retries=cmd.retries,
+                summary=_handler_summary(handler_cls),
             )
         )
     return specs, frozenset(entry_modules)
@@ -702,6 +704,7 @@ def _resolve_attributes(
                 write_ack_alias=ack_alias,
                 operations=operations,
                 subscribe_wires=(_attribute_subscribe_wires(attr) if "subscribe" in operations else ()),
+                summary=_handler_summary(handler_cls),
             )
         )
 
@@ -847,6 +850,7 @@ def _resolve_events(
                 payload_import=payload_import,
                 payload_alias=payload_alias,
                 subscribe_wires=_event_subscribe_wires(event),
+                summary=_handler_summary(handler_cls),
             )
         )
 
@@ -935,6 +939,12 @@ def _resolve_discovery(manifest: Manifest) -> DiscoverySpec | None:
             server_header_prefix=h.server_header_prefix,
         )
     return DiscoverySpec(ble=ble, http=http)
+
+
+def _handler_summary(handler_cls: type) -> str:
+    """Return the handler class's own docstring (dedented), or ``""`` when it has none."""
+    doc = handler_cls.__doc__
+    return inspect.cleandoc(doc) if doc and doc.strip() else ""
 
 
 def _read_handler_type(handler_cls: type, attr: str, command_id: str) -> type:

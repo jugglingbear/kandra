@@ -82,6 +82,36 @@ def test_registry_emits_idempotent_and_retries(sdk_on_path: Path) -> None:
     assert "retries=2" in registry_src
 
 
+def test_handler_docstrings_flow_into_generated_sdk(sdk_on_path: Path) -> None:
+    """Each handler's docstring leads the generated method / class docstring, so IDE hover shows it."""
+    import inspect
+
+    from pneumatic_bear_poker_sdk import client
+
+    deploy_doc = inspect.getdoc(client._PokerNamespace.deploy) or ""
+    assert deploy_doc.startswith("Extend the arm at the requested pressure.")
+    assert "Invokes `poker.deploy`." in deploy_doc
+    assert (inspect.getdoc(client._SyncPokerNamespace.deploy) or "").startswith("Extend the arm")
+    assert (inspect.getdoc(client._SettingsPokeIntensityAttribute) or "").startswith("`settings.poke_intensity` —")
+    assert (inspect.getdoc(client._AlertsBearStirredEvent) or "").startswith("`alerts.bear_stirred` —")
+
+
+def test_docstring_helper_escapes_and_wraps() -> None:
+    """A handler docstring can't break out of the generated literal, and long lines are re-wrapped to 120 columns."""
+    import ast
+
+    from kandra.generator.render import _docstring
+
+    summary = 'Quotes """ and a back\\slash.\n\n' + "word " * 40
+    rendered = _docstring(summary.strip(), ["Detail line."], "        ")
+    assert all(len(line) <= 120 for line in rendered.splitlines())
+    func = ast.parse(f"def f():\n{rendered}\n        pass\n").body[0]
+    assert isinstance(func, ast.FunctionDef)
+    doc = ast.get_docstring(func) or ""
+    assert doc.startswith('Quotes """ and a back\\slash.')
+    assert doc.endswith("Detail line.")
+
+
 def test_build_verification_rejects_a_syntax_error(tmp_path: Path) -> None:
     """A syntactically broken generated module fails the gate instead of shipping."""
     from kandra.generator.build import _verify_package

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import textwrap
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -108,6 +109,7 @@ class CommandSpec:
     capabilities: tuple[str, ...] = ()  # capability tags gating this op (empty = ungated)
     idempotent: bool = False  # command is safe to auto-resend after a transient failure
     retries: int = 0  # extra transient-failure attempts (honored only when idempotent)
+    summary: str = ""  # handler class docstring, copied into the generated method for IDE hover / autodoc
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,7 @@ class AttributeSpec:
     write_ack_alias: str  # alias for the write-ack type
     operations: tuple[str, ...]  # subset of ("read", "write", "subscribe")
     subscribe_wires: tuple[SubscribeWire, ...]  # empty unless "subscribe" declared
+    summary: str = ""  # handler class docstring, copied into the generated attribute class
 
 
 @dataclass(frozen=True)
@@ -147,6 +150,41 @@ class EventSpec:
     payload_import: str  # import line for the payload type
     payload_alias: str  # alias for the payload type
     subscribe_wires: tuple[SubscribeWire, ...]  # per-transport delivery modes
+    summary: str = ""  # handler class docstring, copied into the generated event class
+
+
+_MAX_LINE = 120
+
+
+def _docstring(summary: str, detail: list[str], indent: str) -> str:
+    """Render a docstring that opens with a user ``summary`` (handler docstring) followed by generated ``detail`` lines.
+
+    The summary is escaped so it can't terminate the literal early, re-indented, and any line that would pass 120
+    columns is re-wrapped.
+    """
+    escaped = summary.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    lines: list[str] = []
+    for line in escaped.splitlines():
+        if not line.strip():
+            lines.append("")
+            continue
+        lead = indent + line[: len(line) - len(line.lstrip())]
+        # Reserve 3 columns so the opening quotes still fit on the first line.
+        lines.extend(
+            textwrap.wrap(
+                line.strip(),
+                width=_MAX_LINE - 3,
+                initial_indent=lead,
+                subsequent_indent=lead,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
+    lines[0] = f'{indent}"""{lines[0][len(indent):]}'
+    lines.append("")
+    lines.extend(f"{indent}{d}" if d else "" for d in detail)
+    lines.append(f'{indent}"""')
+    return "\n".join(lines)
 
 
 def render_init(
@@ -448,9 +486,11 @@ def _render_attr_class(a: AttributeSpec, device_class: str) -> str:
             f'        return self._client._dispatch_subscribe("{a.attr_id}.subscribe", NoArgs(), via=via)'
         )
     body = "\n\n".join(methods)
+    detail = f"`{a.attr_id}` attribute (read / write / subscribe as declared)."
+    doc = _docstring(a.summary, [detail], "    ") if a.summary else f'    """{detail}"""'
     return (
         f"class {a.class_name}:\n"
-        f'    """`{a.attr_id}` attribute (read / write / subscribe as declared)."""\n\n'
+        f"{doc}\n\n"
         f'    def __init__(self, client: "{device_class}") -> None:\n'
         f"        self._client = client\n\n"
         f"{body}"
@@ -474,9 +514,11 @@ def _render_sync_attr_class(a: AttributeSpec, device_class: str) -> str:
             f'        """Sync write of `{a.attr_id}`."""\n'
             f'        return asyncio.run(self._async._dispatch("{a.attr_id}.write", value, via=via))'
         )
+    detail = f"`{a.attr_id}` attribute (sync; read / write only)."
+    doc = _docstring(a.summary, [detail], "    ") if a.summary else f'    """{detail}"""'
     header = (
         f"class {a.sync_class_name}:\n"
-        f'    """`{a.attr_id}` attribute (sync; read / write only)."""\n\n'
+        f"{doc}\n\n"
         f'    def __init__(self, async_client: "{device_class}") -> None:\n'
         f"        self._async = async_client"
     )
@@ -487,9 +529,11 @@ def _render_sync_attr_class(a: AttributeSpec, device_class: str) -> str:
 
 def _render_event_class(e: EventSpec, device_class: str) -> str:
     """Render the async event sub-object exposing a single subscribe() stream."""
+    detail = f"`{e.event_id}` event (subscribe-only stream)."
+    doc = _docstring(e.summary, [detail], "    ") if e.summary else f'    """{detail}"""'
     return (
         f"class {e.class_name}:\n"
-        f'    """`{e.event_id}` event (subscribe-only stream)."""\n\n'
+        f"{doc}\n\n"
         f'    def __init__(self, client: "{device_class}") -> None:\n'
         f"        self._client = client\n\n"
         f"    def subscribe(\n"
@@ -550,6 +594,11 @@ def _render_dispatch_subscribe(capability_gate: str) -> str:
 def _render_command_method(c: CommandSpec, *, sync: bool) -> str:
     """Render one namespace command method (async coroutine or sync ``asyncio.run`` wrapper)."""
     if sync:
+        doc = (
+            _docstring(c.summary, [f"Sync wrapper for `{c.command_id}`."], "        ")
+            if c.summary
+            else f'        """Sync wrapper for `{c.command_id}`."""'
+        )
         return (
             f"    def {c.method}(\n"
             f"        self,\n"
@@ -557,11 +606,20 @@ def _render_command_method(c: CommandSpec, *, sync: bool) -> str:
             f"        *,\n"
             f"        via: TransportId | None = None,\n"
             f"    ) -> Result[{c.response_alias}] | None:\n"
-            f'        """Sync wrapper for `{c.command_id}`."""\n'
+            f"{doc}\n"
             f"        return asyncio.run(\n"
             f'            self._async._dispatch("{c.command_id}", request, via=via)\n'
             f"        )"
         )
+    returns = [
+        "Returns a :class:`Result` envelope wrapping the typed response, or ``None`` when this transport's",
+        "spec sets ``expects_response: false`` (fire-and-forget).",
+    ]
+    doc = (
+        _docstring(c.summary, [f"Invokes `{c.command_id}`.", "", *returns], "        ")
+        if c.summary
+        else (f'        """Invoke `{c.command_id}`.\n\n' f"        {returns[0]}\n" f'        {returns[1]}"""')
+    )
     return (
         f"    async def {c.method}(\n"
         f"        self,\n"
@@ -569,9 +627,7 @@ def _render_command_method(c: CommandSpec, *, sync: bool) -> str:
         f"        *,\n"
         f"        via: TransportId | None = None,\n"
         f"    ) -> Result[{c.response_alias}] | None:\n"
-        f'        """Invoke `{c.command_id}`.\n\n'
-        f"        Returns a :class:`Result` envelope wrapping the typed response, or ``None`` when this transport's\n"
-        f'        spec sets ``expects_response: false`` (fire-and-forget)."""\n'
+        f"{doc}\n"
         f'        return await self._client._dispatch("{c.command_id}", request, via=via)'
     )
 
