@@ -194,6 +194,54 @@
 
       <div class="card">
         <header>
+          <h3><span class="code-id">M13</span> &mdash; Serial transport &amp; Classic Bluetooth</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">Bluetooth support today is <strong>BLE only</strong> &mdash; <code>bleak</code> speaks GATT, not
+          Classic BR/EDR. Classic is a different stack (inquiry instead of advertisements, SDP profiles instead of GATT
+          characteristics, byte streams instead of write/notify), so it can&rsquo;t ride the <code>ble</code> family.
+          Most Classic devices worth controlling use the Serial Port Profile (SPP), which the OS exposes as an ordinary
+          serial port once paired &mdash; so a serial transport covers them with no Bluetooth-specific code.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>A built-in <code>serial</code> transport family over a port path, with message framing left to the
+            device&rsquo;s codec &mdash; covers USB-CDC, UART adapters, and paired Classic SPP devices
+            (<code>/dev/tty.*</code> on macOS, <code>/dev/rfcomm*</code> on Linux).</li>
+          <li>Classic pairing stays an OS step at first; a later enrollment adapter could automate it per
+            platform.</li>
+          <li>Possible follow-on: a direct RFCOMM transport plus a Classic inquiry scanner for when no OS serial port
+            is available (Linux <code>AF_BLUETOOTH</code> sockets; macOS / Windows need platform APIs).</li>
+          <li>Keep the BLE family named <code>ble</code> &mdash; renaming it <code>bluetooth</code> would imply Classic
+            support it can&rsquo;t provide.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
+          <h3><span class="code-id">M14</span> &mdash; Manifest-declared capability probe</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">Operations declare required tags in the manifest (<code>capabilities: [diagnostics]</code>), but
+          the <code>CapabilityProbe</code> that reports a device&rsquo;s tags is passed only at runtime
+          (<code>discover_capabilities(probe)</code>). Nothing ties the two together, so an SDK author must ship the
+          probe separately and keep it alive through <code>--profile</code> vendoring &mdash; and the reference example
+          declares a tag with no probe at all.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li>A manifest field (e.g. <code>capability_probe: package.module:Class</code>) that the generator resolves,
+            vendors like a handler or codec, and uses as the default, so callers just run
+            <code>await client.discover_capabilities()</code>.</li>
+          <li>A real probe for the Pneumatic Bear Poker &mdash; e.g. a sim <code>GET /v1/info</code> reporting firmware
+            build flags &mdash; so the example shows the full tag &rarr; probe &rarr; gate loop.</li>
+          <li>Docs: say plainly where the probe lives and how it ships, and stop presenting the example&rsquo;s bare
+            <code>capabilities:</code> tag as a complete walkthrough.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
           <h3><span class="code-id">M99</span> &mdash; Strip roadmap breadcrumbs</h3>
           <span class="badge planned">Planned</span>
         </header>

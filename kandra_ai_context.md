@@ -55,6 +55,8 @@ omits it) — the guide would close that gap.
 | **M10** — credential lifecycle | ✅ Done ("Just shipped") | See §4. |
 | **M11** — codegen enrollment helpers | 🟡 Candidate (likely skip) | Superseded by `discover_and_connect()`. Keep only if a declarative `enrollment:` block proves it shrinks the adapter constructor. |
 | **M12** — generated-SDK device reference (docs) | 📋 Planned | `kandra build --docs` emits a Markdown (primary) + optional single-file HTML device reference from the **pruned** profile (audience-scoped, leak-free). Do **not** reinvent `autodoc`/`pdoc` for the Python API. |
+| **M13** — serial transport & Classic Bluetooth | 📋 Planned | Built-in `serial` family (framing in the codec). Classic Bluetooth via SPP, which the OS exposes as a serial port once paired; direct RFCOMM later. Keep the `ble` family name (BLE ≠ Classic). |
+| **M14** — manifest-declared capability probe | 📋 Planned | `capability_probe:` manifest field, vendored + used by default in `discover_capabilities()`; real PBP probe (sim `GET /v1/info`); capabilities docs gaps. |
 | **M99** — strip roadmap breadcrumbs | 📋 Planned, **do last** | Remove `M<n>` / "slice 9x" from source/test docstrings + example comments. Keep milestone numbers only in `roadmap.html`. |
 
 **Loose ends — both RESOLVED:**
