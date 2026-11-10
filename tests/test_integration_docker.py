@@ -4,7 +4,7 @@ Spins up the Pneumatic Bear Poker firmware simulator (Flask + waitress)
 inside a Docker container via `testcontainers`, then walks the full
 M7 lifecycle against it using **real** network components:
 
-- real `HttpScanner` (parallel aiohttp probes against `/.well-known/...`)
+- real `HttpScanner` (parallel aiohttp probes against `/v1/status`)
 - real `HttpEnrollment` (POST `/v1/auth/login`, extract token)
 - real `PlatformDirsJsonStore` (tmp-scoped on-disk JSON)
 - real `HttpTransport` (aiohttp `ClientSession` round-trip)
@@ -71,9 +71,9 @@ def _build_image() -> None:
     client.images.build(path=str(FIRMWARE_SIM_DIR), tag=IMAGE_TAG, rm=True)
 
 
-def _await_well_known(base_url: str, *, deadline_seconds: float = 30.0) -> None:
+def _await_probe(base_url: str, *, deadline_seconds: float = 30.0) -> None:
     """Poll the discovery probe until it returns 200 or the deadline elapses."""
-    url = base_url.rstrip("/") + "/.well-known/pneumatic-bear-poker"
+    url = base_url.rstrip("/") + "/v1/status"
     deadline = time.monotonic() + deadline_seconds
     last_exc: Exception | None = None
     while time.monotonic() < deadline:
@@ -97,7 +97,7 @@ def firmware_sim_url() -> Iterator[str]:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(8080)
         base = f"http://{host}:{port}"
-        _await_well_known(base)
+        _await_probe(base)
         yield base
     finally:
         container.stop()
@@ -150,7 +150,7 @@ def patched_base_urls(
 
 
 async def test_step1_discovery_finds_firmware_sim(patched_base_urls: str) -> None:
-    """`scan_http()` probes `/.well-known/...` and matches `Server: PneumaticBearPoker/*`."""
+    """`scan_http()` probes `/v1/status` and matches `Server: PneumaticBearPoker/*`."""
     from pneumatic_bear_poker_sdk import scan_http
 
     candidates = await scan_http(timeout=5.0)
@@ -357,3 +357,20 @@ async def test_attr_poke_intensity_read_write(client: Any) -> None:
 
     reread = await client.settings.poke_intensity.read()
     assert reread.data == PokeIntensity(level=9)
+
+
+async def test_attr_device_status_tracks_the_arm(client: Any) -> None:
+    """GET /v1/status reports power, arm position, and held pressure as the state machine moves."""
+    from devices.pneumatic_bear_poker.handlers.poker import DeployRequest, RetractRequest
+    from devices.pneumatic_bear_poker.handlers.power import PowerOffRequest, PowerOnRequest
+    from devices.pneumatic_bear_poker.handlers.status import Status
+
+    assert (await client.device.status.read()).data == Status(powered=False, extended=False, psi=0)
+
+    _assert_accepted(await client.power.on(PowerOnRequest()), attr="powered", expected=True)
+    _assert_accepted(await client.poker.deploy(DeployRequest(pressure_psi=42)), attr="delivered_psi", expected=42)
+    assert (await client.device.status.read()).data == Status(powered=True, extended=True, psi=42)
+
+    _assert_accepted(await client.poker.retract(RetractRequest()), attr="retracted", expected=True)
+    assert await client.power.off(PowerOffRequest()) is None
+    assert (await client.device.status.read()).data == Status(powered=False, extended=False, psi=0)

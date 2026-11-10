@@ -26,8 +26,8 @@ def test_validate_ok(capsys: pytest.CaptureFixture[str]) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert "OK:" in out
-    # The example declares one attribute; the summary surfaces it.
-    assert "attributes=1" in out
+    # The example declares two attributes; the summary surfaces them.
+    assert "attributes=2" in out
 
 
 def test_validate_bad_manifest_returns_1(tmp_path: Path) -> None:

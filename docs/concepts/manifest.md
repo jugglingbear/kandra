@@ -25,6 +25,8 @@ fictional device whose sole job is to poke bears (pneumatically). It talks HTTP 
 **Attributes**
 
 - `settings.poke_intensity` — read or write the poke level (0–11). *Audience:* internal, partner_woodland
+- `device.status` — read whether it's powered, whether the arm is out, and the pressure it's holding. *Audience:*
+  internal, partner_woodland
 
 *Audience* decides what goes into an SDK when it's built; *capability* decides what a connected device supports at run
 time.

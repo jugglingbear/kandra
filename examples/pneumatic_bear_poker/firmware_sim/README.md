@@ -14,7 +14,8 @@ The sim tracks power and arm position, starting powered off with the arm retract
 HTTP 409 until it is powered on. See the
 [Device State Machine](../../../docs/concepts/manifest.md#device-state-machine) diagram.
 
-Every route except discovery and `/v1/auth/login` requires the bearer token from that login (HTTP 401 otherwise). The
+Every route except the discovery probe (`/v1/status`) and `/v1/auth/login` requires the bearer token from that login
+(HTTP 401 otherwise). The
 token is regenerated each time the sim starts, so a restart invalidates previously saved credentials.
 
 ## Run the container by hand
@@ -27,7 +28,7 @@ docker run --rm -p 8080:8080 pneumatic-bear-poker-sim
 Then poke at it:
 
 ```sh
-curl -i http://localhost:8080/.well-known/pneumatic-bear-poker
+curl -i http://localhost:8080/v1/status
 TOKEN=$(curl -s -X POST http://localhost:8080/v1/auth/login -d '{}' -H 'Content-Type: application/json' \
   | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"])')
 AUTH="Authorization: Bearer $TOKEN"

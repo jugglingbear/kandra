@@ -142,6 +142,16 @@ attributes:
         read: { method: GET, path: /v1/settings/poke_intensity }
         write: { method: PUT, path: /v1/settings/poke_intensity, body_codec: json }
 
+  # What the device is doing right now: power, arm position, and line pressure.
+  - id: device.status
+    handler: devices.pneumatic_bear_poker.handlers.status:DeviceStatus
+    transports: [wifi]
+    operations: [read]
+    audience: [internal, partner_woodland]
+    http:
+      wifi:
+        read: { method: GET, path: /v1/status }
+
 vendoring:
   # extra_include takes a file, a whole directory, or a glob (relative to a source_root) -- for code or assets the
   # static import walker can't discover.
@@ -151,15 +161,11 @@ vendoring:
   # Internal bench tooling -- keep it out of every shipped SDK.
   exclude: [devices/pneumatic_bear_poker/handlers/super_secret.py]
 
-# Discovery criteria the generator bakes into the SDK's scanners module
-# (examples/pneumatic_bear_poker/dist/pneumatic_bear_poker_sdk/scanners.py) so callers can run
-# `await scan_http(timeout=5)` without supplying their own matcher. At least one per-family block must be present, and
-# each declared family must match a transport listed above (cross-validated by the manifest loader).
+# How the SDK's scan_http() finds the device on the network. See docs/concepts/scanner.md.
 discovery:
   http:
-    # Probe these hosts in parallel; the first one whose `/.well-known/pneumatic-bear-poker` returns 200 wins.
     base_urls:
       - "http://192.168.1.1:8080"
       - "http://pneumatic-bear-poker.local:8080"
-    probe_path: "/.well-known/pneumatic-bear-poker"
-    server_header_prefix: "PneumaticBearPoker"
+    probe_path: /v1/status   # device.status; answers without a login so scanning works
+    server_header_prefix: "PneumaticBearPoker"   # optional: the reply's Server header must start with this

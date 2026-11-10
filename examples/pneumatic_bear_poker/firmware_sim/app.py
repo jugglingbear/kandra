@@ -1,8 +1,8 @@
 """Pneumatic Bear Poker firmware simulator.
 
-A Flask app that implements every HTTP command in the example manifest
-plus discovery (`/.well-known/...`) and enrollment (`/v1/auth/login`)
-endpoints. Used by `tests/test_integration_docker.py` to drive the
+A Flask app that implements every HTTP route in the example manifest (`/v1/status` doubles as the
+discovery probe) plus the enrollment login (`/v1/auth/login`). Used by
+`tests/test_integration_docker.py` to drive the
 generated SDK against a real network endpoint inside a container.
 
 Run locally::
@@ -31,8 +31,8 @@ SERVER_HEADER = f"PneumaticBearPoker/{VERSION}"
 # Regenerated on every start, so restarting the sim invalidates previously saved tokens (-> HTTP 401).
 _VALID_TOKEN = secrets.token_hex(16)
 
-# Reachable without a token: discovery and the login that issues one.
-_OPEN_PATHS = frozenset({"/.well-known/pneumatic-bear-poker", "/v1/auth/login"})
+# Reachable without a token: the discovery probe (device.status) and the login that issues one.
+_OPEN_PATHS = frozenset({"/v1/status", "/v1/auth/login"})
 
 # poker.deploy refuses anything higher (HTTP 400); the internal-only poker.overdrive has no ceiling.
 _DEPLOY_CEILING_PSI = 100
@@ -42,12 +42,6 @@ def create_app() -> Flask:
     """Build and return the configured Flask app."""
     app = Flask(__name__)
     app.before_request(_require_token)
-
-    # ---- discovery probe --------------------------------------------------
-    @app.get("/.well-known/pneumatic-bear-poker")
-    def well_known() -> Response:
-        """Discovery probe target -- HttpScanner inspects the Server header."""
-        return jsonify({"device": "pneumatic_bear_poker", "version": VERSION})
 
     # ---- enrollment -------------------------------------------------------
     @app.post("/v1/auth/login")
@@ -88,9 +82,14 @@ def _register_settings(app: Flask) -> None:
 
 
 def _register_power_and_arm(app: Flask) -> None:
-    """Register the commands that drive the power / arm state machine (docs: Manifest -> Device State Machine)."""
+    """Register the power / arm commands and the `device.status` read (docs: Manifest -> Device State Machine)."""
     # Power and arm position are independent: nothing ever moves the arm except deploy / overdrive / retract.
     machine = {"powered": False, "extended": False, "held_psi": 0}
+
+    @app.get("/v1/status")
+    def device_status() -> Response:
+        psi = machine["held_psi"] if machine["extended"] else 0
+        return jsonify({"powered": machine["powered"], "extended": machine["extended"], "psi": psi})
 
     @app.post("/v1/poker/deploy")
     def poker_deploy() -> Response:
@@ -133,7 +132,7 @@ def _extend(machine: dict[str, Any], ceiling_psi: int | None) -> Response:
 
 
 def _require_token() -> Response | None:
-    """Refuse any request without the current bearer token (HTTP 401), except discovery and login."""
+    """Refuse any request without the current bearer token (HTTP 401), except the discovery probe and login."""
     if request.path in _OPEN_PATHS or request.headers.get("Authorization") == f"Bearer {_VALID_TOKEN}":
         return None
     response = jsonify({"error": "missing or invalid bearer token"})

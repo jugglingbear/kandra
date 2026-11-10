@@ -39,6 +39,7 @@ files:
   src/devices/pneumatic_bear_poker/handlers/poker.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/power.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/settings.py: [internal, partner_woodland]
+  src/devices/pneumatic_bear_poker/handlers/status.py: [internal, partner_woodland]
   src/devices/pneumatic_bear_poker/handlers/diagnostics.py: [internal, partner_woodland]
   # handlers/overdrive.py is deliberately absent: it keeps the default [internal] grant.
   src/devices/pneumatic_bear_poker/handlers/super_important.py: [internal, partner_woodland]

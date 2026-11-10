@@ -7,7 +7,7 @@ Walks through the four phases a real caller follows after running
     1. DISCOVER -- find a device in range
     2. ENROLL   -- bond / authenticate / capture credentials
     3. SAVE     -- persist the resulting identity so we can skip discovery + enrollment next time
-    4. CONNECT  -- reopen the device by saved name, then power on, deploy, and retract the arm
+    4. CONNECT  -- reopen the device by saved name, then power on, deploy, check status, and retract the arm
 
 Each phase is one line of code in the generated SDK. The narrative comments are the point: this file doubles as
 the user-facing reference for "what does kandra actually buy me?"
@@ -120,6 +120,11 @@ async def subsequent_run(url: str) -> None:
         _log("DEPLOY", "sending poker.deploy(pressure_psi=42) ...")
         deployed = _require_accepted("DEPLOY", await client.poker.deploy(DeployRequest(pressure_psi=42)), url)
         _log("DEPLOY", f"accepted: arm extended, delivered_psi={deployed.delivered_psi}")
+
+        # Attributes read device state; device.status is read-only.
+        _log("STATUS", "reading device.status ...")
+        status = _require_accepted("STATUS", await client.device.status.read(), url)
+        _log("STATUS", f"powered={status.powered}, extended={status.extended}, psi={status.psi}")
 
         # Retract so the next run finds the arm back in place.
         _log("RETRACT", "sending poker.retract() ...")

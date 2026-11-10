@@ -71,7 +71,7 @@ PYTHONPATH="examples/pneumatic_bear_poker/dist:examples/pneumatic_bear_poker/src
   poetry run python examples/pneumatic_bear_poker/demo.py --url http://127.0.0.1:48080
 ```
 
-You should see each lifecycle phase logged, ending in a power-on / deploy / retract cycle:
+You should see each lifecycle phase logged, ending in a power-on / deploy / status / retract cycle:
 
 ```text
 [STORE] identities file: ~/Library/Application Support/pneumatic_bear_poker_sdk/identities.json
@@ -89,6 +89,9 @@ You should see each lifecycle phase logged, ending in a power-on / deploy / retr
 [DEPLOY] sending poker.deploy(pressure_psi=42) ...
     POST /v1/poker/deploy  {"pressure_psi":42}
 [DEPLOY] accepted: arm extended, delivered_psi=42
+[STATUS] reading device.status ...
+    GET /v1/status  {}
+[STATUS] powered=True, extended=True, psi=42
 [RETRACT] sending poker.retract() ...
     POST /v1/poker/retract  {}
 [RETRACT] accepted: arm retracted
@@ -102,7 +105,7 @@ device's `DeployResponse(delivered_psi=42)` came back — decoded and wrapped in
 [`demo.py`](https://github.com/jugglingbear/kandra/blob/main/examples/pneumatic_bear_poker/demo.py)
 walks the phases every real caller follows — each is a single line in the generated SDK:
 
-1. **Discover** — `scan_http()` probes the device's `/.well-known/...` endpoint and matches on the manifest's
+1. **Discover** — `scan_http()` probes the device's `/v1/status` endpoint and matches on the manifest's
    [discovery](concepts/scanner.md) criteria. (The demo passes `base_urls=[...]` to aim it at the local sim.)
 2. **Enroll** — the SDK's baked `http_enrollment()` (login path declared in the manifest) POSTs a JSON login request
    and captures the bearer token from the response, producing a persistent [Identity](concepts/identity.md).
@@ -113,7 +116,8 @@ walks the phases every real caller follows — each is a single line in the gene
 5. **Dispatch** — `await client.power.on(...)`, `client.poker.deploy(...)`, and `client.poker.retract(...)` each
    encode the request, send it, classify the response, and return a typed [`Result`](concepts/result.md). The device
    refuses to move the arm while unpowered (see its [state machine](concepts/manifest.md#device-state-machine)), so
-   the demo powers on first; it retracts at the end so the next run starts from the same state.
+   the demo powers on first; it retracts at the end so the next run starts from the same state. In between, it reads
+   the read-only `client.device.status` [attribute](concepts/attribute.md) to confirm the arm is out.
 
 Run the demo a second time and it skips straight to step 4 — the saved identity short-circuits discovery and
 enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` login lines:
@@ -129,6 +133,9 @@ enrollment, so you'll see the reuse path instead of the `[DISCOVER]`/`[ENROLL]` 
 [DEPLOY] sending poker.deploy(pressure_psi=42) ...
     POST /v1/poker/deploy  {"pressure_psi":42}
 [DEPLOY] accepted: arm extended, delivered_psi=42
+[STATUS] reading device.status ...
+    GET /v1/status  {}
+[STATUS] powered=True, extended=True, psi=42
 [RETRACT] sending poker.retract() ...
     POST /v1/poker/retract  {}
 [RETRACT] accepted: arm retracted
@@ -173,6 +180,7 @@ locations and how to clear a saved identity outside the demo.
   declared there.
 - Skim the [Architecture](concepts/architecture.md) and [Lifecycle](concepts/lifecycle.md) concept pages.
 - Explore the rest of the generated client: the `client.power.off()` and `client.logs.download()` commands, and the
-  `client.settings.poke_intensity` [attribute](concepts/attribute.md) (read / write).
+  `client.settings.poke_intensity` (read / write) and `client.device.status` (read-only)
+  [attributes](concepts/attribute.md).
 - Build a **pruned, per-audience** SDK by passing `--profile partner_woodland` to `kandra build` — see
   [Audiences & IP Isolation](concepts/audiences.md).
