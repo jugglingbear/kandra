@@ -25,3 +25,19 @@ def test_custom_adapter_replaces_runtime_transport(tmp_path: Path) -> None:
     assert "_Adapter_http.from_identity(ident)" in client_src
     # The only HTTP transport is custom, so the runtime HttpTransport is not imported.
     assert "    HttpTransport,\n" not in client_src
+
+
+def test_profile_build_imports_the_vendored_adapter(tmp_path: Path) -> None:
+    """A ``--profile`` build imports the custom adapter from ``_internal``, so it imports with the source roots off."""
+    profiles = tmp_path / "profiles.yaml"
+    profiles.write_text(
+        "profiles:\n  internal:\n    include_audience: [internal]\n    deny_substrings: []\nfiles: {}\n",
+        encoding="utf-8",
+    )
+    result = build_sdk(FIXTURE_MANIFEST, output_root=tmp_path, profile="internal", profiles_path=profiles, clean=True)
+    client_src = (result.package_path / "client.py").read_text(encoding="utf-8")
+
+    assert "from custom_adapter_sdk._internal.custom_adapter.device import CustomHttpTransport as _Adapter_http" in (
+        client_src
+    )
+    assert "from custom_adapter.device import" not in client_src

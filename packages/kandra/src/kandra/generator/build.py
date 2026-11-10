@@ -362,14 +362,17 @@ def _check_entry_files_survive(
 
 
 def _rewrite_transport_spec(spec: TransportSpec, tops: frozenset[str], prefix: str) -> TransportSpec:
-    """Rewrite a transport spec's codec and interpreter imports to the vendored ``_internal`` namespace."""
+    """Rewrite a transport spec's codec, adapter, and interpreter imports to the vendored ``_internal`` namespace."""
     return replace(
         spec,
-        codec_import=None if spec.codec_import is None else _rewrite_import_line(spec.codec_import, tops, prefix),
-        interpreter_import=(
-            None if spec.interpreter_import is None else _rewrite_import_line(spec.interpreter_import, tops, prefix)
-        ),
+        codec_import=_rewrite_optional_import(spec.codec_import, tops, prefix),
+        adapter_import=_rewrite_optional_import(spec.adapter_import, tops, prefix),
+        interpreter_import=_rewrite_optional_import(spec.interpreter_import, tops, prefix),
     )
+
+
+def _rewrite_optional_import(line: str | None, tops: frozenset[str], prefix: str) -> str | None:
+    return None if line is None else _rewrite_import_line(line, tops, prefix)
 
 
 def _rewrite_command_spec(spec: CommandSpec, tops: frozenset[str], prefix: str) -> CommandSpec:
