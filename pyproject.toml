@@ -37,6 +37,8 @@ sphinxcontrib-mermaid = "^0.9"
 sphinx-autobuild = "^2024.4"
 sphinx-copybutton = "^0.5"
 sphinx-design = "^0.6"
+# Instant search: indexes the built site (docs/_ext/pagefind_search.py). 1.5+ ships the modal Component UI.
+pagefind = { version = "^1.5", extras = ["bin"] }
 
 [tool.ruff]
 line-length = 120

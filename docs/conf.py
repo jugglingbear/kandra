@@ -48,6 +48,7 @@ extensions = [
     "sphinx_copybutton",  # Copy-to-clipboard on code blocks
     "sphinx_design",  # Tabs / cards / grids
     "manifest_fields",  # docs/_ext: ```{manifest-fields} Model``` tables generated from the manifest models
+    "pagefind_search",  # docs/_ext: instant search; indexes the site with Pagefind after each HTML build
 ]
 
 # Markdown extensions (MyST) ------------------------------------------------

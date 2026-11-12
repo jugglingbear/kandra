@@ -192,6 +192,9 @@ Design detail: `docs/concepts/lifecycle.md`.
   under `docs/`. `kandra.md` was deleted after porting.
 - Sphinx + MyST docs site under `docs/` (concepts/ + reference/), Furo theme,
   autodoc-pydantic, mermaid.
+- **Docs search is Pagefind** (`docs/_ext/pagefind_search.py`): every HTML build (incl. `serve-docs` rebuilds) marks
+  document bodies/sections and runs `python -m pagefind` over the output; the sidebar's Cmd/Ctrl+K modal comes from
+  `docs/_templates/sidebar/search.html` (classic `defer` script so Pagefind can find its bundle under a subpath).
 - **Manifest docs are one page per top-level key** under `docs/concepts/manifest/`, linked from the
   "Top-Level Keys" table on `concepts/manifest.md`. Each page's field tables come from the pydantic
   field docstrings via the `{manifest-fields}` directive (`docs/_ext/manifest_fields.py`), so the

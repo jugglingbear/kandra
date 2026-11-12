@@ -1,0 +1,9 @@
+{#- Replaces Furo's search form with Pagefind's search modal (Cmd/Ctrl+K). See _ext/pagefind_search.py. -#}
+<link rel="stylesheet" href="{{ pathto('pagefind/pagefind-component-ui.css', 1) }}">
+{#- Not type="module": Pagefind finds its index next to this script via document.currentScript, which modules lack.
+    That keeps result links right when the site is hosted under a subpath. -#}
+<script defer src="{{ pathto('pagefind/pagefind-component-ui.js', 1) }}"></script>
+<div class="kandra-search">
+  <pagefind-modal-trigger placeholder="Search"></pagefind-modal-trigger>
+</div>
+<pagefind-modal></pagefind-modal>

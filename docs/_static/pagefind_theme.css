@@ -1,0 +1,30 @@
+/* Pagefind search, colored with Furo's variables so it follows the light/dark toggle. Furo defines its colors on
+   body, so these must be set there too (Pagefind's own defaults sit on :root). */
+body {
+  --pf-font: var(--font-stack);
+  --pf-text: var(--color-foreground-primary);
+  --pf-text-secondary: var(--color-foreground-secondary);
+  --pf-text-muted: var(--color-foreground-muted);
+  --pf-background: var(--color-background-primary);
+  --pf-border: var(--color-background-border);
+  --pf-border-focus: var(--color-brand-primary);
+  --pf-hover: var(--color-background-hover);
+  --pf-skeleton: var(--color-background-secondary);
+  --pf-skeleton-shine: var(--color-background-hover);
+  --pf-mark: var(--color-brand-content);
+  --pf-outline-focus: var(--color-brand-primary);
+  --pf-error-bg: var(--color-background-secondary);
+  --pf-error-border: var(--color-problematic);
+  --pf-error-text: var(--color-problematic);
+  --pf-error-text-secondary: var(--color-foreground-secondary);
+}
+
+.kandra-search {
+  margin-top: var(--sidebar-search-space-above);
+  padding: 0 var(--sidebar-item-spacing-horizontal);
+}
+
+/* Pagefind's stylesheet loads after this one, so outrank its `display: inline-block`. */
+.kandra-search pagefind-modal-trigger {
+  display: block;
+}
