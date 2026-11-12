@@ -313,6 +313,28 @@
 
       <div class="card">
         <header>
+          <h3><span class="code-id">M18</span> &mdash; Flesh out the Open GoPro example</h3>
+          <span class="badge planned">Planned</span>
+        </header>
+        <p class="why">The Open GoPro example is deliberately tiny (shutter start / stop over BLE and HTTP). Real
+          cameras report errors inconsistently from one endpoint to the next &mdash; exactly the case per-operation
+          interpreters (M17) exist for &mdash; but nobody yet knows <em>which</em> endpoints differ.</p>
+
+        <h4>Scope</h4>
+        <ul class="scope">
+          <li><strong>Open question &mdash; ask before starting:</strong> which endpoints report errors differently
+            from the rest? Unknown as of M17; find out by testing against a real camera, then name an
+            <code>interpreter:</code> on just those operations.</li>
+          <li>Add a BLE interpreter that reads the TLV status byte, so a refused command comes back
+            <code>REJECTED</code>. Today the codec raises <code>CodecError</code> on a non-zero status, which surfaces
+            as <code>ANOMALOUS</code>.</li>
+          <li>Add more commands and attributes, each checked against the camera.</li>
+          <li>Confirm or drop the discovery <code>server_header_prefix</code> (flagged TODO in the manifest).</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <header>
           <h3><span class="code-id">M99</span> &mdash; Strip roadmap breadcrumbs</h3>
           <span class="badge planned">Planned</span>
         </header>
