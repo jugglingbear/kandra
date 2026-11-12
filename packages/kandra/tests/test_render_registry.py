@@ -2,7 +2,8 @@
 
 The build-level tests in :mod:`test_build_errors` cover the HTTP per-command codec
 override end to end. There is no BLE example/fixture to build against, so the BLE
-override branch is exercised here against the pure ``render_registry`` function.
+override branches (codec and interpreter) are exercised here against the pure
+``render_registry`` function.
 """
 
 from __future__ import annotations
@@ -52,3 +53,25 @@ def test_ble_command_codec_override_replaces_transport_codec() -> None:
     assert "from dev.override import OverrideCodec as _OverrideCodec" in registry
     assert "payload_codec=_OverrideCodec(_Req, _Resp)" in registry
     assert "payload_codec=_TransportCodec(_Req, _Resp)" not in registry
+
+
+def test_ble_command_uses_family_default_interpreter() -> None:
+    cmd = _ble_command(BleCommandWire(channel="cmd", expects_response=True, timeout=None))
+    registry = render_registry([cmd], [_BLE_TRANSPORT])
+    assert "from kandra_runtime import always_accepted_interpreter" in registry
+    assert "interpreter=always_accepted_interpreter," in registry
+
+
+def test_ble_command_interpreter_override_replaces_the_default() -> None:
+    # Every entry overrides, so the family default would be an unused import.
+    wire = BleCommandWire(
+        channel="cmd",
+        expects_response=True,
+        timeout=None,
+        interpreter_import="from dev.status import StatusByte as _StatusByte",
+        interpreter_alias="_StatusByte",
+    )
+    registry = render_registry([_ble_command(wire)], [_BLE_TRANSPORT])
+    assert "from dev.status import StatusByte as _StatusByte" in registry
+    assert "interpreter=_StatusByte()," in registry
+    assert "always_accepted_interpreter" not in registry

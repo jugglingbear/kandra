@@ -69,6 +69,9 @@ def _validate_handler(value: str | None) -> str | None:
     return _validate_dotted_path(value)
 
 
+DottedPathStr = Annotated[str, AfterValidator(_validate_dotted_path)]
+
+
 # ---------------------------------------------------------------------------
 # Base model
 # ---------------------------------------------------------------------------
@@ -227,6 +230,9 @@ class HttpCommandSpec(_ManifestModel):
     codec: str | None = None
     """Codec class (``module:Class``) for this one command, replacing the transport's codec. Use it when one command's
     format differs from the rest, such as a binary download; the easy start is a subclass of ``HttpJsonCodec``."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for this one command, replacing the transport's ``interpreter``. Use it when
+    this endpoint reports errors differently from the rest."""
     query_from_request: bool = False
     """Send the request's fields as URL query parameters instead of a JSON body."""
     expects_response: bool = True
@@ -250,6 +256,8 @@ class BleCommandSpec(_ManifestModel):
     """Name of the transport channel this command uses (one of the transport's ``channels``)."""
     codec: str | None = None
     """Payload codec class (``module:Class``) for this one command, replacing the transport's codec."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for this one command, replacing the transport's ``interpreter``."""
     expects_response: bool = True
     """Set ``false`` for fire-and-forget commands: a missing reply counts as success."""
     timeout: float | None = Field(default=None, gt=0)
@@ -337,6 +345,8 @@ class HttpAttributeOp(_ManifestModel):
     """URL path, e.g. ``/v1/settings/poke_intensity``."""
     query_from_request: bool = False
     """Send the value's fields as URL query parameters instead of a JSON body."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for this operation's replies, replacing the transport's ``interpreter``."""
     timeout: float | None = Field(default=None, gt=0)
     """Seconds to wait for a reply."""
 
@@ -354,6 +364,8 @@ class HttpAttributeSubscribe(_ManifestModel):
     """URL path of the stream (``sse``) or of the request to repeat (``poll``)."""
     interval: float | None = Field(default=None, gt=0)
     """Seconds between polls. Required for ``poll``; not allowed for ``sse``."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for each update, replacing the transport's ``interpreter``."""
     timeout: float | None = Field(default=None, gt=0)
     """Seconds to wait for each request."""
 
@@ -379,6 +391,8 @@ class BleAttributeSpec(_ManifestModel):
 
     channel: IdentifierStr
     """Name of the transport channel that carries this attribute's reads, writes, and updates."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for this attribute's replies and updates, replacing the transport's."""
     timeout: float | None = Field(default=None, gt=0)
     """Seconds to wait for a reply."""
 
@@ -397,6 +411,8 @@ class HttpEventSpec(_ManifestModel):
     """URL path of the stream (``sse``) or of the request to repeat (``poll``)."""
     interval: float | None = Field(default=None, gt=0)
     """Seconds between polls. Required for ``poll``; not allowed for ``sse``."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for each event, replacing the transport's ``interpreter``."""
     timeout: float | None = Field(default=None, gt=0)
     """Seconds to wait for each request."""
 
@@ -411,6 +427,8 @@ class BleEventSpec(_ManifestModel):
 
     channel: IdentifierStr
     """Name of the transport channel whose notifications carry this event."""
+    interpreter: DottedPathStr | None = None
+    """Interpreter class (``module:Class``) for each event, replacing the transport's ``interpreter``."""
     timeout: float | None = Field(default=None, gt=0)
     """Timeout in seconds."""
 

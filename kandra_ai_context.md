@@ -58,7 +58,7 @@ omits it) — the guide would close that gap.
 | **M13** — serial transport & Classic Bluetooth | 📋 Planned | Built-in `serial` family (framing in the codec). Classic Bluetooth via SPP, which the OS exposes as a serial port once paired; direct RFCOMM later. Keep the `ble` family name (BLE ≠ Classic). |
 | **M14** — manifest-declared capability probe | 📋 Planned | `capability_probe:` manifest field, vendored + used by default in `discover_capabilities()`; real PBP probe (sim `GET /v1/info`); capabilities docs gaps. |
 | **M15** — push-updates example | 📋 Planned | Bare-bones example with one subscribable attribute + one event and a sim that pushes real changes (SSE + opt-in poll). PBP no longer uses subscribe/events. |
-| **M17** — manifest-wired response interpreters | 🟡 In progress | Transport-level `interpreter: module:Class` shipped (import-checked, vendored, used for every op on the transport). Remaining: per-operation override in `http:` / `ble:` blocks. |
+| **M17** — manifest-wired response interpreters | ✅ Done | Transport-level `interpreter: module:Class` (import-checked, vendored, used for every op on the transport) plus a per-operation override in any wiring block; precedence is operation → transport → family default. |
 | **M99** — strip roadmap breadcrumbs | 📋 Planned, **do last** | Remove `M<n>` / "slice 9x" from source/test docstrings + example comments. Keep milestone numbers only in `roadmap.html`. |
 
 **Loose ends — both RESOLVED:**

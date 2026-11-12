@@ -105,6 +105,19 @@
           "title": "Channel",
           "type": "string"
         },
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for this attribute's replies and updates, replacing the transport's.",
+          "title": "Interpreter"
+        },
         "timeout": {
           "anyOf": [
             {
@@ -178,6 +191,19 @@
           "description": "Set ``false`` for fire-and-forget commands: a missing reply counts as success.",
           "title": "Expects Response",
           "type": "boolean"
+        },
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for this one command, replacing the transport's ``interpreter``.",
+          "title": "Interpreter"
         },
         "timeout": {
           "anyOf": [
@@ -254,6 +280,19 @@
           "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
           "title": "Channel",
           "type": "string"
+        },
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for each event, replacing the transport's ``interpreter``.",
+          "title": "Interpreter"
         },
         "timeout": {
           "anyOf": [
@@ -553,6 +592,19 @@
       "additionalProperties": false,
       "description": "One HTTP read/write operation for an attribute \u2014 a command-shaped block.\n\nVerbs are explicit, never assumed: a non-REST device that *writes* via ``GET`` (e.g. ``GET /setting?option=9``) sets\n``method: GET`` with ``query_from_request: true``, exactly like a command.",
       "properties": {
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for this operation's replies, replacing the transport's ``interpreter``.",
+          "title": "Interpreter"
+        },
         "method": {
           "default": "GET",
           "description": "HTTP method for this operation.",
@@ -646,6 +698,19 @@
       "additionalProperties": false,
       "description": "HTTP subscribe wiring for an attribute: native SSE, or explicit opt-in polling.\n\nPolling is never a surprise default \u2014 ``mode: poll`` must supply an ``interval``. ``mode: sse`` opens one long-lived\nevent stream instead.",
       "properties": {
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for each update, replacing the transport's ``interpreter``.",
+          "title": "Interpreter"
+        },
         "interval": {
           "anyOf": [
             {
@@ -719,6 +784,19 @@
           "description": "Set ``false`` for fire-and-forget commands: a missing reply counts as success and the call returns ``None``.",
           "title": "Expects Response",
           "type": "boolean"
+        },
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for this one command, replacing the transport's ``interpreter``. Use it when\nthis endpoint reports errors differently from the rest.",
+          "title": "Interpreter"
         },
         "method": {
           "description": "HTTP method for this command.",
@@ -810,6 +888,19 @@
       "additionalProperties": false,
       "description": "Per-(event, http-transport) subscribe wiring: native SSE, or explicit opt-in polling.\n\nIdentical shape to an attribute's subscribe block \u2014 an event *is* a subscribe-only stream \u2014 but kept as its own\nmodel so the two primitives stay self-documenting. Polling is never a surprise default: ``mode: poll`` must supply\nan ``interval``; ``mode: sse`` opens one long-lived event stream.",
       "properties": {
+        "interpreter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interpreter class (``module:Class``) for each event, replacing the transport's ``interpreter``.",
+          "title": "Interpreter"
+        },
         "interval": {
           "anyOf": [
             {

@@ -141,7 +141,34 @@ class EnvelopeInterpreter:
 
 The class is constructed with no arguments and classifies every reply on that transport — commands, attribute
 operations, and events alike. Like a handler or codec it lives under a `source_roots` path, so a `--profile` build
-vendors it with the rest of the SDK. There is no per-command override yet.
+vendors it with the rest of the SDK.
+
+#### When One Operation Reports Errors Differently
+
+Real devices are often inconsistent: most endpoints use HTTP status codes, but one older endpoint answers `200` with
+the error in the body. Name an interpreter in that operation's wiring block and it replaces the transport's for that
+operation only:
+
+```yaml
+commands:
+  - id: poker.calibrate
+    handler: mydevice.handlers.poker:Calibrate
+    transports: [wifi]
+    audience: [internal]
+    http:
+      wifi:
+        method: POST
+        path: /legacy/calibrate
+        interpreter: mydevice.interpreters:EnvelopeInterpreter
+```
+
+Every wiring block accepts `interpreter:`: a command's `http:` and `ble:` blocks, an attribute's `read`, `write`, and
+`subscribe` blocks (or its `ble:` block), and an event's `http:` and `ble:` blocks. For each reply the SDK uses the
+first of:
+
+1. the operation's own `interpreter:`,
+2. the transport's `interpreter:`,
+3. the family default (status codes for HTTP; every reply accepted for BLE and loopback).
 
 ## Why an Envelope, Not Exceptions?
 

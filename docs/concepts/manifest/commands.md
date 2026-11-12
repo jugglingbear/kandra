@@ -74,6 +74,10 @@ Which channel the command uses on a BLE transport. Keyed by transport id.
 **The device cuts the connection before replying (e.g. a power-off). What do I set?**
 : `expects_response: false`. The SDK treats a missing reply as success and returns `None`.
 
+**This command reports errors differently from the rest of the device. What do I set?**
+: `interpreter:` in its wiring block. It replaces the transport's interpreter for this command only. See
+  [Custom interpreters](../result.md#custom-interpreters).
+
 **Will the SDK retry a command that fails?**
 : Only if you set `idempotent: true` and `retries: N`, and only after a dropped connection or a timeout. A refused
   command is never retried, and neither is a rejected login: that raises

@@ -383,17 +383,21 @@ def _rewrite_command_spec(spec: CommandSpec, tops: frozenset[str], prefix: str) 
 
 
 def _rewrite_http_wire(wire: HttpCommandWire, tops: frozenset[str], prefix: str) -> HttpCommandWire:
-    """Rewrite a per-command HTTP codec import to the vendored namespace (no-op without an override)."""
-    if wire.codec_import is None:
-        return wire
-    return replace(wire, codec_import=_rewrite_import_line(wire.codec_import, tops, prefix))
+    """Rewrite a wire's codec and interpreter override imports to the vendored namespace."""
+    return replace(
+        wire,
+        codec_import=_rewrite_optional_import(wire.codec_import, tops, prefix),
+        interpreter_import=_rewrite_optional_import(wire.interpreter_import, tops, prefix),
+    )
 
 
 def _rewrite_ble_wire(wire: BleCommandWire, tops: frozenset[str], prefix: str) -> BleCommandWire:
-    """Rewrite a per-command BLE codec import to the vendored namespace (no-op without an override)."""
-    if wire.codec_import is None:
-        return wire
-    return replace(wire, codec_import=_rewrite_import_line(wire.codec_import, tops, prefix))
+    """Rewrite a wire's codec and interpreter override imports to the vendored namespace."""
+    return replace(
+        wire,
+        codec_import=_rewrite_optional_import(wire.codec_import, tops, prefix),
+        interpreter_import=_rewrite_optional_import(wire.interpreter_import, tops, prefix),
+    )
 
 
 def _rewrite_attribute_spec(spec: AttributeSpec, tops: frozenset[str], prefix: str) -> AttributeSpec:
@@ -469,6 +473,18 @@ def _command_codec_entry_points(command: Command) -> list[tuple[str, str]]:
     return eps
 
 
+def _op_interpreter_entry_points(kind: str, op: Command | Attribute | Event) -> list[tuple[str, str]]:
+    """Return ``(module, label)`` pairs for every ``interpreter:`` in an operation's wiring blocks."""
+    eps: list[tuple[str, str]] = []
+    for tid, block in [*op.http.items(), *op.ble.items()]:
+        parts = [block.read, block.write, block.subscribe] if isinstance(block, HttpAttributeSpec) else [block]
+        for part in parts:
+            if part is not None and part.interpreter is not None:
+                label = f"{kind} {op.id!r} interpreter on transport {tid!r}"
+                eps.append((part.interpreter.split(":")[0], label))
+    return eps
+
+
 def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
     """Collect ``(module, label)`` for every dotted reference the generator resolves.
 
@@ -480,12 +496,15 @@ def _manifest_entry_points(manifest: Manifest) -> list[tuple[str, str]]:
         if c.handler is not None:
             eps.append((c.handler.split(":")[0], f"command {c.id!r} handler"))
         eps.extend(_command_codec_entry_points(c))
+        eps.extend(_op_interpreter_entry_points("command", c))
     for a in manifest.attributes:
         if a.handler is not None:
             eps.append((a.handler.split(":")[0], f"attribute {a.id!r} handler"))
+        eps.extend(_op_interpreter_entry_points("attribute", a))
     for e in manifest.events:
         if e.handler is not None:
             eps.append((e.handler.split(":")[0], f"event {e.id!r} handler"))
+        eps.extend(_op_interpreter_entry_points("event", e))
     for t in manifest.transports:
         eps.extend(_transport_entry_points(t))
     return eps
@@ -547,12 +566,34 @@ def _wire_interpreter(t: Transport) -> tuple[str | None, str | None]:
     """Resolve a transport's optional ``interpreter:`` to ``(import_line, alias)``, or ``(None, None)`` if unset."""
     if t.interpreter is None:
         return None, None
-    module_path, class_name = t.interpreter.split(":")
-    cls = _import_attr(module_path, class_name, what=f"transport {t.id!r} interpreter")
-    if not callable(getattr(cls, "classify", None)):
-        raise BuildError(f"transport {t.id!r} interpreter {t.interpreter!r} has no classify(response) method")
     alias = f"_Interp_{_sanitize(t.id)}"
-    return f"from {module_path} import {class_name} as {alias}", alias
+    return _interpreter_import(t.interpreter, alias, what=f"transport {t.id!r} interpreter {t.interpreter!r}"), alias
+
+
+def _wire_op_interpreter(
+    interpreter: str | None, kind: str, op_id: str, tid: str, entry_modules: set[str]
+) -> tuple[str | None, str | None]:
+    """Resolve an operation's optional ``interpreter:`` override on one transport to ``(import_line, alias)``.
+
+    Records the interpreter's module in ``entry_modules`` so it is vendored, and returns ``(None, None)`` when the
+    operation declares no override (the transport's interpreter applies).
+    """
+    if interpreter is None:
+        return None, None
+    alias = f"_OpInterp_{_sanitize(op_id)}_{_sanitize(tid)}"
+    what = f"{kind} {op_id!r} interpreter {interpreter!r} on transport {tid!r}"
+    line = _interpreter_import(interpreter, alias, what=what)
+    entry_modules.add(interpreter.split(":")[0])
+    return line, alias
+
+
+def _interpreter_import(dotted: str, alias: str, *, what: str) -> str:
+    """Import-check an interpreter class and return the registry's import line for it."""
+    module_path, class_name = dotted.split(":")
+    cls = _import_attr(module_path, class_name, what=what)
+    if not callable(getattr(cls, "classify", None)):
+        raise BuildError(f"{what} has no classify(response) method")
+    return f"from {module_path} import {class_name} as {alias}"
 
 
 def _wire_codec(codec: str | None, cmd_id: str, tid: str, entry_modules: set[str]) -> tuple[str | None, str | None]:
@@ -596,6 +637,7 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
         http_wires: dict[str, HttpCommandWire] = {}
         for tid, spec in cmd.http.items():
             codec_import, codec_alias = _wire_codec(spec.codec, cmd.id, tid, entry_modules)
+            interp_import, interp_alias = _wire_op_interpreter(spec.interpreter, "command", cmd.id, tid, entry_modules)
             http_wires[tid] = HttpCommandWire(
                 method=spec.method,
                 path=spec.path,
@@ -604,16 +646,23 @@ def _resolve_commands(commands: Sequence[Command]) -> tuple[list[CommandSpec], f
                 timeout=spec.timeout,
                 codec_import=codec_import,
                 codec_alias=codec_alias,
+                interpreter_import=interp_import,
+                interpreter_alias=interp_alias,
             )
         ble_wires: dict[str, BleCommandWire] = {}
         for tid, ble_spec in cmd.ble.items():
             codec_import, codec_alias = _wire_codec(ble_spec.codec, cmd.id, tid, entry_modules)
+            interp_import, interp_alias = _wire_op_interpreter(
+                ble_spec.interpreter, "command", cmd.id, tid, entry_modules
+            )
             ble_wires[tid] = BleCommandWire(
                 channel=ble_spec.channel,
                 expects_response=ble_spec.expects_response,
                 timeout=ble_spec.timeout,
                 codec_import=codec_import,
                 codec_alias=codec_alias,
+                interpreter_import=interp_import,
+                interpreter_alias=interp_alias,
             )
 
         specs.append(
@@ -683,6 +732,7 @@ def _resolve_attributes(
                     value_import=value_import,
                     ack_alias=ack_alias,
                     ack_import=ack_import,
+                    entry_modules=entry_modules,
                 )
             )
 
@@ -714,6 +764,7 @@ def _attribute_op_spec(
     value_import: str,
     ack_alias: str,
     ack_import: str,
+    entry_modules: set[str],
 ) -> CommandSpec:
     """Build the synthetic :class:`CommandSpec` for one attribute operation."""
     command_id = f"{attr.id}.{op}"
@@ -725,11 +776,27 @@ def _attribute_op_spec(
         req_alias, req_import = "_NoArgs", "from kandra_runtime import NoArgs as _NoArgs"
         resp_alias, resp_import = value_alias, value_import
 
-    http_wires = {tid: _attribute_http_wire(op, spec) for tid, spec in attr.http.items()}
-    ble_wires = {
-        tid: BleCommandWire(channel=spec.channel, expects_response=True, timeout=spec.timeout)
-        for tid, spec in attr.ble.items()
-    }
+    http_wires: dict[str, HttpCommandWire] = {}
+    for tid, spec in attr.http.items():
+        block = spec.subscribe if op == "subscribe" else spec.read if op == "read" else spec.write
+        assert block is not None  # validation guarantees a block for every declared op
+        interp_import, interp_alias = _wire_op_interpreter(
+            block.interpreter, "attribute", command_id, tid, entry_modules
+        )
+        wire = _attribute_http_wire(op, spec)
+        http_wires[tid] = replace(wire, interpreter_import=interp_import, interpreter_alias=interp_alias)
+    ble_wires: dict[str, BleCommandWire] = {}
+    for tid, ble_spec in attr.ble.items():
+        interp_import, interp_alias = _wire_op_interpreter(
+            ble_spec.interpreter, "attribute", command_id, tid, entry_modules
+        )
+        ble_wires[tid] = BleCommandWire(
+            channel=ble_spec.channel,
+            expects_response=True,
+            timeout=ble_spec.timeout,
+            interpreter_import=interp_import,
+            interpreter_alias=interp_alias,
+        )
     return CommandSpec(
         command_id=command_id,
         namespace=namespace,
@@ -822,7 +889,7 @@ def _resolve_events(
         payload_alias = f"_Evt_{safe}"
         payload_import = f"from {payload_cls.__module__} import {payload_cls.__name__} as {payload_alias}"
 
-        op_specs.append(_event_op_spec(event, payload_alias, payload_import))
+        op_specs.append(_event_op_spec(event, payload_alias, payload_import, entry_modules))
         event_specs.append(
             EventSpec(
                 event_id=event.id,
@@ -839,24 +906,34 @@ def _resolve_events(
     return op_specs, tuple(event_specs), frozenset(entry_modules)
 
 
-def _event_op_spec(event: Event, payload_alias: str, payload_import: str) -> CommandSpec:
+def _event_op_spec(event: Event, payload_alias: str, payload_import: str, entry_modules: set[str]) -> CommandSpec:
     """Build the synthetic ``<id>.subscribe`` :class:`CommandSpec` for one event."""
     command_id = f"{event.id}.subscribe"
     namespace, method = _split_namespace(command_id)
-    http_wires = {
-        tid: HttpCommandWire(
+    http_wires: dict[str, HttpCommandWire] = {}
+    for tid, spec in event.http.items():
+        interp_import, interp_alias = _wire_op_interpreter(spec.interpreter, "event", command_id, tid, entry_modules)
+        http_wires[tid] = HttpCommandWire(
             method="GET",
             path=spec.path,
             query_from_request=False,
             expects_response=True,
             timeout=spec.timeout,
+            interpreter_import=interp_import,
+            interpreter_alias=interp_alias,
         )
-        for tid, spec in event.http.items()
-    }
-    ble_wires = {
-        tid: BleCommandWire(channel=spec.channel, expects_response=True, timeout=spec.timeout)
-        for tid, spec in event.ble.items()
-    }
+    ble_wires: dict[str, BleCommandWire] = {}
+    for tid, ble_spec in event.ble.items():
+        interp_import, interp_alias = _wire_op_interpreter(
+            ble_spec.interpreter, "event", command_id, tid, entry_modules
+        )
+        ble_wires[tid] = BleCommandWire(
+            channel=ble_spec.channel,
+            expects_response=True,
+            timeout=ble_spec.timeout,
+            interpreter_import=interp_import,
+            interpreter_alias=interp_alias,
+        )
     return CommandSpec(
         command_id=command_id,
         namespace=namespace,

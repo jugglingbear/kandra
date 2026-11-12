@@ -53,6 +53,9 @@ class HttpCommandWire:
     # Optional per-command codec override (dotted path). None => runtime HttpJsonCodec.
     codec_import: str | None = None
     codec_alias: str | None = None
+    # Optional per-operation interpreter override (dotted path). None => the transport's interpreter.
+    interpreter_import: str | None = None
+    interpreter_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,9 @@ class BleCommandWire:
     # Optional per-command payload-codec override (dotted path). None => transport codec.
     codec_import: str | None = None
     codec_alias: str | None = None
+    # Optional per-operation interpreter override (dotted path). None => the transport's interpreter.
+    interpreter_import: str | None = None
+    interpreter_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -242,13 +248,35 @@ class TransportId(str, Enum):
 '''
 
 
-def _render_runtime_imports(transports: list[TransportSpec]) -> str:
+def _interpreter_for(c: CommandSpec, t: TransportSpec) -> tuple[str, str | None]:
+    """Pick one registry entry's interpreter as ``(expression, import_line)``.
+
+    The operation's own ``interpreter:`` wins, then the transport's, then the family default (no import needed).
+    """
+    wire = c.http_wires.get(t.transport_id) or c.ble_wires.get(t.transport_id)
+    if wire is not None and wire.interpreter_alias:
+        return f"{wire.interpreter_alias}()", wire.interpreter_import
+    if t.interpreter_alias:
+        return f"{t.interpreter_alias}()", t.interpreter_import
+    return ("default_http_interpreter" if t.family == "http" else "always_accepted_interpreter"), None
+
+
+def _registry_entries(
+    commands: list[CommandSpec], transports: list[TransportSpec]
+) -> list[tuple[CommandSpec, TransportSpec]]:
+    """Every (command, transport) pair the registry emits, in manifest order."""
+    lookup = {t.transport_id: t for t in transports}
+    return [(c, lookup[tid]) for c in commands for tid in c.transports]
+
+
+def _render_runtime_imports(commands: list[CommandSpec], transports: list[TransportSpec]) -> str:
     """Compute the ``from kandra_runtime import ...`` block for the registry."""
+    interpreters = {_interpreter_for(c, t)[0] for c, t in _registry_entries(commands, transports)}
     lines = ["from kandra_runtime import Command"]
     http_names: list[str] = []
     if any(t.family == "http" and t.codec_alias is None for t in transports):
         http_names.append("HttpJsonCodec")
-    if any(t.family == "http" and t.interpreter_alias is None for t in transports):
+    if "default_http_interpreter" in interpreters:
         http_names.append("default_http_interpreter")
     if http_names:
         lines.append(f"from kandra_runtime import {', '.join(http_names)}")
@@ -256,7 +284,7 @@ def _render_runtime_imports(transports: list[TransportSpec]) -> str:
         lines.append("from kandra_runtime import BleChannelCodec")
     # BLE and non-http families both default to the always-accepted interpreter since BLE has no universal
     # protocol-level status code and loopback/custom families don't either.
-    if any(t.family != "http" and t.interpreter_alias is None for t in transports):
+    if "always_accepted_interpreter" in interpreters:
         lines.append("from kandra_runtime import always_accepted_interpreter")
     return "\n".join(lines)
 
@@ -264,10 +292,11 @@ def _render_runtime_imports(transports: list[TransportSpec]) -> str:
 def _registry_import_lines(commands: list[CommandSpec], transports: list[TransportSpec]) -> list[str]:
     """Collect the distinct user import lines the registry needs, in first-seen order.
 
-    Transport codecs (non-family transports) and interpreters come first, then each command's request/response aliases
-    and per-command codec overrides.
+    Transport codecs (non-family transports) come first, then the interpreters actually used, then each command's
+    request/response aliases and per-command codec overrides.
     """
-    candidates: list[str | None] = [line for t in transports for line in (t.codec_import, t.interpreter_import)]
+    candidates: list[str | None] = [t.codec_import for t in transports]
+    candidates += [_interpreter_for(c, t)[1] for c, t in _registry_entries(commands, transports)]
     for c in commands:
         candidates += [c.request_import, c.response_import]
         wires: tuple[HttpCommandWire | BleCommandWire, ...] = (*c.http_wires.values(), *c.ble_wires.values())
@@ -282,13 +311,10 @@ def render_registry(commands: list[CommandSpec], transports: list[TransportSpec]
     entries: list[str] = []
     transport_lookup = {t.transport_id: t for t in transports}
     for c in commands:
-        per_transport_lines: list[str] = []
-        for tid in c.transports:
-            t = transport_lookup[tid]
-            per_transport_lines.append(_render_command_entry(c, t))
+        per_transport_lines = [_render_command_entry(c, transport_lookup[tid]) for tid in c.transports]
         entries.append(f'    "{c.command_id}": {{\n' + "\n".join(per_transport_lines) + "\n    },")
 
-    runtime_imports = _render_runtime_imports(transports)
+    runtime_imports = _render_runtime_imports(commands, transports)
 
     imports_block = "\n".join(import_lines)
     entries_block = "\n".join(entries)
@@ -321,8 +347,7 @@ def _render_command_entry(c: CommandSpec, t: TransportSpec) -> str:
         behavior_kwargs.append(f"retries={c.retries}")
     behavior = "".join(f"{kw}, " for kw in behavior_kwargs)
     behavior_trailing = "".join(f", {kw}" for kw in behavior_kwargs)
-    family_default = "default_http_interpreter" if t.family == "http" else "always_accepted_interpreter"
-    interpreter = f"{t.interpreter_alias}()" if t.interpreter_alias else family_default
+    interpreter, _ = _interpreter_for(c, t)
     if t.family == "http":
         wire = c.http_wires[t.transport_id]
         timeout = wire.timeout if wire.timeout is not None else c.timeout

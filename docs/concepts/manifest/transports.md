@@ -79,7 +79,8 @@ transports:
   [Custom transports via the manifest](../transport.md#custom-transports-via-the-manifest).
 
 **The device reports errors inside a `200` reply. How do I catch them?**
-: Set `interpreter:`. See [Custom interpreters](../result.md#custom-interpreters).
+: Set `interpreter:`. If only some endpoints do that, set it on those operations' wiring blocks instead. See
+  [Custom interpreters](../result.md#custom-interpreters).
 
 ## See Also
 

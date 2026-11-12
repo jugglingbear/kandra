@@ -77,6 +77,10 @@ One channel carries reads, writes, and update notifications. Keyed by transport 
 **Can an attribute be read-only?**
 : Yes: `operations: [read]`. The SDK then has no `write()` for it.
 
+**Writes report errors differently from reads. What do I set?**
+: `interpreter:` in the `write` block. It replaces the transport's interpreter for writes only. See
+  [Custom interpreters](../result.md#custom-interpreters).
+
 **Does subscribe poll the device?**
 : Only with `mode: poll`, which needs an `interval`. The default, `mode: sse`, holds one stream open and receives
   updates as the device sends them. Subscriptions are async-only; the sync client offers `read()` and `write()`.

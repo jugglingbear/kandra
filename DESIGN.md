@@ -81,9 +81,11 @@ resulting *behavior*, this file records the *why*.
   classification (transport failure, anomalous, HTTP 5xx → fault, HTTP 4xx → reject). Application status enums, TLV
   "accepted" flags, etc. live in a user-supplied interpreter. Never add device-specific rules to `kandra_runtime`.
 
-- **Interpreters are wired per transport in the manifest.** `interpreter: module:Class` classifies every reply on that
-  transport; omit it for the family default (HTTP status codes; BLE / loopback always accepted). *Why:* a device that
-  reports failure inside a `200` body or a BLE reply must be classifiable without editing generated code.
+- **Interpreters are wired in the manifest: per transport, overridable per operation.** `interpreter: module:Class` on
+  a transport classifies every reply on it; the same key in an operation's wiring block replaces it for that operation.
+  Precedence: operation, then transport, then the family default (HTTP status codes; BLE / loopback always accepted).
+  *Why:* a device that reports failure inside a `200` body or a BLE reply must be classifiable without editing
+  generated code, and real devices are inconsistent from one endpoint to the next.
 
 - **Fail-fast is opt-in.** Callers check `.accepted` / read `.data`. A test framework arms
   `client.on_non_accepted = ...` itself; `ignore_failures()` suppresses it for negative-path assertions.
