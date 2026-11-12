@@ -12,7 +12,7 @@ Used by:
 
 The sim tracks power and arm position, starting powered off with the arm retracted; deploy / retract are refused with
 HTTP 409 until it is powered on. See the
-[Device State Machine](../../../docs/concepts/manifest.md#device-state-machine) diagram.
+[State Machine](../../../docs/concepts/manifest.md#state-machine) diagram.
 
 Every route except the discovery probe (`/v1/status`) and `/v1/auth/login` requires the bearer token from that login
 (HTTP 401 otherwise). The

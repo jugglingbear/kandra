@@ -82,7 +82,7 @@ def _register_settings(app: Flask) -> None:
 
 
 def _register_power_and_arm(app: Flask) -> None:
-    """Register the power / arm commands and the `device.status` read (docs: Manifest -> Device State Machine)."""
+    """Register the power / arm commands and the `device.status` read (docs: Manifest -> State Machine)."""
     # Power and arm position are independent: nothing ever moves the arm except deploy / overdrive / retract.
     machine = {"powered": False, "extended": False, "held_psi": 0}
 

@@ -65,7 +65,9 @@ manifest/discovery
 manifest/vendoring
 ```
 
-## Device State Machine
+## Example: Pneumatic Bear Poker
+
+### State Machine
 
 The Pneumatic Bear Poker's arm only moves while the unit is powered; arm commands sent while it's off are refused (HTTP
 409, `REJECTED`).
@@ -83,7 +85,7 @@ stateDiagram-v2
     OFF_EXTENDED --> ON_EXTENDED : power.on
 ```
 
-## Manifest Structure
+### Full Manifest
 
 The complete Pneumatic Bear Poker manifest, included straight from the example so it never drifts from the real file:
 
