@@ -69,13 +69,13 @@ class Device(_ManifestModel):
     """Metadata for the target device."""
 
     id: IdentifierStr
-    """Stable snake_case device id; becomes the generated SDK package name (``<id>_sdk``)."""
+    """Short snake_case name for the device, e.g. ``pneumatic_bear_poker``. The generated package is ``<id>_sdk``."""
     display_name: str = Field(min_length=1)
-    """Human-friendly device name."""
+    """Human-readable device name, e.g. ``Pneumatic Bear Poker``."""
     firmware_min: str | None = None
-    """Minimum firmware version this SDK targets (informational; not yet enforced)."""
+    """Oldest firmware version the SDK supports. Recorded only; not checked yet."""
     audience: list[AudienceTag] = Field(min_length=1)
-    """Audiences this device is built for; every operation's audience must be a subset of this."""
+    """Every audience the device is built for, e.g. ``internal``. Each operation's ``audience`` picks from this list."""
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ class TransportAuth(_ManifestModel):
     """Optional per-transport handshake recipe for session-required commands."""
 
     handler: str
-    """Dotted path (``module:Class``) to the handshake handler run before ``session_required`` commands."""
+    """Handshake class (``module:Class``) to run before ``session_required`` commands. Reserved; not used yet."""
 
     @field_validator("handler")
     @classmethod
@@ -104,9 +104,9 @@ class TransportEnrollment(_ManifestModel):
     """
 
     login_path: str = Field(min_length=1)
-    """Path (relative to the device base URL) the SDK POSTs to capture a credential, e.g. ``/v1/auth/login``."""
+    """Path the SDK POSTs to in order to log in and get a token, e.g. ``/v1/auth/login``."""
     token_field: str | None = None
-    """Response JSON field holding the bearer token; defaults to the runtime's ``token`` / ``access_token`` probe."""
+    """Field in the login reply that holds the token. Omit to try ``token``, then ``access_token``."""
 
     @field_validator("login_path")
     @classmethod
@@ -123,9 +123,9 @@ class BleChannelSpec(_ManifestModel):
     """
 
     write: str = Field(min_length=1)
-    """UUID of the write characteristic."""
+    """UUID of the characteristic the SDK writes requests to."""
     notify: str = Field(min_length=1)
-    """UUID of the notify characteristic."""
+    """UUID of the characteristic the device sends replies on."""
 
 
 class Transport(_ManifestModel):
@@ -141,23 +141,24 @@ class Transport(_ManifestModel):
     """
 
     id: IdentifierStr
-    """Transport id; referenced by ``command.transports`` and the per-command ``http:`` / ``ble:`` blocks."""
+    """Name for this transport, e.g. ``wifi``. Commands, attributes, and events refer to it."""
     adapter: str | None = None
-    """Dotted path to a custom transport class; omit for the runtime default (HttpTransport / BleTransport)."""
+    """Your own transport class (``module:Class``). Omit to use the built-in ``HttpTransport`` or ``BleTransport``."""
     codec: str | None = None
-    """Dotted path to the wire codec used by every command on this transport. Required for every family except HTTP,
-    which defaults to the built-in ``HttpJsonCodec``; a custom HTTP codec is constructed like ``HttpJsonCodec``."""
+    """Class (``module:Class``) that converts requests and replies to and from the wire, used by every command on this
+    transport. Required unless ``family`` is ``http``, which defaults to JSON (``HttpJsonCodec``)."""
     interpreter: str | None = None
-    """Dotted path (``module:Class``) to a ``ResponseInterpreter`` that classifies every reply on this transport; it is
-    constructed with no arguments. Omit for the family default (HTTP: status codes; BLE / loopback: always accepted)."""
+    """Class (``module:Class``) that decides whether each reply means success. Omit for the default: HTTP status codes
+    for ``http``, every reply accepted otherwise."""
     family: Literal["loopback", "http", "ble"] | None = None
-    """Transport family; drives cross-validation and which per-command block (``http:`` / ``ble:``) is required."""
+    """Kind of connection. Decides which other fields the transport needs and which wiring block (``http:`` or
+    ``ble:``) each operation on it needs."""
     channels: dict[IdentifierStr, BleChannelSpec] = Field(default_factory=dict)
-    """BLE only: named (write, notify) characteristic pairs; commands pick one via ``ble.<id>.channel``."""
+    """BLE only: named pairs of characteristic UUIDs. Each BLE operation picks one by name."""
     auth: TransportAuth | None = None
-    """Reserved: handshake recipe for ``session_required`` commands on this transport (not yet wired)."""
+    """Handshake to run before ``session_required`` commands. Reserved; not used yet."""
     enrollment: TransportEnrollment | None = None
-    """HTTP only: declarative first-run login endpoint baked into the generated SDK's enrollment adapter."""
+    """HTTP only: the device's login endpoint, built into the SDK's ``http_enrollment()``."""
 
     @field_validator("adapter", "codec", "interpreter")
     @classmethod
@@ -195,21 +196,18 @@ class HttpCommandSpec(_ManifestModel):
     """Per-(command, http-transport) wire-format and behavior block."""
 
     method: Literal["GET", "POST", "PUT", "DELETE"]
-    """HTTP verb for this command."""
+    """HTTP method for this command."""
     path: str = Field(min_length=1)
-    """Request path (e.g. ``/v1/poker/deploy``)."""
+    """URL path, e.g. ``/v1/poker/deploy``."""
     codec: str | None = None
-    """Dotted path (``module:Class``) to a per-command codec that overrides the transport's codec (or the built-in
-    ``HttpJsonCodec``) for this command only -- use it when one command's wire format differs from the rest of the
-    transport (a binary or plain-text body). It is constructed like ``HttpJsonCodec`` (method / path / request +
-    response types / ``query_from_request``), so the simplest override subclasses ``HttpJsonCodec`` and overrides
-    ``decode``. Omit to use the transport default."""
+    """Codec class (``module:Class``) for this one command, replacing the transport's codec. Use it when one command's
+    format differs from the rest, such as a binary download; the easy start is a subclass of ``HttpJsonCodec``."""
     query_from_request: bool = False
-    """When true, request fields go on the query string instead of the JSON body."""
+    """Send the request's fields as URL query parameters instead of a JSON body."""
     expects_response: bool = True
-    """When false, fire-and-forget: a timeout is swallowed and no response is decoded."""
+    """Set ``false`` for fire-and-forget commands: a missing reply counts as success and the call returns ``None``."""
     timeout: float | None = Field(default=None, gt=0)
-    """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
+    """Seconds to wait on this transport. Overrides the command's ``timeout``."""
 
     @field_validator("codec")
     @classmethod
@@ -224,15 +222,13 @@ class BleCommandSpec(_ManifestModel):
     """
 
     channel: IdentifierStr
-    """Name of the BLE channel (declared on the transport's ``channels:``) this command rides."""
+    """Name of the transport channel this command uses (one of the transport's ``channels``)."""
     codec: str | None = None
-    """Dotted path (``module:Class``) to a per-command payload codec overriding the transport's ``codec`` for
-    this command only. Same shape as any BLE payload codec (``Codec[Req, Resp, bytes, bytes]``); it is wrapped in
-    the runtime ``BleChannelCodec``. Omit to use the transport default."""
+    """Payload codec class (``module:Class``) for this one command, replacing the transport's codec."""
     expects_response: bool = True
-    """When false, fire-and-forget: a timeout is swallowed."""
+    """Set ``false`` for fire-and-forget commands: a missing reply counts as success."""
     timeout: float | None = Field(default=None, gt=0)
-    """Per-transport timeout override (seconds); falls back to the command-level ``timeout``."""
+    """Seconds to wait on this transport. Overrides the command's ``timeout``."""
 
     @field_validator("codec")
     @classmethod
@@ -249,30 +245,30 @@ class Command(_ManifestModel):
     """One request/response operation against the device."""
 
     id: IdentifierStr
-    """``namespace.method`` id; maps to ``client.<namespace>.<method>()``."""
+    """Dotted name, e.g. ``poker.deploy``, which becomes ``client.poker.deploy()``. Needs at least one dot."""
     # Required field that *may* be explicitly null to select the default handler.
     handler: str | None
-    """Dotted path (``module:Class``) to the handler declaring the request/response types."""
+    """Your handler class (``module:Class``) that declares the request and response types."""
     transports: list[IdentifierStr] = Field(min_length=1)
-    """Transport ids this command may ride; each must be defined under ``transports:``."""
+    """Ids of the transports this command can use. Each ``http`` or ``ble`` one needs a wiring block below."""
     audience: list[AudienceTag] = Field(min_length=1)
-    """Audiences allowed to call this command (a subset of the device audience)."""
+    """Audiences whose SDK includes this command. Each must be listed in ``device.audience``."""
     capabilities: list[str] = Field(default_factory=list)
-    """Capability tags gating this command; the client refuses it on devices that lack them."""
+    """Capability tags the device must report; the client refuses the command on devices without them."""
     idempotent: bool = False
-    """True when re-sending is harmless; required to enable ``retries``."""
+    """``true`` if sending the command twice does no harm. Required for ``retries``."""
     timeout: float | None = Field(default=None, gt=0)
-    """Default timeout (seconds) for this command across transports."""
+    """Seconds to wait for a reply. A wiring block's ``timeout`` overrides it for that transport."""
     retries: int = Field(default=0, ge=0)
-    """Auto-retry budget after a transient transport failure. Requires ``idempotent: true``."""
+    """How many times to re-send after a dropped connection or timeout. Requires ``idempotent: true``."""
     session_required: bool = False
-    """Reserved: require the transport's ``auth`` handshake before this command (not yet wired)."""
+    """Run the transport's ``auth`` handshake before this command. Reserved; not used yet."""
     # Per-transport behavior blocks. Keys are transport ids that must appear in `transports` above and belong to the
     # matching family.
     http: dict[IdentifierStr, HttpCommandSpec] = Field(default_factory=dict)
-    """Per-http-transport wire blocks, keyed by transport id."""
+    """Wiring for each HTTP transport, keyed by transport id."""
     ble: dict[IdentifierStr, BleCommandSpec] = Field(default_factory=dict)
-    """Per-ble-transport wire blocks, keyed by transport id."""
+    """Wiring for each BLE transport, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -314,13 +310,13 @@ class HttpAttributeOp(_ManifestModel):
     """
 
     method: Literal["GET", "POST", "PUT", "DELETE"] = "GET"
-    """HTTP verb for this attribute operation."""
+    """HTTP method for this operation."""
     path: str = Field(min_length=1)
-    """Request path."""
+    """URL path, e.g. ``/v1/settings/poke_intensity``."""
     query_from_request: bool = False
-    """When true, request fields go on the query string instead of the JSON body."""
+    """Send the value's fields as URL query parameters instead of a JSON body."""
     timeout: float | None = Field(default=None, gt=0)
-    """Operation timeout (seconds)."""
+    """Seconds to wait for a reply."""
 
 
 class HttpAttributeSubscribe(_ManifestModel):
@@ -331,13 +327,13 @@ class HttpAttributeSubscribe(_ManifestModel):
     """
 
     mode: Literal["sse", "poll"] = "sse"
-    """``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval)."""
+    """``sse`` keeps one stream open for updates; ``poll`` repeats a request every ``interval`` seconds."""
     path: str = Field(min_length=1)
-    """Subscribe path."""
+    """URL path of the stream (``sse``) or of the request to repeat (``poll``)."""
     interval: float | None = Field(default=None, gt=0)
-    """Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``."""
+    """Seconds between polls. Required for ``poll``; not allowed for ``sse``."""
     timeout: float | None = Field(default=None, gt=0)
-    """Per-request timeout (seconds)."""
+    """Seconds to wait for each request."""
 
     @model_validator(mode="after")
     def _check_interval(self) -> HttpAttributeSubscribe:
@@ -349,20 +345,20 @@ class HttpAttributeSpec(_ManifestModel):
     """Per-(attribute, http-transport) wiring: the ops this attribute supports here."""
 
     read: HttpAttributeOp | None = None
-    """HTTP read op wiring."""
+    """How to read the value. Required when ``operations`` includes ``read``."""
     write: HttpAttributeOp | None = None
-    """HTTP write op wiring."""
+    """How to write the value. Required when ``operations`` includes ``write``."""
     subscribe: HttpAttributeSubscribe | None = None
-    """HTTP subscribe wiring."""
+    """How to get updates. Required when ``operations`` includes ``subscribe``."""
 
 
 class BleAttributeSpec(_ManifestModel):
     """Per-(attribute, ble-transport) wiring: one channel carries read/write/notify."""
 
     channel: IdentifierStr
-    """BLE channel carrying this attribute's read/write/notify."""
+    """Name of the transport channel that carries this attribute's reads, writes, and updates."""
     timeout: float | None = Field(default=None, gt=0)
-    """Operation timeout (seconds)."""
+    """Seconds to wait for a reply."""
 
 
 class HttpEventSpec(_ManifestModel):
@@ -374,13 +370,13 @@ class HttpEventSpec(_ManifestModel):
     """
 
     mode: Literal["sse", "poll"] = "sse"
-    """``sse`` (one long-lived stream) or ``poll`` (repeated requests on an interval)."""
+    """``sse`` keeps one stream open for events; ``poll`` repeats a request every ``interval`` seconds."""
     path: str = Field(min_length=1)
-    """Subscribe path."""
+    """URL path of the stream (``sse``) or of the request to repeat (``poll``)."""
     interval: float | None = Field(default=None, gt=0)
-    """Poll interval in seconds; required for ``mode: poll``, forbidden for ``sse``."""
+    """Seconds between polls. Required for ``poll``; not allowed for ``sse``."""
     timeout: float | None = Field(default=None, gt=0)
-    """Per-request timeout (seconds)."""
+    """Seconds to wait for each request."""
 
     @model_validator(mode="after")
     def _check_interval(self) -> HttpEventSpec:
@@ -392,9 +388,9 @@ class BleEventSpec(_ManifestModel):
     """Per-(event, ble-transport) subscribe wiring: one channel's notify stream."""
 
     channel: IdentifierStr
-    """BLE channel whose notify stream carries this event."""
+    """Name of the transport channel whose notifications carry this event."""
     timeout: float | None = Field(default=None, gt=0)
-    """Operation timeout (seconds)."""
+    """Timeout in seconds."""
 
 
 class Attribute(_ManifestModel):
@@ -404,21 +400,21 @@ class Attribute(_ManifestModel):
     """
 
     id: IdentifierStr
-    """``namespace.name`` id; maps to ``client.<namespace>.<name>`` (read / write / subscribe)."""
+    """Dotted name, e.g. ``settings.poke_intensity``, which becomes ``client.settings.poke_intensity``."""
     handler: str | None
-    """Dotted path (``module:Class``) to the handler declaring the attribute's value type."""
+    """Your handler class (``module:Class``) that declares the value type."""
     transports: list[IdentifierStr] = Field(min_length=1)
-    """Transport ids this attribute may ride."""
+    """Ids of the transports this attribute can use. Each ``http`` or ``ble`` one needs a wiring block below."""
     operations: list[Literal["read", "write", "subscribe"]] = Field(min_length=1)
-    """Which of read / write / subscribe this attribute supports."""
+    """What callers can do with the value."""
     audience: list[AudienceTag] = Field(min_length=1)
-    """Audiences allowed to use this attribute (a subset of the device audience)."""
+    """Audiences whose SDK includes this attribute. Each must be listed in ``device.audience``."""
     capabilities: list[str] = Field(default_factory=list)
-    """Capability tags gating this attribute."""
+    """Capability tags the device must report; the client refuses the attribute on devices without them."""
     http: dict[IdentifierStr, HttpAttributeSpec] = Field(default_factory=dict)
-    """Per-http-transport wiring, keyed by transport id."""
+    """Wiring for each HTTP transport, keyed by transport id, with a block for every listed operation."""
     ble: dict[IdentifierStr, BleAttributeSpec] = Field(default_factory=dict)
-    """Per-ble-transport wiring, keyed by transport id."""
+    """Wiring for each BLE transport, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -435,19 +431,19 @@ class Event(_ManifestModel):
     """
 
     id: IdentifierStr
-    """``namespace.name`` id; maps to ``client.<namespace>.<name>.subscribe()``."""
+    """Dotted name, e.g. ``button.pressed``, which becomes ``client.button.pressed.subscribe()``."""
     handler: str | None
-    """Dotted path (``module:Class``) to the handler declaring the event's payload type."""
+    """Your handler class (``module:Class``) that declares the payload type."""
     transports: list[IdentifierStr] = Field(min_length=1)
-    """Transport ids this event may ride."""
+    """Ids of the transports this event can use. Each ``http`` or ``ble`` one needs a wiring block below."""
     audience: list[AudienceTag] = Field(min_length=1)
-    """Audiences allowed to subscribe (a subset of the device audience)."""
+    """Audiences whose SDK includes this event. Each must be listed in ``device.audience``."""
     capabilities: list[str] = Field(default_factory=list)
-    """Capability tags gating this event."""
+    """Capability tags the device must report; the client refuses the event on devices without them."""
     http: dict[IdentifierStr, HttpEventSpec] = Field(default_factory=dict)
-    """Per-http-transport subscribe wiring, keyed by transport id."""
+    """Stream or polling wiring for each HTTP transport, keyed by transport id."""
     ble: dict[IdentifierStr, BleEventSpec] = Field(default_factory=dict)
-    """Per-ble-transport subscribe wiring, keyed by transport id."""
+    """Channel wiring for each BLE transport, keyed by transport id."""
 
     @field_validator("handler")
     @classmethod
@@ -472,12 +468,12 @@ class BleDiscoverySpec(_ManifestModel):
     """
 
     name_prefix: str | None = Field(default=None, min_length=1)
-    """Match advertisements whose local name starts with this prefix."""
+    """Match devices whose advertised name starts with this."""
     service_uuids: list[str] = Field(default_factory=list)
-    """Match advertisements exposing all of these service UUIDs (canonical 8-4-4-4-12 form)."""
+    """Match devices that advertise all of these service UUIDs."""
     # Bluetooth SIG company identifier (0..0xFFFF).
     manufacturer_id: int | None = Field(default=None, ge=0, le=0xFFFF)
-    """Match this Bluetooth SIG company identifier (0..0xFFFF)."""
+    """Match devices with this Bluetooth SIG company ID (0 to 65535)."""
 
     @field_validator("service_uuids")
     @classmethod
@@ -499,11 +495,11 @@ class HttpDiscoverySpec(_ManifestModel):
     """
 
     base_urls: list[str] = Field(min_length=1)
-    """URLs to probe in parallel; every one whose ``probe_path`` answers (status < 400) and matches is a candidate."""
+    """Addresses to check, e.g. ``http://192.168.1.1:8080``. Each one that answers and matches is a found device."""
     probe_path: str = Field(default="/", min_length=1)
-    """Path probed to confirm a device (e.g. ``/v1/status``). Must answer without a login."""
+    """Path requested at each address to confirm the device, e.g. ``/v1/status``. Must work without logging in."""
     server_header_prefix: str | None = Field(default=None, min_length=1)
-    """Optional: require the probe response's ``Server`` header to start with this."""
+    """If set, the reply's ``Server`` header must start with this."""
 
     @field_validator("base_urls")
     @classmethod
@@ -522,9 +518,9 @@ class DiscoverySpec(_ManifestModel):
     """
 
     ble: BleDiscoverySpec | None = None
-    """BLE advertisement match criteria."""
+    """How ``scan_ble()`` recognizes the device."""
     http: HttpDiscoverySpec | None = None
-    """HTTP probe-list configuration."""
+    """Where ``scan_http()`` looks for the device and how it confirms it."""
 
     @model_validator(mode="after")
     def _check_not_empty(self) -> DiscoverySpec:
@@ -546,9 +542,9 @@ class Vendoring(_ManifestModel):
     """
 
     extra_include: list[str] = Field(default_factory=list)
-    """Files / dirs / globs (relative to a source root) to force-vendor beyond the import-closure walk."""
+    """Files, folders, or globs (relative to a source root) to bundle even though no code imports them."""
     exclude: list[str] = Field(default_factory=list)
-    """Files / dirs / globs to drop from the vendored SDK."""
+    """Files, folders, or globs (relative to a source root) to leave out of the SDK."""
 
 
 # ---------------------------------------------------------------------------
@@ -563,23 +559,23 @@ class Manifest(_ManifestModel):
     """Top-level manifest: one device, its transports, and its operations."""
 
     schema_version: int
-    """Manifest schema version (currently 1)."""
+    """Manifest format version. Always ``1``."""
     device: Device
-    """Target device metadata."""
+    """The device's id, name, and audiences."""
     source_roots: list[str] = Field(min_length=1)
-    """Directories the generator may import handlers / codecs from."""
+    """Folders, relative to the manifest, that hold your handler, codec, and other Python classes."""
     transports: list[Transport] = Field(min_length=1)
-    """Wire transports this device exposes."""
+    """How the SDK reaches the device."""
     discovery: DiscoverySpec | None = None
-    """Optional discovery configuration (drives the generated ``scanners.py``)."""
+    """How the SDK's ``scan_http()`` / ``scan_ble()`` helpers find the device."""
     commands: list[Command] = Field(default_factory=list)
-    """One-shot request/response operations."""
+    """One-shot actions, such as ``client.poker.deploy()``."""
     attributes: list[Attribute] = Field(default_factory=list)
-    """Named device state (read / write / subscribe)."""
+    """Device state you read, write, or subscribe to."""
     events: list[Event] = Field(default_factory=list)
-    """Stateless subscribe-only emissions."""
+    """Things the device emits that you subscribe to."""
     vendoring: Vendoring = Field(default_factory=Vendoring)
-    """Import-closure overrides for ``--profile`` (vendoring) builds."""
+    """Extra files to bundle into the SDK, or to leave out (``--profile`` builds only)."""
 
     @field_validator("schema_version")
     @classmethod
