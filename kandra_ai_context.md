@@ -192,9 +192,11 @@ Design detail: `docs/concepts/lifecycle.md`.
   under `docs/`. `kandra.md` was deleted after porting.
 - Sphinx + MyST docs site under `docs/` (concepts/ + reference/), Furo theme,
   autodoc-pydantic, mermaid.
-- **Manifest reference docs are auto-enriched from the pydantic models** — the page renders
-  types/constraints/validators/class-docs; a pass added per-field prose descriptions to
-  ~40 fields (turns 63, 66).
+- **Manifest docs are one page per top-level key** under `docs/concepts/manifest/`, linked from the
+  "Top-Level Keys" table on `concepts/manifest.md`. Each page's field tables come from the pydantic
+  field docstrings via the `{manifest-fields}` directive (`docs/_ext/manifest_fields.py`), so the
+  docs, the JSON schema, and the code share one description. `test_manifest_field_docs.py` fails
+  if a field has no description. The model API autodoc lives on `reference/generator.md`.
 - **"Why Kandra?" / motivation** page: reworked the "How It Works" diagram (stacked less
   horizontally for legible text), fixed misleading phrasing ("You refactor with the IDE"
   scared users; "no generated code to read" was false since the SDK _is_ generated). Clarified

@@ -176,6 +176,7 @@ locations and how to clear a saved identity outside the demo.
 
 ## Next steps
 
+- Write a manifest for your own device: [Write Your First Manifest](write-your-first-manifest.md).
 - Read the [manifest](concepts/manifest.md) you just built from — commands, attributes, and discovery are all
   declared there.
 - Skim the [Architecture](concepts/architecture.md) and [Lifecycle](concepts/lifecycle.md) concept pages.

@@ -29,6 +29,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PKG_ROOT = _REPO_ROOT / "packages"
 sys.path.insert(0, str(_PKG_ROOT / "kandra-runtime" / "src"))
 sys.path.insert(0, str(_PKG_ROOT / "kandra" / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "_ext"))
 
 # -- Project information -----------------------------------------------------
 project = "Kandra"
@@ -46,6 +47,7 @@ extensions = [
     "sphinxcontrib.autodoc_pydantic",  # Rich Pydantic v2 rendering
     "sphinx_copybutton",  # Copy-to-clipboard on code blocks
     "sphinx_design",  # Tabs / cards / grids
+    "manifest_fields",  # docs/_ext: ```{manifest-fields} Model``` tables generated from the manifest models
 ]
 
 # Markdown extensions (MyST) ------------------------------------------------

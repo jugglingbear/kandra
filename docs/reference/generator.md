@@ -5,8 +5,15 @@ integration.
 
 ## Manifest Model
 
-The manifest's pydantic models -- every field, type, and validator -- are documented on the
-[Manifest Reference](manifest.md) page.
+The pydantic models that validate a manifest. For what each key means and how to fill it in, start from the
+[Manifest](../concepts/manifest.md) page.
+
+```{eval-rst}
+.. automodule:: kandra.manifest.model
+   :members:
+   :member-order: bysource
+   :exclude-members: model_config
+```
 
 ## Loader
 
@@ -43,4 +50,3 @@ walking, vendoring with namespace rewrite, the leakage scan, and the `kandra aud
 .. automodule:: kandra.audit
    :members:
 ```
-

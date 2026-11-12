@@ -45,6 +45,7 @@ First run scans, enrolls, and saves an `Identity`; every later run short-circuit
 
 motivation
 getting-started
+write-your-first-manifest
 examples
 ```
 
@@ -71,7 +72,7 @@ concepts/audiences
 :caption: Reference
 :maxdepth: 1
 
-reference/manifest
+reference/editor-autocomplete
 reference/runtime
 reference/generator
 ```

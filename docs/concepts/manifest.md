@@ -31,6 +31,40 @@ fictional device whose sole job is to poke bears (pneumatically). It talks HTTP 
 *Audience* decides what goes into an SDK when it's built; *capability* decides what a connected device supports at run
 time.
 
+## Top-Level Keys
+
+Every manifest is built from these keys. Each one has its own page listing every field it accepts. The manifest only
+wires things together: request and reply types, and any logic, live in your Python handler classes.
+
+| Key | Required | What it's for |
+|-----|----------|---------------|
+| [`schema_version`](manifest/schema_version.md) | Yes | The manifest format version; always `1` |
+| [`device`](manifest/device.md) | Yes | The device's id, display name, and audiences |
+| [`source_roots`](manifest/source_roots.md) | Yes | Folders holding your handler, codec, and other Python classes |
+| [`transports`](manifest/transports.md) | Yes | How the SDK reaches the device (HTTP, BLE, …) |
+| [`commands`](manifest/commands.md) | No | One-shot actions, such as `client.poker.deploy()` |
+| [`attributes`](manifest/attributes.md) | No | Device state you read, write, or subscribe to |
+| [`events`](manifest/events.md) | No | Things the device emits that you subscribe to |
+| [`discovery`](manifest/discovery.md) | No | How `scan_http()` / `scan_ble()` find the device |
+| [`vendoring`](manifest/vendoring.md) | No | Extra files to bundle into the SDK, or to leave out |
+
+A manifest needs at least one command, attribute, or event. Your editor can autocomplete and check a manifest as you
+write it; see [Editor Autocomplete](../reference/editor-autocomplete.md).
+
+```{toctree}
+:hidden:
+
+manifest/schema_version
+manifest/device
+manifest/source_roots
+manifest/transports
+manifest/commands
+manifest/attributes
+manifest/events
+manifest/discovery
+manifest/vendoring
+```
+
 ## Device State Machine
 
 The Pneumatic Bear Poker's arm only moves while the unit is powered; arm commands sent while it's off are refused (HTTP
@@ -57,58 +91,3 @@ The complete Pneumatic Bear Poker manifest, included straight from the example s
 :language: yaml
 :caption: examples/pneumatic_bear_poker/manifest.yaml
 ```
-
-What the manifest does **not** contain: request/response field definitions, type schemas, business logic, or anything
-else that would duplicate Python. Those live in the handler classes referenced by `handler:`.
-
-`source_roots:` also bounds what an SDK can contain: every handler, codec, adapter, and interpreter must live under a
-source root or the build fails, and a `--profile` build vendors only files from under the roots.
-
-Each entry under `transports:` declares one wire transport; its `family:` (`http`, `ble`, or `loopback`) decides which
-per-operation wiring block is required.
-
-- `codec:` is the dotted path to the user-types ↔ wire-envelope [codec](codec.md) used by every command on the
-  transport — **required for every family except HTTP**, which falls back to the runtime `HttpJsonCodec` when it's
-  omitted. A command can override it with its own `codec:` (below).
-- `adapter:` (optional) selects the [Transport](transport.md) implementation: **omit it** to use the runtime default
-  for the family (`HttpTransport` for HTTP, `BleTransport` for BLE), or point it at your own `package.module:Class` to
-  plug in a custom transport — see
-  [Custom transports via the manifest](transport.md#custom-transports-via-the-manifest).
-- `interpreter:` (optional) names the class that decides whether each reply on this transport means success: **omit
-  it** for the family default (HTTP status codes; BLE and loopback accept every reply), or point it at your own
-  `package.module:Class` when the device reports errors some other way, such as inside a `200` body — see
-  [Custom interpreters](result.md#custom-interpreters).
-- `channels:` (BLE only) names `(write, notify)` characteristic UUID pairs; each BLE command selects one by name.
-- `enrollment: { login_path: /path }` (HTTP only, plus an optional `token_field`) is baked into a
-  `<device>_sdk.http_enrollment()` factory (and the default for `discover_and_connect`), keeping the device's login
-  endpoint out of caller code — see [Enrollment](enrollment.md#declaring-the-http-login-in-the-manifest).
-
-Commands are one-shot actions; [attributes](attribute.md) are named device *state* you can read, write, and subscribe
-to; [events](event.md) are stateless emissions you subscribe to. All three are pure wiring here — the payload types live
-in the referenced handler classes. Every command, attribute, and event that rides an HTTP or BLE transport also needs
-a per-transport `http:` / `ble:` wiring block — method/path, read/write/subscribe verbs, or a subscribe stream, as in
-the `http:` blocks above (see also the [Attribute](attribute.md) / [Event](event.md) pages). A
-command's wire block may also carry an optional `codec:` (a dotted `module:Class`) that overrides the transport's
-default codec for that one command — the escape hatch when a single transport carries mixed wire formats (see
-[Per-command codec override](codec.md#per-command-codec-override)). Any operation may also declare
-`capabilities: [tag, ...]` to gate it behind [device capabilities](capabilities.md).
-
-A command may declare `idempotent: true` when re-sending it is harmless (the device treats a repeat as a no-op). That
-unlocks `retries: N` — after a *transient* transport failure (a dropped link or a timeout) the runtime re-sends the
-command up to `N` more times before giving up. Non-idempotent commands are never auto-retried, so `retries: N` requires
-`idempotent: true` (the loader rejects the pair otherwise). A stale-credential failure is *not* retried here — it
-surfaces as [`IdentityStaleError`](lifecycle.md#credential-staleness--re-enrollment) for the client's re-enrollment
-path instead. The [state machine](#device-state-machine) above shows how the reference device's flags were chosen.
-
-The optional top-level `discovery:` block (at the end of the example) holds per-family match criteria: `ble:` (name
-prefix, service UUIDs, manufacturer id) and/or `http:` (`base_urls` to probe, `probe_path`, optional
-`server_header_prefix`). Each
-family it declares must match a transport's `family:`, and the generator compiles it into the SDK's `scan_<family>()`
-helpers and default matchers — see [Scanner](scanner.md#matcher).
-
-The `vendoring` block tunes the import-closure walker. Each `extra_include` / `exclude` entry is a path relative to a
-`source_root` and may be a single **file**, a whole **directory**, or a **glob** — never a dotted class name.
-`extra_include` force-vendors code or data the static walker can't reach (a dynamically imported module, a directory of
-runtime assets), and `exclude` drops files from the shipped SDK. The generator honors these during a `--profile`
-(vendoring) build; a plain `kandra build` imports from `source_roots` and ignores them. See
-[Audiences & IP Isolation](audiences.md).
