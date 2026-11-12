@@ -12,6 +12,39 @@ def _load(body: str):  # type: ignore[no-untyped-def]
     return load_manifest(_BASE_DEVICE + body)
 
 
+_OPS = {
+    "commands": "  - id: {id}\n    handler: {handler}\n    transports: [http]\n    audience: [internal]\n"
+    "    http:\n      http: {{method: GET, path: /}}\n",
+    "attributes": "  - id: {id}\n    handler: {handler}\n    transports: [http]\n    operations: [read]\n"
+    "    audience: [internal]\n    http:\n      http:\n        read: {{path: /}}\n",
+    "events": "  - id: {id}\n    handler: {handler}\n    transports: [http]\n    audience: [internal]\n"
+    "    http:\n      http: {{path: /}}\n",
+}
+
+
+def _load_op(section: str, *, op_id: str = "x.y", handler: str = "a.b:H"):  # type: ignore[no-untyped-def]
+    ops = _OPS[section].format(id=op_id, handler=handler)
+    return _load(f"transports:\n  - {{id: http, family: http}}\n{section}:\n{ops}")
+
+
+@pytest.mark.parametrize("section", sorted(_OPS))
+def test_operation_fixture_is_valid(section: str) -> None:
+    _load_op(section)
+
+
+@pytest.mark.parametrize("section", sorted(_OPS))
+def test_operation_id_needs_a_dot(section: str) -> None:
+    # Caught by `kandra validate`, not first discovered by `kandra build`.
+    with pytest.raises(LoaderError, match="needs at least one dot"):
+        _load_op(section, op_id="ping")
+
+
+@pytest.mark.parametrize("section", sorted(_OPS))
+def test_null_handler_is_rejected(section: str) -> None:
+    with pytest.raises(LoaderError, match="synthesized default handlers"):
+        _load_op(section, handler="null")
+
+
 # ---------------------------------------------------------------------------
 # Happy paths that exercise otherwise-uncovered validators.
 # ---------------------------------------------------------------------------
@@ -243,7 +276,6 @@ def test_id_collision_across_sections_rejected() -> None:
             "events:\n  - id: sensor.reading\n    handler: a.b:Evt\n    transports: [http]\n    audience: [internal]\n"
             "    http:\n      http: {mode: sse, path: /e}\n"
         )
-
 
 
 # ---------------------------------------------------------------------------

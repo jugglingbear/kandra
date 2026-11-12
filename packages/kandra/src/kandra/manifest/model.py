@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Primitive types
@@ -21,6 +21,21 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 IdentifierStr = Annotated[
     str,
     StringConstraints(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$", strip_whitespace=True),
+]
+
+
+def _require_namespace(value: str) -> str:
+    if "." not in value:
+        raise ValueError(f"id {value!r} needs at least one dot ('<namespace>.<name>'), e.g. 'device.{value}'")
+    return value
+
+
+# Command / attribute / event ids: the first segment becomes the client namespace, so at least one dot is required.
+# The schema pattern lets editors flag a missing dot too.
+OperationIdStr = Annotated[
+    IdentifierStr,
+    AfterValidator(_require_namespace),
+    Field(json_schema_extra={"pattern": r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$"}),
 ]
 
 # Audience tags. Lowercase with `_` or `-` so users can pick their own taxonomy ("internal", "partner_acme",
@@ -42,6 +57,16 @@ def _validate_dotted_path(value: str) -> str:
             "(module path, then ':', then attribute name)"
         )
     return value
+
+
+def _validate_handler(value: str | None) -> str | None:
+    # Explicit null is reserved for synthesized default handlers (DESIGN.md), which don't exist yet.
+    if value is None:
+        raise ValueError(
+            "handler=null is reserved for synthesized default handlers, which are not yet implemented; "
+            "provide an explicit handler dotted path"
+        )
+    return _validate_dotted_path(value)
 
 
 # ---------------------------------------------------------------------------
@@ -244,9 +269,8 @@ class BleCommandSpec(_ManifestModel):
 class Command(_ManifestModel):
     """One request/response operation against the device."""
 
-    id: IdentifierStr
-    """Dotted name, e.g. ``poker.deploy``, which becomes ``client.poker.deploy()``. Needs at least one dot."""
-    # Required field that *may* be explicitly null to select the default handler.
+    id: OperationIdStr
+    """Dotted name, e.g. ``poker.deploy``, which becomes ``client.poker.deploy()``. Needs a dot."""
     handler: str | None
     """Your handler class (``module:Class``) that declares the request and response types."""
     transports: list[IdentifierStr] = Field(min_length=1)
@@ -273,9 +297,7 @@ class Command(_ManifestModel):
     @field_validator("handler")
     @classmethod
     def _check_handler(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return _validate_dotted_path(value)
+        return _validate_handler(value)
 
     @model_validator(mode="after")
     def _check_retries_idempotent(self) -> Command:
@@ -399,8 +421,8 @@ class Attribute(_ManifestModel):
     Emitted as ``client.<namespace>.<name>.read() / .write(v) / .subscribe()``.
     """
 
-    id: IdentifierStr
-    """Dotted name, e.g. ``settings.poke_intensity``, which becomes ``client.settings.poke_intensity``."""
+    id: OperationIdStr
+    """Dotted name, e.g. ``settings.poke_intensity``, which becomes ``client.settings.poke_intensity``. Needs a dot."""
     handler: str | None
     """Your handler class (``module:Class``) that declares the value type."""
     transports: list[IdentifierStr] = Field(min_length=1)
@@ -419,7 +441,7 @@ class Attribute(_ManifestModel):
     @field_validator("handler")
     @classmethod
     def _check_handler(cls, value: str | None) -> str | None:
-        return None if value is None else _validate_dotted_path(value)
+        return _validate_handler(value)
 
 
 class Event(_ManifestModel):
@@ -430,8 +452,8 @@ class Event(_ManifestModel):
     single ``payload`` type; the generated facade exposes ``client.<namespace>.<event>.subscribe()`` (async-only).
     """
 
-    id: IdentifierStr
-    """Dotted name, e.g. ``button.pressed``, which becomes ``client.button.pressed.subscribe()``."""
+    id: OperationIdStr
+    """Dotted name, e.g. ``button.pressed``, which becomes ``client.button.pressed.subscribe()``. Needs a dot."""
     handler: str | None
     """Your handler class (``module:Class``) that declares the payload type."""
     transports: list[IdentifierStr] = Field(min_length=1)
@@ -448,7 +470,7 @@ class Event(_ManifestModel):
     @field_validator("handler")
     @classmethod
     def _check_handler(cls, value: str | None) -> str | None:
-        return None if value is None else _validate_dotted_path(value)
+        return _validate_handler(value)
 
 
 # ---------------------------------------------------------------------------
@@ -611,11 +633,6 @@ class Manifest(_ManifestModel):
             unknown = set(cmd.transports) - transport_ids
             if unknown:
                 raise ValueError(f"command {cmd.id!r} references undefined transport(s): {sorted(unknown)}")
-            if cmd.handler is None:
-                raise ValueError(
-                    f"command {cmd.id!r} has handler=null; synthesized default handlers "
-                    "are not yet implemented — provide an explicit handler dotted path"
-                )
             _check_per_transport_blocks(cmd, transports_by_id)
 
         if not self.commands and not self.attributes and not self.events:

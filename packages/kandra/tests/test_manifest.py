@@ -46,7 +46,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: null
     transports: [http]
     audience: [internal]
@@ -69,7 +69,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]
@@ -91,7 +91,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [serial]
     audience: [internal]
@@ -114,7 +114,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal, public]
@@ -138,7 +138,7 @@ transports:
     codec: pkg.mod:Codec
     enrollment: { login_path: /v1/auth/login }
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [loop]
     audience: [internal]
@@ -161,7 +161,7 @@ transports:
     family: http
     enrollment: { login_path: v1/auth/login }
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]
@@ -188,7 +188,7 @@ transports:
     family: http
     enrollment: { login_path: /v1/auth/login, token_field: token }
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]
@@ -220,7 +220,7 @@ transports:
     adapter: pkg.mod:Other
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]
@@ -242,7 +242,7 @@ transports:
     adapter: not-a-dotted-path
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]
@@ -265,7 +265,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     transports: [http]
     audience: [internal]
 """
@@ -286,7 +286,7 @@ transports:
     adapter: pkg.mod:Adapter
     codec: pkg.mod:Codec
 commands:
-  - id: x
+  - id: x.y
     handler: pkg.mod:Handler
     transports: [http]
     audience: [internal]

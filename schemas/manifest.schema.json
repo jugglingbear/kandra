@@ -55,8 +55,8 @@
           "type": "object"
         },
         "id": {
-          "description": "Dotted name, e.g. ``settings.poke_intensity``, which becomes ``client.settings.poke_intensity``.",
-          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Dotted name, e.g. ``settings.poke_intensity``, which becomes ``client.settings.poke_intensity``. Needs a dot.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
           "title": "Id",
           "type": "string"
         },
@@ -331,8 +331,8 @@
           "type": "object"
         },
         "id": {
-          "description": "Dotted name, e.g. ``poker.deploy``, which becomes ``client.poker.deploy()``. Needs at least one dot.",
-          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Dotted name, e.g. ``poker.deploy``, which becomes ``client.poker.deploy()``. Needs a dot.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
           "title": "Id",
           "type": "string"
         },
@@ -524,8 +524,8 @@
           "type": "object"
         },
         "id": {
-          "description": "Dotted name, e.g. ``button.pressed``, which becomes ``client.button.pressed.subscribe()``.",
-          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Dotted name, e.g. ``button.pressed``, which becomes ``client.button.pressed.subscribe()``. Needs a dot.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
           "title": "Id",
           "type": "string"
         },

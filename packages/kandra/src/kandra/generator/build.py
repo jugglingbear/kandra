@@ -654,16 +654,7 @@ def _resolve_attributes(
     entry_modules: set[str] = set()
 
     for attr in attributes:
-        if attr.handler is None:
-            raise BuildError(
-                f"attribute {attr.id!r}: a handler is required to generate its facade "
-                "(set `handler: 'module:HandlerClass'`)"
-            )
-        if "." not in attr.id:
-            raise BuildError(
-                f"attribute id {attr.id!r} must be dotted ('<namespace>.<name>') so it maps to "
-                "client.<namespace>.<name>"
-            )
+        assert attr.handler is not None  # loader rejects null handlers
         module_path, class_name = attr.handler.split(":")
         handler_cls = _import_attr(module_path, class_name, what=f"attribute {attr.id!r} handler")
 
@@ -820,16 +811,7 @@ def _resolve_events(
     entry_modules: set[str] = set()
 
     for event in events:
-        if event.handler is None:
-            raise BuildError(
-                f"event {event.id!r}: a handler is required to generate its facade "
-                "(set `handler: 'module:HandlerClass'`)"
-            )
-        if "." not in event.id:
-            raise BuildError(
-                f"event id {event.id!r} must be dotted ('<namespace>.<name>') so it maps to "
-                "client.<namespace>.<name>"
-            )
+        assert event.handler is not None  # loader rejects null handlers
         module_path, class_name = event.handler.split(":")
         handler_cls = _import_attr(module_path, class_name, what=f"event {event.id!r} handler")
         payload_cls = _read_event_payload(handler_cls, event.id)
@@ -1168,10 +1150,9 @@ def _enum_member(transport_id: str) -> str:
 
 
 def _split_namespace(command_id: str) -> tuple[str, str]:
-    parts = command_id.split(".")
-    if len(parts) < 2:
-        raise BuildError(f"command id {command_id!r} must contain at least one dot " "(format: '<namespace>.<method>')")
-    return parts[0], "_".join(parts[1:])
+    # The loader guarantees at least one dot.
+    namespace, _, rest = command_id.partition(".")
+    return namespace, rest.replace(".", "_")
 
 
 def _pascal(snake: str) -> str:

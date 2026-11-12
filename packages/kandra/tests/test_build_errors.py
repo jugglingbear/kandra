@@ -121,12 +121,6 @@ def test_handler_attr_not_a_class_raises(tmp_path: Path) -> None:
         build_sdk(manifest, output_root=tmp_path / "out")
 
 
-def test_command_id_without_dot_raises(tmp_path: Path) -> None:
-    manifest = _project(tmp_path, command_id="ping")
-    with pytest.raises(BuildError, match="at least one dot"):
-        build_sdk(manifest, output_root=tmp_path / "out")
-
-
 def test_missing_source_roots_raises(tmp_path: Path) -> None:
     manifest = _project(tmp_path, source_roots="[does_not_exist]")
     with pytest.raises(BuildError, match="source_roots do not exist"):

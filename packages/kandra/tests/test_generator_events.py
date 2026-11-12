@@ -342,19 +342,3 @@ def test_event_non_class_payload_is_refused(tmp_path: Path) -> None:
     manifest_path = _write_sources(tmp_path, "badpay", manifest)
     with pytest.raises(BuildError, match="handler.payload must be a class"):
         build_sdk(manifest_path, output_root=tmp_path / "badpay" / "out")
-
-
-def test_event_null_handler_is_refused(tmp_path: Path) -> None:
-    """An event with no handler cannot generate a facade."""
-    manifest = _HTTP_EVENT_MANIFEST.replace("handler: __PKG__.ev:BlipEvent", "handler: null")
-    manifest_path = _write_sources(tmp_path, "nullh", manifest)
-    with pytest.raises(BuildError, match="a handler is required"):
-        build_sdk(manifest_path, output_root=tmp_path / "nullh" / "out")
-
-
-def test_event_id_must_be_dotted(tmp_path: Path) -> None:
-    """A single-segment event id has no namespace and is refused."""
-    manifest = _HTTP_EVENT_MANIFEST.replace("id: sensor.blip", "id: blip")
-    manifest_path = _write_sources(tmp_path, "dotless", manifest)
-    with pytest.raises(BuildError, match="must be dotted"):
-        build_sdk(manifest_path, output_root=tmp_path / "dotless" / "out")

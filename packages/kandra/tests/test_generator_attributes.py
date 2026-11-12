@@ -427,22 +427,6 @@ def test_attribute_handler_missing_value_is_refused(tmp_path: Path) -> None:
         build_sdk(manifest_path, output_root=tmp_path / "noval" / "out")
 
 
-def test_attribute_null_handler_is_refused(tmp_path: Path) -> None:
-    """An attribute with no handler cannot generate a facade."""
-    manifest = _HTTP_ATTR_MANIFEST.replace("handler: __PKG__.attr:LevelSetting", "handler: null")
-    manifest_path = _write_sources(tmp_path, "nullh", manifest)
-    with pytest.raises(BuildError, match="a handler is required"):
-        build_sdk(manifest_path, output_root=tmp_path / "nullh" / "out")
-
-
-def test_attribute_id_must_be_dotted(tmp_path: Path) -> None:
-    """A single-segment attribute id has no namespace and is refused."""
-    manifest = _HTTP_ATTR_MANIFEST.replace("id: settings.level", "id: level")
-    manifest_path = _write_sources(tmp_path, "dotless", manifest)
-    with pytest.raises(BuildError, match="must be dotted"):
-        build_sdk(manifest_path, output_root=tmp_path / "dotless" / "out")
-
-
 def test_attribute_non_class_value_is_refused(tmp_path: Path) -> None:
     """A handler whose ``value`` is not a class fails the build."""
     manifest = _HTTP_ATTR_MANIFEST.replace(
